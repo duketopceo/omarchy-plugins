@@ -1,0 +1,24 @@
+{
+  "name": "omarchy-plugins",
+  "owner": "duketopceo",
+  "plugins": [
+    {
+      "id": "lukedaduke.fan",
+      "path": "plugins/lukedaduke.fan",
+      "version": "2.1.0",
+      "kinds": ["bar-widget"]
+    },
+    {
+      "id": "lukedaduke.ticker",
+      "path": "plugins/lukedaduke.ticker",
+      "version": "2.1.0",
+      "kinds": ["bar-widget"]
+    },
+    {
+      "id": "lukedaduke.agents",
+      "path": "plugins/lukedaduke.agents",
+      "version": "1.1.0",
+      "kinds": ["bar-widget"]
+    }
+  ]
+}
