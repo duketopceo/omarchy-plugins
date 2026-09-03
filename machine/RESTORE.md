@@ -1,10 +1,10 @@
 # New-laptop restore playbook
 
-Use this with an AI that has GitHub access to **private** `duketopceo/dotfiles` and `duketopceo/luke-agents`, plus this public repo.
+Use this with an AI that has GitHub access to **private** `duketopceo/omarchy-plugins`, `duketopceo/dotfiles`, and `duketopceo/luke-agents`.
 
 Prompt to paste:
 
-> Restore my Omarchy laptop from `duketopceo/omarchy-plugins` `machine/INDEX.md` and `machine/RESTORE.md`. Pull actual config from private `duketopceo/dotfiles` via chezmoi. Do not invent secrets. Stop and ask for 1Password / Tailscale / GitHub auth when needed.
+> Restore my Omarchy laptop from private `duketopceo/omarchy-plugins` `machine/INDEX.md` and `machine/RESTORE.md`. Pull actual config from private `duketopceo/dotfiles` via chezmoi. Do not invent secrets. Stop and ask for 1Password / Tailscale / GitHub auth when needed.
 
 ## 0. Guardrails
 

@@ -1,6 +1,6 @@
 # omarchy-plugins
 
-> First-party Omarchy bar plugins for Khan's laptop, packaged so they can later publish as `duketopceo/omarchy-plugins`.
+> Private working catalog of first-party Omarchy bar plugins plus a laptop restore index. Not the public marketplace listing.
 
 ## Stack
 
@@ -31,15 +31,21 @@ No `.env` required. See `.env.example`.
 | `lukedaduke.ticker` | Watchlist quotes with TradingView jump |
 | `lukedaduke.agents` | Fork of `omarchy.agents` with extra providers |
 
-## Deploy
+## Deploy / visibility
 
-Not published yet. Later:
+This GitHub repo is **private**. Clone with SSH after `gh auth`.
 
-```bash
-gh repo create duketopceo/omarchy-plugins --source . --private --push
-```
+Omarchy's `omarchy plugin add <url>` and the [official marketplace](https://plugins.omarchy.org/publish.html) both require a **public** git repo with `manifest.json` at the **root**. This umbrella cannot be submitted as-is.
 
-Omarchy's `omarchy plugin add <url>` expects **one plugin per git repo** (`manifest.json` at the repo root). Until we split remotes, use `scripts/install.sh`. Each `plugins/<id>/` directory is already a valid plugin root.
+When a plugin is ready to list:
+
+1. Split that directory into its own public repo (`duketopceo/omarchy-fan`, etc.).
+2. `omarchy plugin validate` on it.
+3. Submit at [plugins.omarchy.org/publish](https://plugins.omarchy.org/publish.html) (or PR a catalog entry if a listing uses `plugins.txt`).
+
+Until then, install with `scripts/install.sh`. Each `plugins/<id>/` is already a valid plugin root.
+
+See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
 ## Docs
 

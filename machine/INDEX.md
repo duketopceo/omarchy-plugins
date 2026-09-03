@@ -22,7 +22,7 @@ This is a **restore map**, not a secret store. Config files live in private `duk
 
 | Repo | Visibility | Role |
 |---|---|---|
-| [duketopceo/omarchy-plugins](https://github.com/duketopceo/omarchy-plugins) | public | This catalog + first-party plugins |
+| [duketopceo/omarchy-plugins](https://github.com/duketopceo/omarchy-plugins) | **private** | This catalog + first-party plugins + machine index |
 | [duketopceo/dotfiles](https://github.com/duketopceo/dotfiles) | **private** | chezmoi: hypr, omarchy shell, terminals, systemd user timers, CLAUDE.md |
 | [duketopceo/luke-agents](https://github.com/duketopceo/luke-agents) | **private** | AGENTS.md constitution + skills |
 | bartlett-agents (work) | private | Extra `ce-*` skills |
