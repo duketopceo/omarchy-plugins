@@ -1,0 +1,6 @@
+brave-bin
+claude-desktop
+nordvpn-gui-bin
+slack-desktop
+snapd
+termius

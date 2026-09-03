@@ -17,6 +17,7 @@ First-party Omarchy shell plugins (Quickshell QML) for Khan's laptop bar: hardwa
 - `scripts/install.sh` — `--link` or `--copy` into Omarchy plugin dir
 - `scripts/validate-manifests.py` — schema check
 - `catalog.json` — machine-readable plugin list
+- `machine/` — laptop inventory and restore playbook (no secrets)
 
 ## Current Status
 

@@ -1,0 +1,64 @@
+{
+  "first_party_from_this_repo": [
+    "lukedaduke.fan",
+    "lukedaduke.ticker",
+    "lukedaduke.agents"
+  ],
+  "marketplace": [
+    {
+      "id": "akitaonrails.ai-usagebar",
+      "git": "https://github.com/akitaonrails/ai-usagebar.git"
+    },
+    {
+      "id": "crmne.hyprmoncfg",
+      "git": "https://github.com/crmne/omarchy-hyprmoncfg.git"
+    },
+    {
+      "id": "hancore.voxtype-enhance",
+      "git": "https://github.com/iamcheyan/omarchy-voxtype-enhance.git"
+    },
+    {
+      "id": "io.github.idr4n.clipboard-plus",
+      "git": "https://github.com/idr4n/omarchy-clipboard-plus.git"
+    },
+    {
+      "id": "io.github.ncr.omaphones",
+      "git": "https://github.com/ncr/omarchy-headphones"
+    },
+    {
+      "id": "io.github.sirjul1337.lock-explorer",
+      "git": "https://github.com/SirJul1337/omarchy-lock-explorer.git"
+    },
+    {
+      "id": "io.github.tyrichards.tray",
+      "git": "https://github.com/TyRichards/omarchy-tray.git"
+    },
+    {
+      "id": "jankeesvw.notification-center",
+      "git": "https://github.com/jankeesvw/omarchy-notification-center.git"
+    },
+    {
+      "id": "robzolkos.github",
+      "git": "https://github.com/robzolkos/omarchy-github.git"
+    },
+    {
+      "id": "soup.airpods",
+      "git": "https://github.com/s0up4200/omarchy-airpods.git"
+    },
+    {
+      "id": "tmn73.calendar",
+      "git": "https://github.com/tmn73/omarchy-calendar.git"
+    }
+  ],
+  "local_only_not_in_this_repo": [
+    "lukedaduke.tailscale"
+  ],
+  "disabled_on_source_machine": [
+    "omarchy.lock",
+    "omarchy.clock",
+    "omarchy.tray",
+    "omarchy.monitor",
+    "lukedaduke.agents",
+    "omarchy.keyboard-layout"
+  ]
+}

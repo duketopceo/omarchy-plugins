@@ -1,0 +1,107 @@
+{
+  "idle": {
+    "lock": 600,
+    "screensaver": 300
+  },
+  "disabledPlugins": [
+    "omarchy.lock",
+    "omarchy.clock",
+    "omarchy.tray",
+    "omarchy.monitor",
+    "lukedaduke.agents",
+    "omarchy.keyboard-layout"
+  ],
+  "bar": {
+    "position": "top",
+    "transparent": true,
+    "centerAnchor": "tmn73.calendar",
+    "layout": {
+      "center": [
+        {
+          "id": "omarchy.indicators"
+        },
+        {
+          "id": "tmn73.calendar",
+          "format": "dddd h:mm AP",
+          "formatAlt": "d MMMM 'W'ww yyyy",
+          "verticalFormat": "h\n\u2014\nmm\nAP"
+        },
+        {
+          "id": "omarchy.weather",
+          "unit": "imperial"
+        },
+        {
+          "id": "robzolkos.github",
+          "iconAlwaysUnlit": true
+        },
+        {
+          "id": "omarchy.system-update"
+        }
+      ],
+      "left": [
+        {
+          "id": "omarchy.menu"
+        },
+        {
+          "id": "omarchy.workspaces"
+        },
+        {
+          "id": "omarchy.active-window"
+        },
+        {
+          "id": "omarchy.media",
+          "maxLabelWidth": 140
+        }
+      ],
+      "right": [
+        {
+          "id": "io.github.tyrichards.tray"
+        },
+        {
+          "id": "jankeesvw.notification-center"
+        },
+        {
+          "id": "hancore.voxtype-enhance"
+        },
+        {
+          "id": "akitaonrails.ai-usagebar",
+          "showValue": false,
+          "lastSelectedEntryId": "anthropic"
+        },
+        {
+          "id": "lukedaduke.ticker"
+        },
+        {
+          "id": "omarchy.tailscale"
+        },
+        {
+          "id": "soup.airpods"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "crmne.hyprmoncfg"
+        },
+        {
+          "id": "lukedaduke.fan"
+        },
+        {
+          "id": "omarchy.power",
+          "showPercentage": true
+        },
+        {
+          "id": "io.github.ncr.omaphones",
+          "deviceMatch": "Between 3ANC",
+          "useModeControl": false
+        }
+      ]
+    }
+  }
+}

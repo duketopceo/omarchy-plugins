@@ -45,3 +45,4 @@ Omarchy's `omarchy plugin add <url>` expects **one plugin per git repo** (`manif
 
 - See `AGENTS.md` for agent context.
 - Plan: `docs/plans/2026-09-02-001-feat-omarchy-plugins-marketplace-plan.md`
+- New laptop restore: [`machine/INDEX.md`](machine/INDEX.md) and [`machine/RESTORE.md`](machine/RESTORE.md) (no secrets; private configs live in `duketopceo/dotfiles`)

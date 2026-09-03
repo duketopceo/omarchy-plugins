@@ -1,0 +1,12 @@
+[tools]
+claude = "latest"
+codex = "latest"
+copilot = "latest"
+crush = "latest"
+gemini = { version = "latest", allow_builds = ["@github/keytar", "node-pty"] }
+gh = "latest"
+"github:can1357/oh-my-pi" = "latest"
+node = "26.7.0"
+"npm:@xai-official/grok" = "latest"
+opencode = "latest"
+zig = "latest"
