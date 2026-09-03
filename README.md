@@ -1,6 +1,6 @@
 # omarchy-plugins
 
-> Private working catalog of first-party Omarchy bar plugins plus a laptop restore index. Not the public marketplace listing.
+> Luke's personal Omarchy bar plugins plus a laptop restore index. Not first-party Omarchy, and not a marketplace listing.
 
 ## Stack
 

@@ -7,7 +7,7 @@ Inherits from [luke-agents/AGENTS.md](https://github.com/duketopceo/luke-agents/
 
 ## What This Repo Does
 
-First-party Omarchy shell plugins (Quickshell QML) for Khan's laptop bar: hardware/fan, market ticker, and extra-provider agent usage. Source of truth for `lukedaduke.*` plugins. Live install is a symlink into `~/.config/omarchy/plugins/`.
+Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardware/fan, market ticker, and extra-provider agent usage. Source of truth for `lukedaduke.*` plugins. Live install is a symlink into `~/.config/omarchy/plugins/`.
 
 ## Key Files
 
@@ -22,7 +22,7 @@ First-party Omarchy shell plugins (Quickshell QML) for Khan's laptop bar: hardwa
 ## Current Status
 
 - [x] In development
-- [ ] Deployed (GitHub `duketopceo/omarchy-plugins` not created yet)
+- [x] On GitHub (`duketopceo/omarchy-plugins`, private). Not first-party Omarchy.
 - [ ] Production traffic (local desktop only)
 
 ## Active Issues / Known State
