@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Fetch weather and sunrise/sunset for the lukedaduke.standby overlay.
+
+Uses Open-Meteo (https://open-meteo.com) for current conditions, today's
+high/low, and sunrise/sunset times. Location is read from
+~/.local/state/omarchy/settings/weather.json; if that is missing or incomplete,
+an IP geolocation service is used as a fallback.
+"""
+
+import json
+import os
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+HOME = Path.home()
+LOC_FILE = HOME / ".local/state/omarchy/settings/weather.json"
+CACHE_FILE = HOME / ".cache/omarchy/standby-weather.json"
+
+WMO_DESCRIPTIONS = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    56: "Light freezing drizzle",
+    57: "Dense freezing drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    66: "Light freezing rain",
+    67: "Heavy freezing rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+}
+
+
+def iso_to_hm(iso: str) -> str:
+    if not iso:
+        return ""
+    try:
+        return iso.split("T")[1][:5]
+    except Exception:
+        return ""
+
+
+def load_weather_location():
+    if not LOC_FILE.is_file():
+        return None, None, ""
+    try:
+        data = json.loads(LOC_FILE.read_text())
+        lat = data.get("latitude")
+        lon = data.get("longitude")
+        name = data.get("name", "")
+        if lat is not None and lon is not None:
+            return float(lat), float(lon), name
+        if name:
+            return None, None, name
+    except (OSError, ValueError):
+        pass
+    return None, None, ""
+
+
+def fetch_json(url: str, timeout: int = 10):
+    req = urllib.request.Request(url, headers={"User-Agent": "lukedaduke.standby/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def get_ip_location():
+    for url in ("https://ipapi.co/json/", "http://ip-api.com/json/?fields=lat,lon,city"):
+        try:
+            data = fetch_json(url, timeout=5)
+            lat = data.get("latitude") if "latitude" in data else data.get("lat")
+            lon = data.get("longitude") if "longitude" in data else data.get("lon")
+            name = data.get("city", "")
+            return float(lat), float(lon), name
+        except Exception:
+            continue
+    return None, None, ""
+
+
+def write_cache(payload):
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(payload))
+    except OSError:
+        pass
+
+
+def read_cache():
+    if CACHE_FILE.is_file():
+        try:
+            return CACHE_FILE.read_text()
+        except OSError:
+            pass
+    return None
+
+
+def main():
+    lat, lon, name = load_weather_location()
+    if lat is None or lon is None:
+        lat, lon, name = get_ip_location()
+
+    if lat is None or lon is None:
+        cached = read_cache()
+        if cached:
+            print(cached)
+            return
+        print(json.dumps({"error": "unable to determine location"}))
+        return
+
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,is_day"
+        "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
+        "&timezone=auto&forecast_days=1"
+    )
+
+    try:
+        data = fetch_json(url, timeout=10)
+    except Exception as exc:
+        cached = read_cache()
+        if cached:
+            print(cached)
+            return
+        print(json.dumps({"error": f"weather fetch failed: {exc}"}))
+        return
+
+    current = data.get("current", {})
+    daily = data.get("daily", {})
+    units = data.get("current_units", {})
+    temp_unit = units.get("temperature_2m", "°C")
+    wind_unit = units.get("wind_speed_10m", "km/h")
+
+    code = current.get("weather_code")
+    description = WMO_DESCRIPTIONS.get(code, "Unknown")
+
+    temp = current.get("temperature_2m")
+    feels = current.get("apparent_temperature")
+    hum = current.get("relative_humidity_2m")
+    wind = current.get("wind_speed_10m")
+
+    def fmt_temp(value):
+        if value is None:
+            return ""
+        return f"{round(value)}{temp_unit}"
+
+    result = {
+        "location": name or "Local",
+        "description": description,
+        "temperature": fmt_temp(temp),
+        "feelsLike": fmt_temp(feels),
+        "humidity": f"{hum}%" if hum is not None else "",
+        "wind": f"{round(wind)} {wind_unit}" if wind is not None else "",
+        "sunrise": iso_to_hm(daily.get("sunrise", [None])[0]),
+        "sunset": iso_to_hm(daily.get("sunset", [None])[0]),
+        "high": fmt_temp(daily.get("temperature_2m_max", [None])[0]),
+        "low": fmt_temp(daily.get("temperature_2m_min", [None])[0]),
+    }
+
+    write_cache(result)
+    print(json.dumps(result))
+
+
+if __name__ == "__main__":
+    main()

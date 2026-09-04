@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.standby",
+  "name": "Standby",
+  "version": "1.0.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Fullscreen nightstand overlay with clock, weather, sunrise/sunset, red tint, low brightness, and caffeine mode.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Standby.qml"
+  }
+}
