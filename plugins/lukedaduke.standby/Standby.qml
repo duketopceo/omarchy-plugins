@@ -63,7 +63,10 @@ Item {
   function toggleRedTint() { root.redTint = !root.redTint; }
   function toggleLowBrightness() { root.lowBrightness = !root.lowBrightness; }
 
-  readonly property color textColor: root.redTint ? Color.urgent : Color.foreground
+  readonly property color textColor: root.redTint
+    ? Qt.tint(Color.foreground, Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.10))
+    : Color.foreground
+  property real contentOpacity: root.lowBrightness ? 0.35 : 1.0
 
   Timer {
     id: clockTimer
@@ -157,7 +160,7 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: Color.background
+      color: "black"
     }
 
     MouseArea {
@@ -201,6 +204,7 @@ Item {
           verticalItemAlignment: Grid.AlignVCenter
           horizontalItemAlignment: Grid.AlignHCenter
           spacing: Style.gapsOut * 6
+          opacity: root.contentOpacity
 
           Column {
             id: clockColumn
@@ -370,7 +374,7 @@ Item {
 
                 Text {
                   text: modelData.change || ""
-                  color: modelData.positive ? Color.foreground : Color.urgent
+                  color: modelData.positive ? root.textColor : Color.urgent
                   font.family: Style.font.family
                   font.pixelSize: Math.min(panel.width, panel.height) / 26
                   opacity: 0.85
@@ -427,18 +431,6 @@ Item {
       }
     }
 
-    Rectangle {
-      anchors.fill: parent
-      color: "black"
-      opacity: root.lowBrightness ? 0.65 : 0
-      enabled: false
-    }
 
-    Rectangle {
-      anchors.fill: parent
-      color: Color.urgent
-      opacity: root.redTint ? 0.28 : 0
-      enabled: false
-    }
   }
 }
