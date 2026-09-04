@@ -18,10 +18,12 @@ Item {
   property var currentTime: new Date()
   property var weatherData: ({})
   property string weatherError: ""
+  property var marketData: ({})
 
   function open(payload) {
     root.opened = true;
-    refreshData();
+    refreshWeather();
+    refreshMarket();
   }
 
   function close() {
@@ -39,9 +41,14 @@ Item {
     }
   }
 
-  function refreshData() {
+  function refreshWeather() {
     weatherProc.running = false;
     weatherProc.running = true;
+  }
+
+  function refreshMarket() {
+    marketProc.running = false;
+    marketProc.running = true;
   }
 
   function toggleCaffeine() {
@@ -56,6 +63,8 @@ Item {
   function toggleRedTint() { root.redTint = !root.redTint; }
   function toggleLowBrightness() { root.lowBrightness = !root.lowBrightness; }
 
+  readonly property color textColor: root.redTint ? Color.urgent : Color.foreground
+
   Timer {
     id: clockTimer
     interval: 1000
@@ -69,7 +78,15 @@ Item {
     interval: 5 * 60 * 1000
     repeat: true
     running: root.opened
-    onTriggered: root.refreshData()
+    onTriggered: root.refreshWeather()
+  }
+
+  Timer {
+    id: marketTimer
+    interval: 60000
+    repeat: true
+    running: root.opened
+    onTriggered: root.refreshMarket()
   }
 
   FileView {
@@ -103,6 +120,23 @@ Item {
     }
   }
 
+  Process {
+    id: marketProc
+    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/lukedaduke.ticker/bin/market_stats.py"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim();
+        if (!raw) return;
+        try {
+          root.marketData = JSON.parse(raw);
+        } catch (e) {
+          root.marketData = { error: "market parse error" };
+        }
+      }
+    }
+  }
+
   PanelWindow {
     id: panel
     visible: root.opened
@@ -115,7 +149,8 @@ Item {
 
     onVisibleChanged: {
       if (visible) {
-        root.refreshData();
+        root.refreshWeather();
+        root.refreshMarket();
         Qt.callLater(function() { keyCatcher.forceActiveFocus(); });
       }
     }
@@ -123,18 +158,6 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: Color.background
-    }
-
-    Rectangle {
-      anchors.fill: parent
-      color: Color.urgent
-      opacity: root.redTint ? 0.12 : 0
-    }
-
-    Rectangle {
-      anchors.fill: parent
-      color: "black"
-      opacity: root.lowBrightness ? 0.55 : 0
     }
 
     MouseArea {
@@ -160,29 +183,33 @@ Item {
         } else if (event.key === Qt.Key_C) {
           root.toggleCaffeine();
           event.accepted = true;
+        } else if (event.key === Qt.Key_M) {
+          root.refreshMarket();
+          event.accepted = true;
         }
       }
 
       Item {
         anchors.fill: parent
-        anchors.margins: Style.gapsOut * 4
+        anchors.margins: Style.gapsOut * 3
 
         Grid {
           id: contentGrid
           anchors.centerIn: parent
-          columns: panel.width > panel.height ? 2 : 1
+          columns: panel.width > panel.height ? 3 : 1
           flow: Grid.LeftToRight
           verticalItemAlignment: Grid.AlignVCenter
           horizontalItemAlignment: Grid.AlignHCenter
-          spacing: Style.gapsOut * 8
+          spacing: Style.gapsOut * 6
 
           Column {
+            id: clockColumn
             spacing: Style.gapsOut
 
             Text {
               id: timeText
               text: Qt.formatTime(root.currentTime, "h:mm")
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 3.5
               horizontalAlignment: Text.AlignHCenter
@@ -191,21 +218,22 @@ Item {
             Text {
               text: Qt.formatTime(root.currentTime, "AP").toUpperCase()
               visible: text !== ""
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 10
               horizontalAlignment: Text.AlignHCenter
               anchors.horizontalCenter: parent.horizontalCenter
+              opacity: 0.8
             }
 
             Text {
               text: Qt.formatDate(root.currentTime, "dddd, MMMM d")
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 18
               horizontalAlignment: Text.AlignHCenter
               anchors.horizontalCenter: parent.horizontalCenter
-              opacity: 0.75
+              opacity: 0.6
             }
           }
 
@@ -215,16 +243,16 @@ Item {
 
             Text {
               text: root.weatherError ? root.weatherError : (root.weatherData.location || "")
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 24
-              opacity: 0.6
+              opacity: 0.5
               horizontalAlignment: Text.AlignLeft
             }
 
             Text {
               text: root.weatherData.description || ""
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 18
               horizontalAlignment: Text.AlignLeft
@@ -232,7 +260,7 @@ Item {
 
             Text {
               text: root.weatherData.temperature ? root.weatherData.temperature : ""
-              color: root.redTint ? Color.urgent : Color.foreground
+              color: root.textColor
               font.family: Style.font.family
               font.pixelSize: Math.min(panel.width, panel.height) / 10
               horizontalAlignment: Text.AlignLeft
@@ -242,14 +270,14 @@ Item {
               spacing: Style.gapsOut * 2
               Text {
                 text: root.weatherData.high ? "H " + root.weatherData.high : ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
               Text {
                 text: root.weatherData.low ? "L " + root.weatherData.low : ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
@@ -260,14 +288,14 @@ Item {
               spacing: Style.gapsOut * 2
               Text {
                 text: root.weatherData.sunrise ? "↑ " + root.weatherData.sunrise : ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
               Text {
                 text: root.weatherData.sunset ? "↓ " + root.weatherData.sunset : ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
@@ -279,18 +307,74 @@ Item {
               Text {
                 text: root.weatherData.humidity ? "Hum " + root.weatherData.humidity : ""
                 visible: text !== ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 26
-                opacity: 0.6
+                opacity: 0.55
               }
               Text {
                 text: root.weatherData.wind ? "Wind " + root.weatherData.wind : ""
                 visible: text !== ""
-                color: root.redTint ? Color.urgent : Color.foreground
+                color: root.textColor
                 font.family: Style.font.family
                 font.pixelSize: Math.min(panel.width, panel.height) / 26
-                opacity: 0.6
+                opacity: 0.55
+              }
+            }
+          }
+
+          Column {
+            spacing: Style.gapsOut * 2
+            visible: root.marketData.items !== undefined || root.marketData.error !== undefined
+
+            Text {
+              text: "MARKETS"
+              color: root.textColor
+              font.family: Style.font.family
+              font.pixelSize: Math.min(panel.width, panel.height) / 24
+              opacity: 0.5
+              horizontalAlignment: Text.AlignLeft
+            }
+
+            Text {
+              text: root.marketData.summary || (root.marketData.error || "")
+              color: root.textColor
+              font.family: Style.font.family
+              font.pixelSize: Math.min(panel.width, panel.height) / 22
+              opacity: 0.75
+              horizontalAlignment: Text.AlignLeft
+            }
+
+            Repeater {
+              model: root.marketData.items ? root.marketData.items.slice(0, 8) : []
+
+              Row {
+                spacing: Style.gapsOut * 2
+
+                Text {
+                  text: modelData.symbol || ""
+                  color: root.textColor
+                  font.family: Style.font.family
+                  font.pixelSize: Math.min(panel.width, panel.height) / 26
+                  opacity: 0.8
+                  width: Math.min(panel.width, panel.height) / 10
+                }
+
+                Text {
+                  text: modelData.price || ""
+                  color: root.textColor
+                  font.family: Style.font.family
+                  font.pixelSize: Math.min(panel.width, panel.height) / 26
+                  opacity: 0.8
+                }
+
+                Text {
+                  text: modelData.change || ""
+                  color: modelData.positive ? Color.foreground : Color.urgent
+                  font.family: Style.font.family
+                  font.pixelSize: Math.min(panel.width, panel.height) / 26
+                  opacity: 0.85
+                }
               }
             }
           }
@@ -303,10 +387,10 @@ Item {
 
           Text {
             text: "[R]ed " + (root.redTint ? "on" : "off")
-            color: root.redTint ? Color.urgent : Color.foreground
+            color: root.textColor
             font.family: Style.font.family
             font.pixelSize: Style.font.body
-            opacity: 0.5
+            opacity: 0.45
 
             MouseArea {
               anchors.fill: parent
@@ -316,10 +400,10 @@ Item {
 
           Text {
             text: "[B]right " + (root.lowBrightness ? "low" : "high")
-            color: Color.foreground
+            color: root.textColor
             font.family: Style.font.family
             font.pixelSize: Style.font.body
-            opacity: 0.5
+            opacity: 0.45
 
             MouseArea {
               anchors.fill: parent
@@ -329,10 +413,10 @@ Item {
 
           Text {
             text: "[C]affeine " + (root.caffeine ? "on" : "off")
-            color: root.caffeine ? Color.urgent : Color.foreground
+            color: root.caffeine ? Color.urgent : root.textColor
             font.family: Style.font.family
             font.pixelSize: Style.font.body
-            opacity: 0.5
+            opacity: 0.45
 
             MouseArea {
               anchors.fill: parent
@@ -341,6 +425,20 @@ Item {
           }
         }
       }
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      color: "black"
+      opacity: root.lowBrightness ? 0.65 : 0
+      enabled: false
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      color: Color.urgent
+      opacity: root.redTint ? 0.28 : 0
+      enabled: false
     }
   }
 }
