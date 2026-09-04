@@ -66,7 +66,7 @@ Item {
   readonly property color textColor: root.redTint
     ? Qt.tint(Color.foreground, Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.10))
     : Color.foreground
-  property real contentOpacity: root.lowBrightness ? 0.35 : 1.0
+  property real contentOpacity: root.lowBrightness ? 0.12 : 1.0
 
   Timer {
     id: clockTimer
@@ -388,6 +388,7 @@ Item {
           anchors.bottom: parent.bottom
           anchors.horizontalCenter: parent.horizontalCenter
           spacing: Style.gapsOut * 3
+          opacity: root.lowBrightness ? 0.25 : 0.55
 
           Text {
             text: "[R]ed " + (root.redTint ? "on" : "off")
