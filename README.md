@@ -27,9 +27,10 @@ No `.env` required. See `.env.example`.
 
 | Id | What |
 |---|---|
-| `lukedaduke.fan` | RAM, CPU/GPU/NVMe temps, top processes, fan presets |
+| `lukedaduke.fan` | RAM, CPU/GPU/NVMe temps, top processes, fan presets + custom curves |
 | `lukedaduke.ticker` | Watchlist quotes with TradingView jump |
 | `lukedaduke.agents` | Fork of `omarchy.agents` with extra providers |
+| `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
 
 ## Deploy / visibility
 

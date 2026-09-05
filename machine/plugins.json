@@ -2,7 +2,15 @@
   "first_party_from_this_repo": [
     "lukedaduke.fan",
     "lukedaduke.ticker",
-    "lukedaduke.agents"
+    "lukedaduke.agents",
+    "lukedaduke.standby"
+  ],
+  "own_plugin_in_separate_repo": [
+    {
+      "id": "io.github.duketopceo.dayflow",
+      "repo": "duketopceo/dayflow-linux",
+      "source_dir": "~/Documents/github/personal/dayflow-linux"
+    }
   ],
   "marketplace": [
     {
@@ -30,12 +38,28 @@
       "git": "https://github.com/SirJul1337/omarchy-lock-explorer.git"
     },
     {
+      "id": "io.github.twiking.omasettings",
+      "git": "https://github.com/twiking/omasettings.git"
+    },
+    {
       "id": "io.github.tyrichards.tray",
       "git": "https://github.com/TyRichards/omarchy-tray.git"
     },
     {
       "id": "jankeesvw.notification-center",
       "git": "https://github.com/jankeesvw/omarchy-notification-center.git"
+    },
+    {
+      "id": "mohamedmansour.finance",
+      "git": "https://github.com/mohamedmansour/omafinance.git"
+    },
+    {
+      "id": "nixfred.blip",
+      "git": "https://github.com/nixfred/blip"
+    },
+    {
+      "id": "omaplug",
+      "git": "https://github.com/fross100/omaplug.git"
     },
     {
       "id": "robzolkos.github",
@@ -58,7 +82,10 @@
     "omarchy.clock",
     "omarchy.tray",
     "omarchy.monitor",
+    "omarchy.keyboard-layout",
     "lukedaduke.agents",
-    "omarchy.keyboard-layout"
+    "lukedaduke.ticker",
+    "lukedaduke.tailscale",
+    "io.github.idr4n.clipboard-plus"
   ]
 }
