@@ -31,10 +31,12 @@ def test_empty_hwmon_temps(tmp_path: Path) -> None:
     stats = load(STATS, "system_monitor_stats")
     empty = tmp_path / "hwmon"
     empty.mkdir()
-    cpu, gpu, nvme, fan1, fan2 = stats.read_temps(hwmon={})
+    devices = stats.hwmon_paths(base=empty)
+    assert devices == {}
+    cpu, fan1, fan2 = stats.cpu_temp_and_fans(devices)
     assert cpu == "--"
-    assert nvme == "--"
     assert fan1 == 0
+    assert stats.nvme_temp(devices) == "--"
 
 
 def test_kill_refuses_pid_one() -> None:

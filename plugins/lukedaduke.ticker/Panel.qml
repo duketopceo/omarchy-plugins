@@ -18,7 +18,7 @@ Panel {
   property int selectedIndex: 0
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color urgent: Color.urgent
   readonly property color accent: Color.accent
   readonly property color muted: Color.muted
   readonly property string pluginRoot: {
