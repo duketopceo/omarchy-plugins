@@ -6,10 +6,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 declare -A REPO=(
-  [fan]="https://github.com/duketopceo/omarchy-fan"
-  [ticker]="https://github.com/duketopceo/omarchy-ticker"
-  [agents]="https://github.com/duketopceo/omarchy-agents"
-  [standby]="https://github.com/duketopceo/omarchy-standby"
+  [fan]="git@github.com:duketopceo/omarchy-fan.git"
+  [ticker]="git@github.com:duketopceo/omarchy-ticker.git"
+  [agents]="git@github.com:duketopceo/omarchy-agents.git"
+  [standby]="git@github.com:duketopceo/omarchy-standby.git"
 )
 
 ship() {
