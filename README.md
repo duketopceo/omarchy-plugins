@@ -34,17 +34,26 @@ No `.env` required. See `.env.example`.
 
 ## Deploy / visibility
 
-This GitHub repo is **public**: https://github.com/duketopceo/omarchy-plugins
+This umbrella repo is **public**: https://github.com/duketopceo/omarchy-plugins
 
-Omarchy's `omarchy plugin add <url>` and the [official marketplace](https://plugins.omarchy.org/publish.html) both require a **public** git repo with `manifest.json` at the **root**. This umbrella cannot be submitted as-is.
+Each plugin is also published as its own installable repo (`manifest.json` at root, `omarchy plugin validate` clean):
 
-When a plugin is ready to list:
+| Plugin | Repo |
+|---|---|
+| `lukedaduke.fan` | https://github.com/duketopceo/omarchy-fan |
+| `lukedaduke.ticker` | https://github.com/duketopceo/omarchy-ticker |
+| `lukedaduke.agents` | https://github.com/duketopceo/omarchy-agents |
+| `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
 
-1. Split that directory into its own public repo (`duketopceo/omarchy-fan`, etc.).
-2. `omarchy plugin validate` on it.
-3. Submit at [plugins.omarchy.org/publish](https://plugins.omarchy.org/publish.html) (or PR a catalog entry if a listing uses `plugins.txt`).
+Install any of them with:
 
-Until then, install with `scripts/install.sh`. Each `plugins/<id>/` is already a valid plugin root.
+```bash
+omarchy plugin add https://github.com/duketopceo/omarchy-fan
+```
+
+To list on the marketplace, submit the per-plugin repo at [plugins.omarchy.org/publish](https://plugins.omarchy.org/publish.html).
+
+This umbrella stays the authoring catalog — edit here, then `git subtree push --prefix=plugins/<id> <repo> main` to ship an update. Or install locally with `scripts/install.sh`.
 
 See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
