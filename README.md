@@ -34,7 +34,7 @@ No `.env` required. See `.env.example`.
 
 ## Deploy / visibility
 
-This GitHub repo is **private**. Clone with SSH after `gh auth`.
+This GitHub repo is **public**: https://github.com/duketopceo/omarchy-plugins
 
 Omarchy's `omarchy plugin add <url>` and the [official marketplace](https://plugins.omarchy.org/publish.html) both require a **public** git repo with `manifest.json` at the **root**. This umbrella cannot be submitted as-is.
 

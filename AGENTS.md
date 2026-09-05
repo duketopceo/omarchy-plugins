@@ -22,7 +22,7 @@ Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardw
 ## Current Status
 
 - [x] In development
-- [x] On GitHub (`duketopceo/omarchy-plugins`, private). Not first-party Omarchy.
+- [x] On GitHub (`duketopceo/omarchy-plugins`, public). Not first-party Omarchy.
 - [ ] Production traffic (local desktop only)
 
 ## Active Issues / Known State
