@@ -81,14 +81,12 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󱐋 NEXUS"
-    fontSize: Style.font.bodySmall
-    tooltipText: "System Interconnect Map"
-    horizontalMargin: 8.5
+    text: "󱐋"
+    tooltipText: "Nexus · Interconnect Map"
     onPressed: function (b) {
       root.refresh()
       root.toggle()
