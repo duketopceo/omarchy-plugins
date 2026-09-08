@@ -9,6 +9,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable
 
+MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB hard ceiling per Yahoo response
+
 TICKERS: list[dict[str, str]] = [
     {"sym": "GC=F", "display_sym": "GOLD", "name": "Gold Spot ($/oz)", "cat": "Gold & Precious Metals", "tv": "OANDA:XAUUSD"},
     {"sym": "GDX", "display_sym": "GDX", "name": "VanEck Gold Miners ETF", "cat": "Gold & Precious Metals", "tv": "AMEX:GDX"},
@@ -52,7 +54,17 @@ def fetch_yahoo_chart(sym: str, timeout: float = 3.0) -> dict[str, Any]:
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
     req = urllib.request.Request(url, headers={"User-Agent": "omarchy-plugins/2.1"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode())
+        # Enforce a strict producer-side byte budget before parsing.
+        cl = resp.headers.get("Content-Length")
+        if cl is not None and int(cl) > MAX_RESPONSE_BYTES:
+            raise ValueError(f"Content-Length {cl} exceeds {MAX_RESPONSE_BYTES} byte budget")
+        content_type = resp.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        if content_type and content_type not in {"application/json", "application/x-json", "text/json"}:
+            raise ValueError(f"unexpected response type {content_type}")
+        data = resp.read(MAX_RESPONSE_BYTES + 1)
+        if len(data) > MAX_RESPONSE_BYTES:
+            raise ValueError("response body exceeded byte budget")
+        return json.loads(data.decode())
 
 
 def quote_item(
