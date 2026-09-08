@@ -10,8 +10,11 @@ an IP geolocation service is used as a fallback.
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+
+MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB per remote response
 
 HOME = Path.home()
 LOC_FILE = HOME / ".local/state/omarchy/settings/weather.json"
@@ -65,7 +68,7 @@ def load_weather_location():
         data = json.loads(LOC_FILE.read_text())
         lat = data.get("latitude")
         lon = data.get("longitude")
-        name = data.get("name", "")
+        name = str(data.get("name", ""))[:60]
         if lat is not None and lon is not None:
             return float(lat), float(lon), name
         if name:
@@ -75,19 +78,46 @@ def load_weather_location():
     return None, None, ""
 
 
+class HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only when the destination is also HTTPS."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlparse(newurl).scheme != "https":
+            raise urllib.error.URLError(f"refused to follow non-HTTPS redirect to {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+FETCH_OPENER = urllib.request.build_opener(HTTPSOnlyRedirectHandler)
+
+
 def fetch_json(url: str, timeout: int = 10):
+    if urllib.parse.urlparse(url).scheme != "https":
+        raise urllib.error.URLError(f"refused non-HTTPS URL: {url}")
+
     req = urllib.request.Request(url, headers={"User-Agent": "lukedaduke.standby/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    with FETCH_OPENER.open(req, timeout=timeout) as resp:
+        cl = resp.headers.get("Content-Length")
+        if cl is not None and int(cl) > MAX_RESPONSE_BYTES:
+            raise ValueError(f"Content-Length {cl} exceeds byte budget")
+        content_type = resp.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+        if content_type and content_type not in {"application/json", "application/x-json", "text/json"}:
+            raise ValueError(f"unexpected response type {content_type}")
+        data = resp.read(MAX_RESPONSE_BYTES + 1)
+        if len(data) > MAX_RESPONSE_BYTES:
+            raise ValueError("response body exceeded byte budget")
+        return json.loads(data.decode("utf-8"))
 
 
 def get_ip_location():
-    for url in ("https://ipapi.co/json/", "http://ip-api.com/json/?fields=lat,lon,city"):
+    # HTTPS only; the previous HTTP fallback has been removed to avoid downgrade.
+    for url in ("https://ipapi.co/json/",):
         try:
             data = fetch_json(url, timeout=5)
             lat = data.get("latitude") if "latitude" in data else data.get("lat")
             lon = data.get("longitude") if "longitude" in data else data.get("lon")
-            name = data.get("city", "")
+            name = str(data.get("city", ""))[:60]
+            if lat is None or lon is None:
+                continue
             return float(lat), float(lon), name
         except Exception:
             continue
