@@ -12,7 +12,10 @@ add` has the same constraint, so each plugin ships from its own repo.
 
 - **Outbound (publish):** `scripts/publish.sh <id|all>` subtree-pushes
   `plugins/lukedaduke.<id>/` to `duketopceo/omarchy-<id>` `main`. Run it after
-  any plugin change that should ship.
+  any plugin change that should ship. If the standalone repo has diverged
+  (fixes pushed repo-side, e.g. marketplace review), the script reconciles by
+  committing our subtree content on top of the remote tip — always a
+  fast-forward, never a force-push.
 - **Inbound (adopt):** fixes sometimes land on a standalone repo directly
   (e.g. marketplace security review at a pinned SHA). Bring them home with a
   subtree merge so the umbrella stays authoritative and the next `publish.sh`
