@@ -22,13 +22,11 @@ omarchy-shell shell hide lukedaduke.standby
 | `R` | Toggle subtle red tint |
 | `B` | Toggle low/high brightness |
 | `C` | Caffeine / stay-awake mode |
-| `M` | Refresh market data |
 
 ## What it shows
 
 - Large horizontal clock with AM/PM and date
 - Weather from Open-Meteo: condition, temp, high/low, humidity, wind, sunrise, sunset
-- Market rows (reuses `lukedaduke.ticker`'s `market_stats.py` when installed)
 - Pure black background; content stays extremely dim for OLED/dark rooms
 
 ## Notes
