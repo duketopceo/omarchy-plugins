@@ -1,9 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Watchlist quotes JSON for the lukedaduke.ticker panel."""
 
 from __future__ import annotations
 
 import json
+import os
+import signal
 import time
 import urllib.error
 import urllib.parse
@@ -11,6 +13,8 @@ import urllib.request
 from typing import Any, Callable
 
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB hard ceiling per Yahoo response
+JOB_DEADLINE_S = 45  # whole-job wall clock, under the 60s refresh interval
+MAX_ERR = 120
 
 
 class HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -63,10 +67,16 @@ def parse_chart(sym: str, payload: dict[str, Any]) -> tuple[float, float]:
     return price, prev
 
 
-def fetch_yahoo_chart(sym: str, timeout: float = 3.0) -> dict[str, Any]:
+def fetch_yahoo_chart(sym: str, timeout: float = 3.0,
+                      deadline: float | None = None) -> dict[str, Any]:
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
     if urllib.parse.urlparse(url).scheme != "https":
         raise urllib.error.URLError(f"refused non-HTTPS URL: {url}")
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("job deadline reached")
+        timeout = min(timeout, remaining)
     req = urllib.request.Request(url, headers={"User-Agent": "omarchy-plugins/2.1"})
     with FETCH_OPENER.open(req, timeout=timeout) as resp:
         # Enforce a strict producer-side byte budget before parsing.
@@ -84,7 +94,8 @@ def fetch_yahoo_chart(sym: str, timeout: float = 3.0) -> dict[str, Any]:
 
 def quote_item(
     item: dict[str, str],
-    fetch: Callable[[str], dict[str, Any]],
+    fetch: Callable[..., dict[str, Any]],
+    deadline: float | None = None,
 ) -> dict[str, Any]:
     base = {
         "symbol": item["display_sym"],
@@ -93,8 +104,18 @@ def quote_item(
         "category": item["cat"],
         "tv_sym": item["tv"],
     }
+    if deadline is not None and time.monotonic() >= deadline:
+        return {
+            **base,
+            "price": "--",
+            "change": "--",
+            "positive": True,
+            "raw_chg": 0.0,
+            "ok": False,
+            "error": "job deadline reached",
+        }
     try:
-        payload = fetch(item["sym"])
+        payload = fetch(item["sym"], deadline=deadline)
         price, prev = parse_chart(item["sym"], payload)
         chg_pct = ((price - prev) / prev) * 100 if prev else 0.0
         return {
@@ -113,13 +134,14 @@ def quote_item(
             "positive": True,
             "raw_chg": 0.0,
             "ok": False,
-            "error": str(exc),
+            "error": str(exc)[:MAX_ERR],
         }
 
 
-def collect(fetch: Callable[[str], dict[str, Any]] | None = None) -> dict[str, Any]:
+def collect(fetch: Callable[..., dict[str, Any]] | None = None) -> dict[str, Any]:
     getter = fetch or fetch_yahoo_chart
-    items = [quote_item(item, getter) for item in TICKERS]
+    deadline = time.monotonic() + JOB_DEADLINE_S
+    items = [quote_item(item, getter, deadline) for item in TICKERS]
     failed = [row for row in items if not row.get("ok")]
     gold = next((x for x in items if x["symbol"] == "GOLD"), None)
     nvda = next((x for x in items if x["symbol"] == "NVDA"), None)
@@ -146,6 +168,9 @@ def collect(fetch: Callable[[str], dict[str, Any]] | None = None) -> dict[str, A
 
 
 def main() -> int:
+    # Backstop deadline even if the caller never reaps us.
+    signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
+    signal.alarm(JOB_DEADLINE_S + 15)
     print(json.dumps(collect()))
     return 0
 
