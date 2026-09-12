@@ -7,7 +7,7 @@ Inherits from [luke-agents/AGENTS.md](https://github.com/duketopceo/luke-agents/
 
 ## What This Repo Does
 
-Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardware/fan, market ticker, extra-provider agent usage, and an OLED nightstand overlay. Source of truth for `lukedaduke.*` plugins. Live install is a symlink into `~/.config/omarchy/plugins/`.
+Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardware/fan, market ticker, extra-provider agent usage, a hardware topology radar, and an OLED nightstand overlay. Source of truth for `lukedaduke.*` plugins. Live install is a symlink into `~/.config/omarchy/plugins/`.
 
 ## Key Files
 
@@ -27,7 +27,7 @@ Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardw
 
 ## Active Issues / Known State
 
-- `omarchy plugin add` clones a whole git repo with `manifest.json` at root. This umbrella repo is the authoring catalog. Each plugin dir is already self-contained for a later split.
+- `omarchy plugin add` clones a whole git repo with `manifest.json` at root. This umbrella repo is the authoring catalog; each plugin dir subtree-pushes to its own public repo via `scripts/publish.sh` (see `docs/UPSTREAM.md` for the inbound/outbound sync model).
 - Bar currently uses `akitaonrails.ai-usagebar` for usage, not `lukedaduke.agents`.
 - `lukedaduke.tailscale` is an unused stock clone and is not in this repo.
 
