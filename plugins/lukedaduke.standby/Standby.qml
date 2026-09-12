@@ -18,12 +18,10 @@ Item {
   property var currentTime: new Date()
   property var weatherData: ({})
   property string weatherError: ""
-  property var marketData: ({})
 
   function open(payload) {
     root.opened = true;
     refreshWeather();
-    refreshMarket();
   }
 
   function close() {
@@ -44,11 +42,6 @@ Item {
   function refreshWeather() {
     weatherProc.running = false;
     weatherProc.running = true;
-  }
-
-  function refreshMarket() {
-    marketProc.running = false;
-    marketProc.running = true;
   }
 
   function toggleCaffeine() {
@@ -84,14 +77,6 @@ Item {
     onTriggered: root.refreshWeather()
   }
 
-  Timer {
-    id: marketTimer
-    interval: 60000
-    repeat: true
-    running: root.opened
-    onTriggered: root.refreshMarket()
-  }
-
   FileView {
     id: caffeineFile
     path: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake"
@@ -123,23 +108,6 @@ Item {
     }
   }
 
-  Process {
-    id: marketProc
-    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/lukedaduke.ticker/bin/market_stats.py"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var raw = String(text || "").trim();
-        if (!raw) return;
-        try {
-          root.marketData = JSON.parse(raw);
-        } catch (e) {
-          root.marketData = { error: "market parse error" };
-        }
-      }
-    }
-  }
-
   PanelWindow {
     id: panel
     visible: root.opened
@@ -153,7 +121,6 @@ Item {
     onVisibleChanged: {
       if (visible) {
         root.refreshWeather();
-        root.refreshMarket();
         Qt.callLater(function() { keyCatcher.forceActiveFocus(); });
       }
     }
@@ -186,9 +153,6 @@ Item {
         } else if (event.key === Qt.Key_C) {
           root.toggleCaffeine();
           event.accepted = true;
-        } else if (event.key === Qt.Key_M) {
-          root.refreshMarket();
-          event.accepted = true;
         }
       }
 
@@ -199,7 +163,7 @@ Item {
         Grid {
           id: contentGrid
           anchors.centerIn: parent
-          columns: panel.width > panel.height ? 3 : 1
+          columns: panel.width > panel.height ? 2 : 1
           flow: Grid.LeftToRight
           verticalItemAlignment: Grid.AlignVCenter
           horizontalItemAlignment: Grid.AlignHCenter
@@ -215,6 +179,7 @@ Item {
               text: Qt.formatTime(root.currentTime, "h:mm")
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 3.5
               horizontalAlignment: Text.AlignHCenter
             }
@@ -224,6 +189,7 @@ Item {
               visible: text !== ""
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 10
               horizontalAlignment: Text.AlignHCenter
               anchors.horizontalCenter: parent.horizontalCenter
@@ -234,6 +200,7 @@ Item {
               text: Qt.formatDate(root.currentTime, "dddd, MMMM d")
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 18
               horizontalAlignment: Text.AlignHCenter
               anchors.horizontalCenter: parent.horizontalCenter
@@ -249,6 +216,7 @@ Item {
               text: root.weatherError ? root.weatherError : (root.weatherData.location || "")
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 24
               opacity: 0.5
               horizontalAlignment: Text.AlignLeft
@@ -258,6 +226,7 @@ Item {
               text: root.weatherData.description || ""
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 18
               horizontalAlignment: Text.AlignLeft
             }
@@ -266,6 +235,7 @@ Item {
               text: root.weatherData.temperature ? root.weatherData.temperature : ""
               color: root.textColor
               font.family: Style.font.family
+textFormat: Text.PlainText
               font.pixelSize: Math.min(panel.width, panel.height) / 10
               horizontalAlignment: Text.AlignLeft
             }
@@ -276,6 +246,7 @@ Item {
                 text: root.weatherData.high ? "H " + root.weatherData.high : ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
@@ -283,6 +254,7 @@ Item {
                 text: root.weatherData.low ? "L " + root.weatherData.low : ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
@@ -294,6 +266,7 @@ Item {
                 text: root.weatherData.sunrise ? "↑ " + root.weatherData.sunrise : ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
@@ -301,6 +274,7 @@ Item {
                 text: root.weatherData.sunset ? "↓ " + root.weatherData.sunset : ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 24
                 opacity: 0.7
               }
@@ -313,6 +287,7 @@ Item {
                 visible: text !== ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 26
                 opacity: 0.55
               }
@@ -321,67 +296,13 @@ Item {
                 visible: text !== ""
                 color: root.textColor
                 font.family: Style.font.family
+textFormat: Text.PlainText
                 font.pixelSize: Math.min(panel.width, panel.height) / 26
                 opacity: 0.55
               }
             }
           }
 
-          Column {
-            spacing: Style.gapsOut * 2
-            visible: root.marketData.items !== undefined || root.marketData.error !== undefined
-
-            Text {
-              text: "MARKETS"
-              color: root.textColor
-              font.family: Style.font.family
-              font.pixelSize: Math.min(panel.width, panel.height) / 24
-              opacity: 0.5
-              horizontalAlignment: Text.AlignLeft
-            }
-
-            Text {
-              text: root.marketData.summary || (root.marketData.error || "")
-              color: root.textColor
-              font.family: Style.font.family
-              font.pixelSize: Math.min(panel.width, panel.height) / 22
-              opacity: 0.75
-              horizontalAlignment: Text.AlignLeft
-            }
-
-            Repeater {
-              model: root.marketData.items ? root.marketData.items.slice(0, 8) : []
-
-              Row {
-                spacing: Style.gapsOut * 2
-
-                Text {
-                  text: modelData.symbol || ""
-                  color: root.textColor
-                  font.family: Style.font.family
-                  font.pixelSize: Math.min(panel.width, panel.height) / 26
-                  opacity: 0.8
-                  width: Math.min(panel.width, panel.height) / 10
-                }
-
-                Text {
-                  text: modelData.price || ""
-                  color: root.textColor
-                  font.family: Style.font.family
-                  font.pixelSize: Math.min(panel.width, panel.height) / 26
-                  opacity: 0.8
-                }
-
-                Text {
-                  text: modelData.change || ""
-                  color: modelData.positive ? root.textColor : Color.urgent
-                  font.family: Style.font.family
-                  font.pixelSize: Math.min(panel.width, panel.height) / 26
-                  opacity: 0.85
-                }
-              }
-            }
-          }
         }
 
         Row {
@@ -394,6 +315,7 @@ Item {
             text: "[R]ed " + (root.redTint ? "on" : "off")
             color: root.textColor
             font.family: Style.font.family
+textFormat: Text.PlainText
             font.pixelSize: Style.font.body
             opacity: 0.45
 
@@ -407,6 +329,7 @@ Item {
             text: "[B]right " + (root.lowBrightness ? "low" : "high")
             color: root.textColor
             font.family: Style.font.family
+textFormat: Text.PlainText
             font.pixelSize: Style.font.body
             opacity: 0.45
 
@@ -420,6 +343,7 @@ Item {
             text: "[C]affeine " + (root.caffeine ? "on" : "off")
             color: root.caffeine ? Color.urgent : root.textColor
             font.family: Style.font.family
+textFormat: Text.PlainText
             font.pixelSize: Style.font.body
             opacity: 0.45
 

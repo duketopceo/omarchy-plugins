@@ -16,8 +16,29 @@ declare -A REPO=(
 ship() {
   local short="$1" id="lukedaduke.$1"
   [[ -d "plugins/$id" ]] || { echo "no such plugin: $id"; return 1; }
-  echo "== $id -> ${REPO[$short]}"
-  git subtree push --prefix="plugins/$id" "${REPO[$short]}" main
+  local remote="${REPO[$short]}"
+  echo "== $id -> $remote"
+
+  local split
+  split=$(git subtree split --prefix="plugins/$id" HEAD 2>/dev/null | tail -n1)
+  [[ -n "$split" ]] || { echo "  split failed"; return 1; }
+
+  # Fast path: remote tip is inside our split history -> plain FF push.
+  if git push "$remote" "$split:refs/heads/main" 2>/dev/null; then
+    return
+  fi
+
+  # Remote has commits our split doesn't contain (fixes pushed repo-side,
+  # e.g. marketplace security review at a pinned SHA). Reconcile by
+  # committing our subtree content on top of the remote tip — always a
+  # fast-forward, remote history preserved. Adopt that commit back with a
+  # -Xsubtree merge afterwards (see docs/UPSTREAM.md).
+  echo "  remote diverged; reconciling on top of remote main"
+  git fetch "$remote" "+main:refs/child/$short"
+  local merged
+  merged=$(git commit-tree "$split^{tree}" -p "refs/child/$short" \
+    -m "sync: update from omarchy-plugins umbrella")
+  git push "$remote" "$merged:refs/heads/main"
 }
 
 if [[ ${1:-} == all ]]; then
