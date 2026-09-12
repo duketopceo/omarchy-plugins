@@ -6,10 +6,23 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB hard ceiling per Yahoo response
+
+
+class HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow redirects only when the destination is also HTTPS."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlparse(newurl).scheme != "https":
+            raise urllib.error.URLError(f"refused to follow non-HTTPS redirect to {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+FETCH_OPENER = urllib.request.build_opener(HTTPSOnlyRedirectHandler)
 
 TICKERS: list[dict[str, str]] = [
     {"sym": "GC=F", "display_sym": "GOLD", "name": "Gold Spot ($/oz)", "cat": "Gold & Precious Metals", "tv": "OANDA:XAUUSD"},
@@ -52,8 +65,10 @@ def parse_chart(sym: str, payload: dict[str, Any]) -> tuple[float, float]:
 
 def fetch_yahoo_chart(sym: str, timeout: float = 3.0) -> dict[str, Any]:
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
+    if urllib.parse.urlparse(url).scheme != "https":
+        raise urllib.error.URLError(f"refused non-HTTPS URL: {url}")
     req = urllib.request.Request(url, headers={"User-Agent": "omarchy-plugins/2.1"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with FETCH_OPENER.open(req, timeout=timeout) as resp:
         # Enforce a strict producer-side byte budget before parsing.
         cl = resp.headers.get("Content-Length")
         if cl is not None and int(cl) > MAX_RESPONSE_BYTES:
