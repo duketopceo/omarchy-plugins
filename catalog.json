@@ -12,7 +12,7 @@
     {
       "id": "lukedaduke.ticker",
       "path": "plugins/lukedaduke.ticker",
-      "version": "2.1.1",
+      "version": "2.1.2",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-ticker"
     },
