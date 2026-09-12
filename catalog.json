@@ -5,14 +5,14 @@
     {
       "id": "lukedaduke.fan",
       "path": "plugins/lukedaduke.fan",
-      "version": "2.1.1",
+      "version": "2.1.2",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-fan"
     },
     {
       "id": "lukedaduke.ticker",
       "path": "plugins/lukedaduke.ticker",
-      "version": "2.1.2",
+      "version": "2.1.3",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-ticker"
     },
@@ -26,14 +26,14 @@
     {
       "id": "lukedaduke.standby",
       "path": "plugins/lukedaduke.standby",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kinds": ["overlay"],
       "repo": "https://github.com/duketopceo/omarchy-standby"
     },
     {
       "id": "lukedaduke.nexus",
       "path": "plugins/lukedaduke.nexus",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-nexus"
     }
