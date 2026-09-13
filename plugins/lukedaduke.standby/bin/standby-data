@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Fetch weather and sunrise/sunset for the lukedaduke.standby overlay.
 
 Uses Open-Meteo (https://open-meteo.com) for current conditions, today's
@@ -9,12 +9,14 @@ an IP geolocation service is used as a fallback.
 
 import json
 import os
+import signal
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB per remote response
+JOB_DEADLINE_S = 18  # whole-job wall clock, under the QML-side 20s deadline
 
 HOME = Path.home()
 LOC_FILE = HOME / ".local/state/omarchy/settings/weather.json"
@@ -135,13 +137,20 @@ def write_cache(payload):
 def read_cache():
     if CACHE_FILE.is_file():
         try:
-            return CACHE_FILE.read_text()
+            cached = CACHE_FILE.read_text()
+            # Only re-emit plausible JSON payloads within a sane size bound.
+            if len(cached) <= 65536 and cached.lstrip().startswith("{"):
+                return cached
         except OSError:
             pass
     return None
 
 
 def main():
+    # Backstop deadline even if the caller never reaps us.
+    signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
+    signal.alarm(JOB_DEADLINE_S)
+
     lat, lon, name = load_weather_location()
     if lat is None or lon is None:
         lat, lon, name = get_ip_location()

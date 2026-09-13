@@ -42,14 +42,36 @@ Item {
   function refreshWeather() {
     weatherProc.running = false;
     weatherProc.running = true;
+    weatherDeadline.restart();
   }
 
+  // Absolute tool paths and no shell: a PATH-preceding shadow binary or a
+  // hostile HOME must never reach a shell or run inside this long-lived
+  // process.
+  readonly property string py: "/usr/bin/python3"
+  readonly property string pluginRoot: {
+    var p = Qt.resolvedUrl(".").toString()
+    if (p.indexOf("file://") === 0)
+      p = p.substring(7)
+    if (p.length > 1 && p.charAt(p.length - 1) === "/")
+      p = p.substring(0, p.length - 1)
+    return p
+  }
+  readonly property var procEnv: ({
+    "PATH": "/usr/bin:/bin",
+    "HOME": null,
+    "XDG_RUNTIME_DIR": null,
+    "LANG": null,
+    "LC_ALL": "C"
+  })
+
   function toggleCaffeine() {
-    var path = Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake";
     if (root.caffeine) {
-      Quickshell.execDetached(["rm", "-f", path]);
+      Quickshell.execDetached([root.py, "-c",
+        "import os,pathlib; p=pathlib.Path.home()/'.local/state/omarchy/indicators/stay-awake'; p.unlink(missing_ok=True)"]);
     } else {
-      Quickshell.execDetached(["bash", "-c", "mkdir -p ~/.local/state/omarchy/indicators && touch '" + path + "'"]);
+      Quickshell.execDetached([root.py, "-c",
+        "import os,pathlib; d=pathlib.Path.home()/'.local/state/omarchy/indicators'; d.mkdir(parents=True,exist_ok=True); (d/'stay-awake').touch(exist_ok=True)"]);
     }
   }
 
@@ -89,13 +111,20 @@ Item {
 
   Process {
     id: weatherProc
-    command: [Quickshell.env("HOME") + "/.config/omarchy/plugins/lukedaduke.standby/bin/standby-data"]
+    command: [root.py, root.pluginRoot + "/bin/standby-data"]
+    clearEnvironment: true
+    environment: root.procEnv
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        weatherDeadline.stop();
         var raw = String(text || "").trim();
         if (!raw) {
           root.weatherError = "weather unavailable";
+          return;
+        }
+        if (raw.length > 200000) {
+          root.weatherError = "oversized weather payload";
           return;
         }
         try {
@@ -104,6 +133,20 @@ Item {
         } catch (e) {
           root.weatherError = "weather parse error";
         }
+      }
+    }
+    onExited: weatherDeadline.stop()
+  }
+
+  // Hard whole-job deadline: the weather fetch is killed and reaped rather
+  // than left running indefinitely.
+  Timer {
+    id: weatherDeadline
+    interval: 20000
+    onTriggered: {
+      if (weatherProc.running) {
+        weatherProc.signal(9);
+        root.weatherError = "weather timeout";
       }
     }
   }
