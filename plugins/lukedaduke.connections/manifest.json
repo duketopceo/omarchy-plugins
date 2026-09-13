@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.connections",
+  "name": "Connections",
+  "version": "1.0.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Unified Bluetooth and Wi-Fi connection widget with dual icons and toggle controls",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Connections",
+    "description": "Unified Bluetooth and Wi-Fi connection indicator",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

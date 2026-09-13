@@ -3,7 +3,10 @@
     "lukedaduke.fan",
     "lukedaduke.ticker",
     "lukedaduke.agents",
-    "lukedaduke.standby"
+    "lukedaduke.standby",
+    "lukedaduke.nexus",
+    "lukedaduke.connections",
+    "lukedaduke.power"
   ],
   "own_plugin_in_separate_repo": [
     {

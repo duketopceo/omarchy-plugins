@@ -11,6 +11,8 @@ declare -A REPO=(
   [agents]="git@github.com:duketopceo/omarchy-agents.git"
   [standby]="git@github.com:duketopceo/omarchy-standby.git"
   [nexus]="git@github.com:duketopceo/omarchy-nexus.git"
+  [connections]="git@github.com:duketopceo/omarchy-connections.git"
+  [power]="git@github.com:duketopceo/omarchy-power.git"
 )
 
 ship() {
@@ -46,6 +48,6 @@ if [[ ${1:-} == all ]]; then
 elif [[ -n ${REPO[${1:-}]:-} ]]; then
   ship "$1"
 else
-  echo "usage: $0 <fan|ticker|agents|standby|nexus|all>" >&2
+  echo "usage: $0 <fan|ticker|agents|standby|nexus|connections|power|all>" >&2
   exit 1
 fi

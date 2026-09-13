@@ -31,6 +31,9 @@ No `.env` required. See `.env.example`.
 | `lukedaduke.ticker` | Watchlist quotes with TradingView jump |
 | `lukedaduke.agents` | Fork of `omarchy.agents` with extra providers |
 | `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
+| `lukedaduke.nexus` | Hardware topology radar: USB/BT/NVMe interconnect map |
+| `lukedaduke.connections` | Unified Bluetooth + Wi-Fi bar widget with toggles |
+| `lukedaduke.power` | Battery status, charge graph, top consumers, power profiles |
 
 ## Deploy / visibility
 
@@ -44,6 +47,9 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `lukedaduke.ticker` | https://github.com/duketopceo/omarchy-ticker |
 | `lukedaduke.agents` | https://github.com/duketopceo/omarchy-agents |
 | `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
+| `lukedaduke.nexus` | https://github.com/duketopceo/omarchy-nexus |
+| `lukedaduke.connections` | https://github.com/duketopceo/omarchy-connections |
+| `lukedaduke.power` | https://github.com/duketopceo/omarchy-power |
 
 Install any of them with:
 
