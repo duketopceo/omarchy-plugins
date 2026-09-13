@@ -34,12 +34,24 @@ Panel {
     if (!statsProc.running) {
       isFetching = true
       statsProc.running = true
+      statsDeadline.restart()
     }
   }
 
+  // Absolute tool paths: a PATH-preceding shadow binary must never run inside
+  // this long-lived shell process.
+  readonly property string py: "/usr/bin/python3"
+  readonly property string xdgOpen: "/usr/bin/xdg-open"
+  readonly property var procEnv: ({
+    "PATH": "/usr/bin:/bin",
+    "HOME": null,
+    "LANG": null,
+    "LC_ALL": "C"
+  })
+
   function launchTradingView(tvSym) {
     var target = tvSym || "OANDA:XAUUSD"
-    Quickshell.execDetached(["xdg-open", "https://www.tradingview.com/chart/?symbol=" + target])
+    Quickshell.execDetached([root.xdgOpen, "https://www.tradingview.com/chart/?symbol=" + target])
     root.close()
   }
 
@@ -63,12 +75,19 @@ Panel {
 
   Process {
     id: statsProc
-    command: ["python3", root.pluginRoot + "/bin/market_stats.py"]
+    command: [root.py, root.pluginRoot + "/bin/market_stats.py"]
+    clearEnvironment: true
+    environment: root.procEnv
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        statsDeadline.stop()
         root.isFetching = false
         try {
+          if (text.length > 300000) {
+            root.fetchError = "oversized quotes payload"
+            return
+          }
           var d = JSON.parse(text)
           if (d.summary)
             root.barSummary = d.summary
@@ -88,9 +107,24 @@ Panel {
       }
     }
     onExited: function (code) {
+      statsDeadline.stop()
       root.isFetching = false
       if (code !== 0 && root.fetchError.length === 0)
         root.fetchError = "quotes helper exited " + code
+    }
+  }
+
+  // Hard whole-job deadline: the collector can never outlive one refresh
+  // interval; the process is killed and reaped on expiry.
+  Timer {
+    id: statsDeadline
+    interval: 50000
+    onTriggered: {
+      if (statsProc.running) {
+        statsProc.signal(9)
+        root.isFetching = false
+        root.fetchError = "quotes timeout"
+      }
     }
   }
 
