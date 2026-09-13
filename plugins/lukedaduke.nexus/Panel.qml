@@ -40,10 +40,22 @@ Panel {
     easing.type: Easing.InOutSine
   }
 
+  // Absolute interpreter + minimal env: a PATH-preceding shadow "python3"
+  // must never run inside this long-lived shell process.
+  readonly property string py: "/usr/bin/python3"
+  readonly property var procEnv: ({
+    "PATH": "/usr/bin:/bin",
+    "HOME": null,
+    "XDG_RUNTIME_DIR": null,
+    "LANG": null,
+    "LC_ALL": "C"
+  })
+
   function refresh() {
     if (!statusProc.running) {
       isRefreshing = true
       statusProc.running = true
+      statusDeadline.restart()
     }
   }
 
@@ -53,21 +65,42 @@ Panel {
 
   Process {
     id: statusProc
-    command: ["python3", root.pluginRoot + "/bin/probe_nexus.py"]
+    command: [root.py, root.pluginRoot + "/bin/probe_nexus.py"]
+    clearEnvironment: true
+    environment: root.procEnv
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        statusDeadline.stop()
         root.isRefreshing = false
         try {
           if (!text || text.trim().length === 0) return
+          if (text.length > 300000) return
           var data = JSON.parse(text)
           if (data.ok) {
-            root.usbDevices = data.usb || []
-            root.btDevices = data.bluetooth || []
-            root.netDevices = data.network || []
-            root.storageDevices = data.storage || []
+            root.usbDevices = (data.usb || []).slice(0, 64)
+            root.btDevices = (data.bluetooth || []).slice(0, 64)
+            root.netDevices = (data.network || []).slice(0, 64)
+            root.storageDevices = (data.storage || []).slice(0, 64)
           }
         } catch (e) {}
+      }
+    }
+    onExited: {
+      statusDeadline.stop()
+      root.isRefreshing = false
+    }
+  }
+
+  // Hard whole-job deadline: a stuck probe is killed and reaped, never left
+  // running past one refresh interval.
+  Timer {
+    id: statusDeadline
+    interval: 5000
+    onTriggered: {
+      if (statusProc.running) {
+        statusProc.signal(9)
+        root.isRefreshing = false
       }
     }
   }
@@ -204,6 +237,7 @@ Panel {
             Text {
               anchors.centerIn: parent
               text: modelData.label
+              textFormat: Text.PlainText
               color: root.selectedTab === modelData.id ? Color.background : root.fg
               font.pixelSize: 10
               font.bold: true
@@ -262,6 +296,7 @@ Panel {
 
                   Text {
                     text: modelData.icon
+                    textFormat: Text.PlainText
                     color: modelData.status === "CONNECTED" ? root.accent : root.muted
                     font.pixelSize: 20
                   }
@@ -271,12 +306,14 @@ Panel {
                     spacing: 2
                     Text {
                       text: modelData.name
+                      textFormat: Text.PlainText
                       color: root.fg
                       font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                     Text {
                       text: modelData.desc + " · " + modelData.ip
+                      textFormat: Text.PlainText
                       color: root.muted
                       font.pixelSize: 10
                     }
@@ -290,6 +327,7 @@ Panel {
                     Text {
                       anchors.centerIn: parent
                       text: modelData.status
+                      textFormat: Text.PlainText
                       color: modelData.status === "CONNECTED" ? root.accent : root.muted
                       font.pixelSize: 9
                       font.bold: true
@@ -331,6 +369,7 @@ Panel {
 
                   Text {
                     text: modelData.icon
+                    textFormat: Text.PlainText
                     color: root.accent
                     font.pixelSize: 20
                   }
@@ -340,12 +379,14 @@ Panel {
                     spacing: 2
                     Text {
                       text: modelData.name
+                      textFormat: Text.PlainText
                       color: root.fg
                       font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                     Text {
                       text: modelData.category + " · " + modelData.desc
+                      textFormat: Text.PlainText
                       color: root.muted
                       font.pixelSize: 10
                     }
@@ -394,12 +435,14 @@ Panel {
 
                   Text {
                     text: modelData.tier > 0 ? "└─" : "•"
+                    textFormat: Text.PlainText
                     color: root.muted
                     font.pixelSize: 11
                   }
 
                   Text {
                     text: modelData.icon
+                    textFormat: Text.PlainText
                     color: modelData.status === "ONLINE" ? (modelData.is_hub ? root.muted : root.accent) : root.muted
                     font.pixelSize: 18
                   }
@@ -409,6 +452,7 @@ Panel {
                     spacing: 2
                     Text {
                       text: modelData.name
+                      textFormat: Text.PlainText
                       color: root.fg
                       font.pixelSize: Style.font.bodySmall
                       font.bold: !modelData.is_hub
@@ -416,6 +460,7 @@ Panel {
                     }
                     Text {
                       text: modelData.desc + " · " + modelData.speed
+                      textFormat: Text.PlainText
                       color: root.muted
                       font.pixelSize: 10
                     }
@@ -429,6 +474,7 @@ Panel {
                     Text {
                       anchors.centerIn: parent
                       text: modelData.status
+                      textFormat: Text.PlainText
                       color: modelData.status === "ONLINE" ? root.accent : root.muted
                       font.pixelSize: 8
                       font.bold: true
@@ -470,6 +516,7 @@ Panel {
 
                   Text {
                     text: modelData.icon
+                    textFormat: Text.PlainText
                     color: root.accent
                     font.pixelSize: 20
                   }
@@ -479,12 +526,14 @@ Panel {
                     spacing: 2
                     Text {
                       text: modelData.name
+                      textFormat: Text.PlainText
                       color: root.fg
                       font.pixelSize: Style.font.bodySmall
                       font.bold: true
                     }
                     Text {
                       text: modelData.desc + " · " + modelData.mount
+                      textFormat: Text.PlainText
                       color: root.muted
                       font.pixelSize: 10
                     }
@@ -498,6 +547,7 @@ Panel {
                     Text {
                       anchors.centerIn: parent
                       text: modelData.status
+                      textFormat: Text.PlainText
                       color: root.accent
                       font.pixelSize: 9
                       font.bold: true
