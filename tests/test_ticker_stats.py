@@ -23,7 +23,7 @@ def _payload(price: float, prev: float) -> dict:
 def test_maps_price_and_change() -> None:
     mod = load()
 
-    def fetch(sym: str) -> dict:
+    def fetch(sym: str, **_kw) -> dict:
         if sym == "NVDA":
             return _payload(100.0, 80.0)
         return _payload(10.0, 10.0)
@@ -38,7 +38,7 @@ def test_maps_price_and_change() -> None:
 
 def test_empty_watchlist_ok_true_when_quotes_succeed() -> None:
     mod = load()
-    data = mod.collect(fetch=lambda _sym: _payload(1.0, 1.0))
+    data = mod.collect(fetch=lambda _sym, **_kw: _payload(1.0, 1.0))
     assert data["ok"] is True
     assert isinstance(data["items"], list)
     assert len(data["items"]) > 0
@@ -47,7 +47,7 @@ def test_empty_watchlist_ok_true_when_quotes_succeed() -> None:
 def test_network_failure_returns_error() -> None:
     mod = load()
 
-    def fetch(_sym: str) -> dict:
+    def fetch(_sym: str, **_kw) -> dict:
         raise URLError("offline")
 
     data = mod.collect(fetch=fetch)
