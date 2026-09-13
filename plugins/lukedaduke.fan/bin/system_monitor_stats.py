@@ -323,6 +323,20 @@ def cpu_temp_and_fans(devices: dict[str, Path] | None = None) -> tuple[str, int,
         fan2_rpm = _read_fan_input(ddv / "fan2_input")
         return cpu_temp, fan1_rpm, fan2_rpm
 
+    # Apple Silicon SMC (Asahi Linux macsmc_hwmon)
+    macsmc = devices.get("macsmc_hwmon")
+    if macsmc:
+        fan1_rpm = _read_fan_input(macsmc / "fan1_input")
+        fan2_rpm = _read_fan_input(macsmc / "fan2_input")
+        temps = []
+        for tfile in macsmc.glob("temp*_input"):
+            val = _milli_c_int(tfile)
+            if val is not None and 10 <= val <= 115:
+                temps.append(val)
+        if temps:
+            cpu_temp = f"{max(temps)}°C"
+        return cpu_temp, fan1_rpm, fan2_rpm
+
     # Common laptop/CPU temp sensors
     for name in ("coretemp", "k10temp", "zenpower"):
         path = devices.get(name)
@@ -409,6 +423,11 @@ def gpu_info() -> tuple[str, int | None, str]:
                 return gpu_name, gpu_load, gpu_temp
     except (OSError, ValueError):
         pass
+
+    # Apple Silicon AGX GPU
+    if Path("/sys/devices/platform/soc/406400000.gpu").is_dir() or Path("/sys/bus/platform/drivers/apple-agx").is_dir():
+        gpu_name = "Apple M1 Pro GPU"
+        return gpu_name, None, gpu_temp
 
     # Fallback to just a name and no load/temp
     gpu_name = _gpu_name_from_lspci() or "GPU"
