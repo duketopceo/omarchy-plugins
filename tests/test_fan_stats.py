@@ -44,3 +44,21 @@ def test_kill_refuses_pid_one() -> None:
     assert kill.kill_pid(1) == 2
     assert kill.kill_pid(0) == 2
     assert kill.main([]) == 2
+
+
+def test_daemon_descriptor_security(tmp_path: Path) -> None:
+    from importlib.machinery import SourceFileLoader
+    daemon_path = ROOT / "plugins/lukedaduke.fan/bin/omarchy-fan-daemon"
+    daemon = SourceFileLoader("omarchy_fan_daemon", str(daemon_path)).load_module()
+
+    uid = daemon.target_uid()
+    assert isinstance(uid, int) and uid >= 0
+
+    mode = daemon.get_requested_mode(uid)
+    assert mode in {"auto", "low", "med", "high", "custom"} or mode.startswith("custom-")
+
+    curve = daemon.load_curve(uid)
+    assert isinstance(curve, list)
+    assert len(curve) > 0
+    assert all(len(p) == 2 for p in curve)
+
