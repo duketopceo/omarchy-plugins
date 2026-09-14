@@ -93,12 +93,17 @@ Panel {
   }
 
   // Hard whole-job deadline: a stuck probe is killed and reaped, never left
-  // running past one refresh interval.
+  // running past one refresh interval. probe_nexus.py calls os.setsid() and
+  // keeps helpers in its own session group, so a group-kill reaches the whole
+  // tree even if Python is stuck inside a helper wait.
   Timer {
     id: statusDeadline
     interval: 5000
     onTriggered: {
       if (statusProc.running) {
+        var pid = statusProc.pid
+        if (pid > 0)
+          Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         statusProc.signal(9)
         root.isRefreshing = false
       }

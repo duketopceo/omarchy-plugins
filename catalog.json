@@ -33,7 +33,7 @@
     {
       "id": "lukedaduke.nexus",
       "path": "plugins/lukedaduke.nexus",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-nexus"
     },

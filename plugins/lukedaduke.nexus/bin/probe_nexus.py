@@ -42,15 +42,18 @@ def _tool(name):
 
 
 def _kill_tree(proc):
+    # Helpers share this process's session group (no start_new_session) so the
+    # QML watchdog's group-kill reaches the whole tree; here we only need the
+    # direct child.
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
+        os.kill(proc.pid, signal.SIGTERM)
     except (OSError, ProcessLookupError):
         pass
     try:
         proc.wait(timeout=0.5)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
+            os.kill(proc.pid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
             pass
         try:
@@ -62,15 +65,16 @@ def _kill_tree(proc):
 def _run(argv, timeout=2.0, max_bytes=MAX_OUT_BYTES):
     """Run argv with minimal env, hard deadline, producer byte cap.
 
-    Child runs in its own process group so TERM/KILL reaches the tree.
-    Returns stdout text or None on failure/timeout/overflow.
+    Child joins this process's session group so the QML watchdog's group-kill
+    reaches the whole tree. Returns stdout text or None on failure/timeout/
+    overflow.
     """
     if not argv or not argv[0]:
         return None
     try:
         proc = subprocess.Popen(
             argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            env=SAFE_ENV, start_new_session=True,
+            env=SAFE_ENV,
         )
     except OSError:
         return None
@@ -82,9 +86,22 @@ def _run(argv, timeout=2.0, max_bytes=MAX_OUT_BYTES):
         sel.register(proc.stdout, selectors.EVENT_READ)
         while True:
             if proc.poll() is not None:
-                tail = proc.stdout.read()
-                if tail:
+                # Drain remaining output without a blocking read(): a
+                # descendant holding the pipe must not stall us past the
+                # deadline — select() reports EOF or times out.
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0 or not sel.select(remaining):
+                        break
+                    try:
+                        tail = os.read(proc.stdout.fileno(), 65536)
+                    except OSError:
+                        break
+                    if not tail:
+                        break
                     buf += tail
+                    if len(buf) > max_bytes:
+                        break
                 completed = True
                 break
             remaining = deadline - time.monotonic()
@@ -322,6 +339,12 @@ def get_nexus():
     }
 
 if __name__ == "__main__":
+    # Become a session/group leader so the QML watchdog can SIGKILL the entire
+    # probe tree (this process plus any helpers still running) via killpg.
+    try:
+        os.setsid()
+    except OSError:
+        pass
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(JOB_DEADLINE_S)
     sys.stdout.write(json.dumps(get_nexus())[:MAX_OUT_BYTES] + "\n")
