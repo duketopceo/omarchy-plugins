@@ -5,7 +5,7 @@
     {
       "id": "lukedaduke.fan",
       "path": "plugins/lukedaduke.fan",
-      "version": "2.1.3",
+      "version": "2.1.4",
       "kinds": ["bar-widget"],
       "repo": "https://github.com/duketopceo/omarchy-fan"
     },
