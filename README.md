@@ -1,5 +1,9 @@
 # omarchy-plugins
 
+<p align="center">
+  <img src="docs/assets/social.png" alt="omarchy-plugins" width="640" />
+</p>
+
 > Luke's personal Omarchy bar plugins plus a laptop restore index. Not first-party Omarchy, and not a marketplace listing.
 
 ## Stack
