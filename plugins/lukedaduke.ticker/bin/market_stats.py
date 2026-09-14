@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import signal
 import time
 import urllib.error
@@ -15,6 +16,13 @@ from typing import Any, Callable
 MAX_RESPONSE_BYTES = 1024 * 1024  # 1 MiB hard ceiling per Yahoo response
 JOB_DEADLINE_S = 45  # whole-job wall clock, under the 60s refresh interval
 MAX_ERR = 120
+
+_CTL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def clean_text(value: object, limit: int = MAX_ERR) -> str:
+    """Normalize a remote-derived string for safe plain-text rendering."""
+    return _CTL_RE.sub(" ", str(value)).strip()[:limit]
 
 
 class HTTPSOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -134,7 +142,7 @@ def quote_item(
             "positive": True,
             "raw_chg": 0.0,
             "ok": False,
-            "error": str(exc)[:MAX_ERR],
+            "error": clean_text(exc),
         }
 
 

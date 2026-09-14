@@ -2,11 +2,13 @@
   "schemaVersion": 1,
   "id": "lukedaduke.ticker",
   "name": "Market Watchlist",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "author": "lukedaduke",
   "license": "MIT",
   "description": "Gold, tech, nuclear, energy, and rates in the Omarchy bar. Click a row for TradingView.",
-  "kinds": ["bar-widget"],
+  "kinds": [
+    "bar-widget"
+  ],
   "activation": "on-demand",
   "entryPoints": {
     "barWidget": "Panel.qml"

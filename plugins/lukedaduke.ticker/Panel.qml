@@ -207,6 +207,7 @@ Panel {
             color: root.isFetching ? Color.background : root.fg
             font.pixelSize: Style.font.bodySmall
             font.bold: true
+            textFormat: Text.PlainText
           }
           MouseArea {
             anchors.fill: parent
@@ -223,6 +224,7 @@ Panel {
         color: root.urgent
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.WordWrap
+        textFormat: Text.PlainText
       }
 
       Text {
@@ -268,6 +270,7 @@ Panel {
                 font.bold: true
                 font.pixelSize: Style.font.bodySmall
                 Layout.preferredWidth: Style.space(55)
+                textFormat: Text.PlainText
               }
               Text {
                 text: modelData.price
@@ -276,6 +279,7 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
+                textFormat: Text.PlainText
               }
               Rectangle {
                 height: Style.space(18)
@@ -288,6 +292,7 @@ Panel {
                   color: root.chipText(modelData.positive)
                   font.bold: true
                   font.pixelSize: Style.font.bodySmall
+                  textFormat: Text.PlainText
                 }
               }
             }
