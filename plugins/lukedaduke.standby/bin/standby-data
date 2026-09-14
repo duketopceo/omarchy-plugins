@@ -10,6 +10,7 @@ an IP geolocation service is used as a fallback.
 import json
 import os
 import signal
+import stat
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +22,45 @@ JOB_DEADLINE_S = 18  # whole-job wall clock, under the QML-side 20s deadline
 HOME = Path.home()
 LOC_FILE = HOME / ".local/state/omarchy/settings/weather.json"
 CACHE_FILE = HOME / ".cache/omarchy/standby-weather.json"
+LOC_MAX_BYTES = 16 * 1024
+CACHE_MAX_BYTES = 64 * 1024
+
+
+def _open_dir(path):
+    """Descriptor for a directory — no symlinks, must be ours."""
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    st = os.fstat(fd)
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid():
+        os.close(fd)
+        raise PermissionError(f"{path} is not a user-owned real directory")
+    return fd
+
+
+def _read_capped(dirfd, name, limit):
+    """Bounded, no-follow, regular-file read; None on any anomaly."""
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid() or st.st_size > limit:
+            return None
+        return os.read(fd, limit)
+    finally:
+        os.close(fd)
+
+
+def _publish(dirfd, name, data):
+    """Write via exclusive same-dir temp file + atomic rename."""
+    tmp = f".{name}.{os.getpid()}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dirfd)
+    try:
+        os.write(fd, data.encode())
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.rename(tmp, name, src_dir_fd=dirfd, dst_dir_fd=dirfd)
 
 WMO_DESCRIPTIONS = {
     0: "Clear sky",
@@ -64,10 +104,18 @@ def iso_to_hm(iso: str) -> str:
 
 
 def load_weather_location():
-    if not LOC_FILE.is_file():
+    try:
+        dirfd = _open_dir(LOC_FILE.parent)
+    except (OSError, PermissionError):
         return None, None, ""
     try:
-        data = json.loads(LOC_FILE.read_text())
+        raw = _read_capped(dirfd, LOC_FILE.name, LOC_MAX_BYTES)
+    finally:
+        os.close(dirfd)
+    if raw is None:
+        return None, None, ""
+    try:
+        data = json.loads(raw)
         lat = data.get("latitude")
         lon = data.get("longitude")
         name = str(data.get("name", ""))[:60]
@@ -129,20 +177,35 @@ def get_ip_location():
 def write_cache(payload):
     try:
         CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        CACHE_FILE.write_text(json.dumps(payload))
+        dirfd = _open_dir(CACHE_FILE.parent)
+    except (OSError, PermissionError):
+        return
+    try:
+        _publish(dirfd, CACHE_FILE.name, json.dumps(payload))
     except OSError:
         pass
+    finally:
+        os.close(dirfd)
 
 
 def read_cache():
-    if CACHE_FILE.is_file():
-        try:
-            cached = CACHE_FILE.read_text()
-            # Only re-emit plausible JSON payloads within a sane size bound.
-            if len(cached) <= 65536 and cached.lstrip().startswith("{"):
-                return cached
-        except OSError:
-            pass
+    try:
+        dirfd = _open_dir(CACHE_FILE.parent)
+    except (OSError, PermissionError):
+        return None
+    try:
+        raw = _read_capped(dirfd, CACHE_FILE.name, CACHE_MAX_BYTES)
+    finally:
+        os.close(dirfd)
+    if raw is None:
+        return None
+    try:
+        cached = raw.decode()
+    except UnicodeDecodeError:
+        return None
+    # Only re-emit plausible JSON payloads within a sane size bound.
+    if cached.lstrip().startswith("{"):
+        return cached
     return None
 
 

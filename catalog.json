@@ -26,7 +26,7 @@
     {
       "id": "lukedaduke.standby",
       "path": "plugins/lukedaduke.standby",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "kinds": ["overlay"],
       "repo": "https://github.com/duketopceo/omarchy-standby"
     },
