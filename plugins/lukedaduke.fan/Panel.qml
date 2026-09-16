@@ -36,6 +36,7 @@ Panel {
   property bool isRefreshing: false
   property string fetchError: ""
   property bool fanControl: false
+  property bool daemonRunning: false
   property int selectedProc: 0
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
@@ -63,9 +64,16 @@ Panel {
     "LC_ALL": "C"
   })
 
+  function triggerDaemon() {
+    Quickshell.execDetached(["pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
+    refreshTimer.restart()
+  }
+
   function setMode(mode) {
     if (!mode || !root.fanControl)
       return
+    if (!root.daemonRunning)
+      triggerDaemon()
     currentMode = mode
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", mode])
     refreshTimer.restart()
@@ -74,6 +82,8 @@ Panel {
   function setCustom(name) {
     if (!root.fanControl)
       return
+    if (!root.daemonRunning)
+      triggerDaemon()
     currentMode = "custom"
     customName = name
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", "custom", name])
@@ -234,6 +244,7 @@ Panel {
           if (Array.isArray(data.fan_curve))
             root.fanCurve = data.fan_curve
           root.fanControl = !!data.fan_control
+          root.daemonRunning = !!data.daemon_running
           if (root.selectedProc >= root.topMem.length)
             root.selectedProc = Math.max(0, root.topMem.length - 1)
         } catch (e) {
@@ -618,10 +629,37 @@ Panel {
       Column {
         width: parent.width
         spacing: Style.space(8)
-        Text {
-          text: "Fans " + root.fan1Rpm + " / " + root.fan2Rpm + " RPM"
-          color: root.fg
-          font.pixelSize: Style.font.bodySmall
+        RowLayout {
+          width: parent.width
+          Text {
+            Layout.fillWidth: true
+            text: "Fans " + root.fan1Rpm + " / " + root.fan2Rpm + " RPM"
+            color: root.fg
+            font.pixelSize: Style.font.bodySmall
+          }
+          Rectangle {
+            id: daemonBtn
+            implicitWidth: daemonBtnText.implicitWidth + Style.space(16)
+            implicitHeight: Style.space(22)
+            radius: Style.space(4)
+            color: root.daemonRunning ? "transparent" : root.accent
+            border.color: root.daemonRunning ? root.fg : root.accent
+            border.width: 1
+            opacity: root.daemonRunning ? 0.7 : 1.0
+            Text {
+              id: daemonBtnText
+              anchors.centerIn: parent
+              text: root.daemonRunning ? "● Daemon Active" : "⚡ Start Daemon"
+              color: root.daemonRunning ? root.fg : Color.background
+              font.bold: true
+              font.pixelSize: Style.font.caption
+            }
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.triggerDaemon()
+            }
+          }
         }
         Row {
           width: parent.width
