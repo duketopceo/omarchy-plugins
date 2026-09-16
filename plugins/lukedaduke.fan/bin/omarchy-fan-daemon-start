@@ -9,9 +9,9 @@ if [ "$TARGET_UID" -eq 0 ] && [ -n "$SUDO_UID" ]; then
     TARGET_UID="$SUDO_UID"
 fi
 
-SERVICE_SRC="$PLUGIN_DIR/../../omarchy-fan-daemon.service"
+SERVICE_SRC="$PLUGIN_DIR/omarchy-fan-daemon.service"
 if [ ! -f "$SERVICE_SRC" ]; then
-    SERVICE_SRC="$HOME/.config/omarchy/omarchy-fan-daemon.service"
+    SERVICE_SRC="/home/lukekimball/.config/omarchy/omarchy-fan-daemon.service"
 fi
 SERVICE_DST="/etc/systemd/system/omarchy-fan-daemon.service"
 
@@ -51,12 +51,23 @@ fi
 
 # We are root:
 # 1. Update / install systemd service if available
+USER_HOME="${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)}"
+USER_HOME="${USER_HOME:-$HOME}"
+
 if [ -f "$SERVICE_SRC" ]; then
-    sed -e "s|--uid [0-9]*|--uid $TARGET_UID|g" \
+    sed -e "s|%h|$USER_HOME|g" \
+        -e "s|--uid [0-9]*|--uid $TARGET_UID|g" \
         -e "s|OMARCHY_FAN_UID=[0-9]*|OMARCHY_FAN_UID=$TARGET_UID|g" \
         "$SERVICE_SRC" > "$SERVICE_DST"
+    # Ensure uid arg and env are present
+    if ! grep -q -- "--uid" "$SERVICE_DST"; then
+        sed -i "s|bin/omarchy-fan-daemon|bin/omarchy-fan-daemon --uid $TARGET_UID|" "$SERVICE_DST"
+    fi
+    if ! grep -q "OMARCHY_FAN_UID" "$SERVICE_DST"; then
+        sed -i "/Environment=/a Environment=\"OMARCHY_FAN_UID=$TARGET_UID\"" "$SERVICE_DST"
+    fi
     systemctl daemon-reload
-    systemctl enable --now omarchy-fan-daemon.service
+    systemctl restart omarchy-fan-daemon.service
     exit 0
 fi
 
