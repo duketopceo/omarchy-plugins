@@ -147,7 +147,7 @@ def test_omaseal_key_resolution() -> None:
     assert res["ok"] is True
     assert len(calls) == 2
     assert "omaseal" in calls[0]["argv"][0]
-    assert calls[0]["argv"][1:] == ["resolve", "omaseal://perplexity/api-key"]
+    assert calls[0]["argv"][1:] == ["get", pplx_search.OMASEAL_REF]
     assert "pplx" in calls[1]["argv"][0]
     assert calls[1]["extra_env"]["PERPLEXITY_API_KEY"] == SECRET
     assert all(SECRET not in a for a in calls[1]["argv"])
