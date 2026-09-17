@@ -16,6 +16,7 @@ EXPECTED_KEYS = [
     "hooks_seen",
     "hooked_agents",
     "active_agents",
+    "agents_seen",
     "findings_24h",
     "findings",
     "events",
@@ -302,6 +303,73 @@ def test_findings_and_events_not_windowed_but_agents_are(tmp_path: Path) -> None
     assert data["active_agents"] == [
         {"name": "new-agent", "last_event": "2026-09-16T11:00:00Z"}
     ]
+
+
+def test_cursor_timestamp_tag_parsed(tmp_path: Path) -> None:
+    """Cursor events carry time only inside content_preview's <timestamp>."""
+    mod = load()
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {
+            "record_type": "event",
+            "source_agent": "cursor",
+            "event_type": "prompt.user",
+            # "Wednesday, Sep 16, 2026, 5:30 AM (UTC-6)" -> 11:30Z
+            "content_preview": "<timestamp>Wednesday, Sep 16, 2026, 5:30 AM (UTC-6)</timestamp> <user_query>hi",
+        },
+        {
+            "record_type": "event",
+            "source_agent": "cursor",
+            "event_type": "prompt.user",
+            "content_preview": "<timestamp>bogus</timestamp> no time",
+        },
+    ]))
+    assert data["events"] == [
+        {"observed_at": "2026-09-16T11:30:00Z", "agent": "cursor",
+         "kind": "prompt.user",
+         "summary": "<timestamp>Wednesday, Sep 16, 2026, 5:30 AM (UTC-6)</timestamp> <user_query>hi"},
+    ]
+    assert data["agents_seen"] == [
+        {"name": "cursor", "last_event": "2026-09-16T11:30:00Z"}
+    ]
+    assert data["active_agents"] == data["agents_seen"]
+
+
+def test_artifact_mtime_fallback_for_undated_events(tmp_path: Path) -> None:
+    """Events with no timestamp anywhere fall back to evidence file mtime."""
+    mod = load()
+    artifact = tmp_path / "transcript.jsonl"
+    artifact.write_text("{}\n")
+    ts = datetime(2026, 9, 16, 9, 0, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(artifact, (ts, ts))
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {
+            "record_type": "event",
+            "source_agent": "cursor",
+            "event_type": "assistant.reply",
+            "evidence": {"local_path": str(artifact)},
+        },
+        # foreign-owned / missing paths contribute nothing
+        {
+            "record_type": "event",
+            "source_agent": "ghost",
+            "event_type": "x",
+            "evidence": {"local_path": "/nonexistent/path.jsonl"},
+        },
+    ]))
+    assert data["events"][0]["observed_at"] == "2026-09-16T09:00:00Z"
+    assert [e["agent"] for e in data["events"]] == ["cursor"]
+
+
+def test_agents_seen_covers_all_windowed_or_not(tmp_path: Path) -> None:
+    mod = load()
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "old-one",
+         "timestamp": "2026-09-01T00:00:00Z", "event_type": "old"},
+        {"record_type": "event", "source_agent": "new-one",
+         "timestamp": "2026-09-16T11:00:00Z", "event_type": "new"},
+    ]))
+    assert {a["name"] for a in data["agents_seen"]} == {"old-one", "new-one"}
+    assert {a["name"] for a in data["active_agents"]} == {"new-one"}
 
 
 def test_strings_control_normalized_and_clipped(tmp_path: Path) -> None:

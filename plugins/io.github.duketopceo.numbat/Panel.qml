@@ -16,6 +16,8 @@ Panel {
   property int findingsCount: 0
   property var findings: []
   property var activeAgents: []
+  property var agentsSeen: []
+  property var hookedAgents: []
   property var events: []
   property string recordsPath: ""
   property string probeError: ""
@@ -141,6 +143,8 @@ Panel {
           root.findingsCount = Math.max(0, Number(data.findings_24h) || 0)
           root.findings = (Array.isArray(data.findings) ? data.findings : []).slice(0, 20)
           root.activeAgents = (Array.isArray(data.active_agents) ? data.active_agents : []).slice(0, 10)
+          root.agentsSeen = (Array.isArray(data.agents_seen) ? data.agents_seen : []).slice(0, 10)
+          root.hookedAgents = (Array.isArray(data.hooked_agents) ? data.hooked_agents : []).slice(0, 32)
           root.events = (Array.isArray(data.events) ? data.events : []).slice(0, 30)
           root.recordsPath = typeof data.records_path === "string" ? data.records_path : ""
           root.probeError = typeof data.error === "string" && data.error !== null ? data.error : ""
@@ -533,6 +537,76 @@ Panel {
                 font.pixelSize: Style.font.caption
                 elide: Text.ElideRight
               }
+            }
+          }
+        }
+      }
+
+      PanelSeparator { foreground: root.foreground }
+
+      PanelSectionHeader { text: "MONITORED" + (root.hookedAgents.length > 0 ? " · " + root.hookedAgents.length + " WIRED" : ""); foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Text {
+        visible: root.agentsSeen.length === 0 && root.hookedAgents.length === 0
+        width: parent.width
+        text: "No agent coverage yet"
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Text {
+        visible: root.hookedAgents.length > 0
+        width: parent.width
+        // Wired agents with numbat-owned hooks/plugins — coverage, not activity.
+        text: "hooks wired: " + root.hookedAgents.join(", ")
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
+      }
+
+      Repeater {
+        model: root.agentsSeen
+
+        delegate: Rectangle {
+          width: parent.width
+          height: Style.space(34)
+          radius: Style.cornerRadius
+          color: root.fgFill(0.03)
+          border.color: root.fgFill(0.06)
+
+          RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(12)
+            anchors.rightMargin: Style.space(12)
+            spacing: Style.space(10)
+
+            Rectangle {
+              Layout.preferredWidth: Style.space(6)
+              Layout.preferredHeight: Style.space(6)
+              radius: width / 2
+              color: root.dim
+            }
+
+            Text {
+              Layout.fillWidth: true
+              text: modelData.name || "unnamed agent"
+              textFormat: Text.PlainText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+            }
+
+            Text {
+              text: root.relTime(modelData.last_event)
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
             }
           }
         }

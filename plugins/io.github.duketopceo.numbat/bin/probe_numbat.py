@@ -24,8 +24,8 @@ JOB_DEADLINE_S. ~/.numbat and the state dir are opened descriptor-relative
 with O_NOFOLLOW; records are untrusted user-owned input — strings are
 control-char normalized and length-capped before they reach the QML layer.
 """
-import json, os, selectors, shutil, signal, stat, subprocess, sys, time
-from datetime import datetime, timezone
+import json, os, re, selectors, shutil, signal, stat, subprocess, sys, time
+from datetime import datetime, timedelta, timezone
 
 JOB_DEADLINE_S = 30
 SCAN_TIMEOUT_S = 25          # per-exec deadline for `numbat scan`
@@ -309,12 +309,71 @@ def _parse_ts(value):
     return dt.astimezone(timezone.utc)
 
 
-def _ts_of(rec):
+_TS_TAG = re.compile(r"<timestamp>([^<]{8,80})</timestamp>")
+_TS_TAG_FMT = "%A, %b %d, %Y, %I:%M %p"
+_TZ_TAG = re.compile(r"\(UTC([+-])(\d{1,2})(?::(\d{2}))?\)")
+
+
+def _ts_from_preview(rec):
+    """Cursor transcripts carry no top-level timestamp — numbat leaves the
+    event time inside content_preview as `<timestamp>Saturday, Sep 5, 2026,
+    12:04 AM (UTC-6)</timestamp>`. Parse it; return None on any mismatch."""
+    s = rec.get("content_preview")
+    if not isinstance(s, str):
+        return None
+    m = _TS_TAG.search(s[:512])
+    if not m:
+        return None
+    body = m.group(1).strip()
+    tz = timezone.utc
+    mtz = _TZ_TAG.search(body)
+    if mtz:
+        sign = 1 if mtz.group(1) == "+" else -1
+        hours = int(mtz.group(2))
+        mins = int(mtz.group(3) or 0)
+        tz = timezone(sign * timedelta(hours=hours, minutes=mins))
+        body = _TZ_TAG.sub("", body).strip()
+    try:
+        dt = datetime.strptime(body, _TS_TAG_FMT)
+    except ValueError:
+        return None
+    return dt.replace(tzinfo=tz).astimezone(timezone.utc)
+
+
+def _ts_from_artifact(rec, mtimes):
+    """Fallback: lstat mtime of evidence.local_path — for a transcript file
+    that approximates last activity. User-owned regular files only; each
+    path is statted at most once per probe via the mtimes dict."""
+    ev = rec.get("evidence")
+    if not isinstance(ev, dict):
+        return None
+    path = ev.get("local_path")
+    if not isinstance(path, str) or not path.startswith("/") or len(path) > 512:
+        return None
+    if path in mtimes:
+        return mtimes[path]
+    dt = None
+    try:
+        st = os.lstat(path)
+        if st.st_uid == os.geteuid() and stat.S_ISREG(st.st_mode):
+            dt = datetime.fromtimestamp(st.st_mtime, timezone.utc)
+    except OSError:
+        pass
+    mtimes[path] = dt
+    return dt
+
+
+def _ts_of(rec, mtimes=None):
     for field in TS_FIELDS:
         if field in rec:
             dt = _parse_ts(rec[field])
             if dt is not None:
                 return dt
+    dt = _ts_from_preview(rec)
+    if dt is not None:
+        return dt
+    if mtimes is not None:
+        return _ts_from_artifact(rec, mtimes)
     return None
 
 
@@ -373,19 +432,22 @@ def _summarize_records(records, now):
     in-window subset, and active_agents only lists agents with in-window
     events.
     """
-    findings, events, agents = [], [], {}
+    findings, events, agents, seen = [], [], {}, {}
     findings_24h = 0
+    mtimes = {}
     for rec in records:
         rtype = rec.get("record_type")
         if rtype not in ("event", "finding"):
             continue
-        dt = _ts_of(rec)
+        dt = _ts_of(rec, mtimes)
         if dt is None:
             continue
         if rtype == "event":
             events.append((dt, rec))
+            name = _agent_name(rec)
+            if name and (name not in seen or dt > seen[name]):
+                seen[name] = dt
             if _within(dt, now):
-                name = _agent_name(rec)
                 if name and (name not in agents or dt > agents[name]):
                     agents[name] = dt
         else:
@@ -403,6 +465,12 @@ def _summarize_records(records, now):
         "active_agents": [
             {"name": name, "last_event": _iso_z(dt)}
             for name, dt in sorted(agents.items(),
+                                   key=lambda kv: kv[1],
+                                   reverse=True)[:MAX_AGENTS]
+        ],
+        "agents_seen": [
+            {"name": name, "last_event": _iso_z(dt)}
+            for name, dt in sorted(seen.items(),
                                    key=lambda kv: kv[1],
                                    reverse=True)[:MAX_AGENTS]
         ],
@@ -502,6 +570,7 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         "hooks_seen": False,
         "hooked_agents": [],
         "active_agents": [],
+        "agents_seen": [],
         "findings_24h": 0,
         "findings": [],
         "events": [],
@@ -562,7 +631,7 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         for rec in tail:
             if rec.get("record_type") != "finding":
                 continue
-            dt = _ts_of(rec)
+            dt = _ts_of(rec, {})
             if dt is not None:
                 lt.append((dt, rec))
         lt.sort(key=lambda item: item[0], reverse=True)
@@ -588,6 +657,10 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         if _within(_parse_ts(item.get("observed_at")) or now, now))
     result["events"] = s_events
     result["active_agents"] = s_agents
+    seen = summary.get("agents_seen") or []
+    result["agents_seen"] = [
+        a for a in seen if isinstance(a, dict)
+    ][:MAX_AGENTS]
     result["ok"] = True
     return result
 
