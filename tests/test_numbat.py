@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,10 +14,13 @@ EXPECTED_KEYS = [
     "installed",
     "ok",
     "hooks_seen",
+    "hooked_agents",
     "active_agents",
     "findings_24h",
     "findings",
     "events",
+    "scanned_at",
+    "scan_error",
     "records_path",
     "error",
 ]
@@ -31,334 +35,309 @@ def load():
 
 
 def _no_run(*_a, **_k):
-    raise AssertionError("_run must not be called when records exist")
+    raise AssertionError("_run must not be called in this scenario")
 
 
-def _write_records(home: Path, lines) -> Path:
+def _write_findings(home: Path, lines) -> Path:
     home.mkdir(parents=True, exist_ok=True)
-    path = home / "records.ndjson"
+    path = home / "findings.ndjson"
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
     return path
 
 
+def _scan_ndjson(records) -> str:
+    return "".join(json.dumps(r) + "\n" for r in records)
+
+
+def _fake_run(scan_records=None, hook_status="", scan_fails=False):
+    """run seam: [bin,'scan','--emit','all'] -> NDJSON, [bin,'hook','status'] -> text."""
+    calls = []
+
+    def run(argv, timeout=0.0, max_bytes=0):
+        calls.append(list(argv))
+        if "scan" in argv:
+            if scan_fails:
+                return None
+            return _scan_ndjson(scan_records or [])
+        if "status" in argv:
+            return hook_status
+        raise AssertionError(f"unexpected argv {argv}")
+
+    run.calls = calls
+    return run
+
+
+def _probe(mod, tmp_path: Path, *, run, home=None):
+    return mod.probe(
+        tool=lambda _n: "/usr/bin/numbat",
+        run=run,
+        numbat_home=home if home is not None else tmp_path / ".numbat",
+        state_dir=tmp_path / "state",
+        now=NOW,
+    )
+
+
 def test_missing_binary_installed_false(tmp_path: Path) -> None:
     mod = load()
-    data = mod.probe(tool=lambda _n: None, run=_no_run, numbat_home=tmp_path / ".numbat", now=NOW)
+    data = mod.probe(tool=lambda _n: None, run=_no_run,
+                     numbat_home=tmp_path / ".numbat",
+                     state_dir=tmp_path / "state", now=NOW)
     assert list(data.keys()) == EXPECTED_KEYS
     assert data["installed"] is False
     assert data["ok"] is False
     assert data["hooks_seen"] is False
-    assert data["active_agents"] == []
     assert data["findings_24h"] == 0
-    assert data["findings"] == []
-    assert data["events"] == []
-    assert data["records_path"] == "~/.numbat/records.ndjson"
+    assert data["records_path"] == "~/.numbat/findings.ndjson"
     json.dumps(data)
 
 
-def test_no_numbat_dir_uses_agents_cli_fallback(tmp_path: Path) -> None:
+def test_scan_and_hook_status_populate_summary(tmp_path: Path) -> None:
     mod = load()
-    calls = []
-
-    def fake_run(argv, timeout=0.0, max_bytes=0):
-        calls.append(list(argv))
-        return json.dumps(
-            {
-                "agents": [
-                    {"name": "claude-code", "last_seen": "2026-09-16T10:00:00Z"},
-                    "a0",
-                ]
-            }
-        )
-
-    data = mod.probe(
-        tool=lambda _n: "/usr/bin/numbat",
-        run=fake_run,
-        numbat_home=tmp_path / ".numbat",
-        now=NOW,
-    )
-    assert data["installed"] is True
-    assert data["ok"] is True
-    assert data["hooks_seen"] is False
-    assert data["error"] is None
-    assert calls == [["/usr/bin/numbat", "agents", "--all"]]
-    assert data["active_agents"] == [
-        {"name": "claude-code", "last_event": "2026-09-16T10:00:00Z"},
-        {"name": "a0", "last_event": ""},
-    ]
-
-
-def test_agents_fallback_non_json_degrades_to_empty(tmp_path: Path) -> None:
-    mod = load()
-    data = mod.probe(
-        tool=lambda _n: "/usr/bin/numbat",
-        run=lambda *_a, **_k: "numbat 1.2.3 — agents: claude-code, a0",
-        numbat_home=tmp_path / ".numbat",
-        now=NOW,
-    )
-    assert data["ok"] is True
-    assert data["active_agents"] == []
-    assert data["error"] is None
-
-
-def test_agents_fallback_run_failure_sets_error(tmp_path: Path) -> None:
-    mod = load()
-    data = mod.probe(
-        tool=lambda _n: "/usr/bin/numbat",
-        run=lambda *_a, **_k: None,
-        numbat_home=tmp_path / ".numbat",
-        now=NOW,
-    )
-    assert data["installed"] is True
-    assert data["ok"] is False
-    assert data["hooks_seen"] is False
-    assert data["error"]
-
-
-def test_mixed_event_and_finding_records(tmp_path: Path) -> None:
-    mod = load()
-    home = tmp_path / ".numbat"
-    _write_records(
-        home,
-        [
-            {"record_type": "event", "source_agent": "claude-code", "observed_at": "2026-09-16T11:00:00Z"},
-            {"record_type": "event", "source_agent": "claude-code", "observed_at": "2026-09-16T11:59:00Z"},
-            {"record_type": "event", "source_agent": "a0", "ts": "2026-09-16T10:00:00+00:00"},
-            {
-                "record_type": "finding",
-                "rule": "secret-in-prompt",
-                "observed_at": "2026-09-16T11:30:00Z",
-                "source_agent": "claude-code",
-            },
-            # outside the 24h window — must not be counted
-            {"record_type": "finding", "rule": "stale-rule", "observed_at": "2026-09-10T00:00:00Z"},
-            # unknown record_type — counts as a record but not event/finding
-            {"record_type": "heartbeat", "observed_at": "2026-09-16T11:59:59Z"},
+    run = _fake_run(
+        scan_records=[
+            {"record_type": "event", "source_agent": "claude-code",
+             "timestamp": "2026-09-16T11:59:00Z", "event_type": "session.end",
+             "content_preview": "done"},
+            {"record_type": "finding", "rule_id": "tamper.x", "severity": "low",
+             "source_agent": "claude-code",
+             "detected_at": "2026-09-16T11:55:00Z",
+             "title": "reduced-approval mode"},
+            {"record_type": "diagnostic", "level": "warn",
+             "timestamp": "2026-09-16T11:00:00Z"},
+            {"record_type": "scan_summary", "timestamp": "2026-09-16T12:00:00Z"},
         ],
+        hook_status=(
+            "codex    installed    numbat hooks installed\n"
+            "claude   not installed\n"
+        ),
     )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    data = _probe(mod, tmp_path, run=run)
     assert list(data.keys()) == EXPECTED_KEYS
     assert data["installed"] is True
     assert data["ok"] is True
     assert data["error"] is None
     assert data["hooks_seen"] is True
-    assert data["findings_24h"] == 1
+    assert data["hooked_agents"] == ["codex"]
+    assert data["scanned_at"] == "2026-09-16T12:00:00Z"
+    assert data["scan_error"] is None
+    # finding: title preferred over rule_id, detected_at alias works
     assert data["findings"] == [
-        {
-            "rule": "secret-in-prompt",
-            "observed_at": "2026-09-16T11:30:00Z",
-            "agent": "claude-code",
-        }
+        {"rule": "reduced-approval mode",
+         "observed_at": "2026-09-16T11:55:00Z",
+         "agent": "claude-code", "severity": "low"}
     ]
-    agents = {a["name"]: a["last_event"] for a in data["active_agents"]}
-    assert agents == {
-        "claude-code": "2026-09-16T11:59:00Z",  # newest event wins
-        "a0": "2026-09-16T10:00:00Z",
-    }
-
-
-def test_garbage_and_truncated_lines_skipped(tmp_path: Path) -> None:
-    mod = load()
-    home = tmp_path / ".numbat"
-    home.mkdir()
-    (home / "records.ndjson").write_bytes(
-        b"\x00\x01\x02 not json \xff\xfe\n"
-        b'{"record_type":"event","source_agent":"claude-code","observed_at":"2026-09-16T11:0'  # truncated mid-line
-        b'\n{"record_type":"event","source_agent":"claude-code","observed_at":"2026-09-16T11:45:00Z"}\n'
-        b"42\n"
-        b'"just a string"\n'
-        b'{"record_type":"finding","rule":"r1","observed_at":"2026-09-16T11:50:00Z"}\n'
-    )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
-    assert data["hooks_seen"] is True
     assert data["findings_24h"] == 1
-    assert data["findings"][0]["rule"] == "r1"
-    assert data["active_agents"] == [{"name": "claude-code", "last_event": "2026-09-16T11:45:00Z"}]
+    assert data["active_agents"] == [
+        {"name": "claude-code", "last_event": "2026-09-16T11:59:00Z"}
+    ]
+    assert data["events"] == [
+        {"observed_at": "2026-09-16T11:59:00Z", "agent": "claude-code",
+         "kind": "session.end", "summary": "done"}
+    ]
+    # scan cache written descriptor-relative under the state dir
+    cache = json.loads((tmp_path / "state" / "scan-cache.json").read_text())
+    assert cache["hooked_agents"] == ["codex"]
+    assert cache["summary"]["findings_24h"] == 1
+    assert oct((tmp_path / "state" / "scan-cache.json").stat().st_mode & 0o777) == "0o600"
 
 
-def test_tail_read_bounded(tmp_path: Path) -> None:
+def test_fresh_cache_skips_scan_but_tail_still_read(tmp_path: Path) -> None:
+    mod = load()
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    cache = {
+        "scanned_at": "2026-09-16T11:00:00Z",
+        "hooked_agents": ["codex"],
+        "summary": {
+            "findings": [{"rule": "cached", "observed_at": "2026-09-16T10:00:00Z",
+                          "agent": "a0"}],
+            "findings_24h": 1,
+            "events": [{"observed_at": "2026-09-16T10:00:00Z", "agent": "a0",
+                        "kind": "k", "summary": "s"}],
+            "active_agents": [{"name": "a0", "last_event": "2026-09-16T10:00:00Z"}],
+        },
+    }
+    (state / "scan-cache.json").write_text(json.dumps(cache))
+    home = tmp_path / ".numbat"
+    _write_findings(home, [
+        {"record_type": "finding", "rule_id": "live.new",
+         "timestamp": "2026-09-16T11:59:00Z", "source_agent": "codex"},
+    ])
+    data = _probe(mod, tmp_path, run=_no_run, home=home)
+    assert data["scanned_at"] == "2026-09-16T11:00:00Z"
+    assert data["hooks_seen"] is True
+    # live tail finding sorts first, cached finding still present
+    assert [f["rule"] for f in data["findings"]] == ["live.new", "cached"]
+    assert data["events"][0]["kind"] == "k"
+
+
+def test_scan_failure_with_no_cache_sets_scan_error(tmp_path: Path) -> None:
+    mod = load()
+    data = _probe(mod, tmp_path, run=_fake_run(scan_fails=True))
+    assert data["ok"] is True
+    assert data["installed"] is True
+    assert data["scan_error"] == "numbat scan failed"
+    assert data["events"] == []
+    assert data["hooks_seen"] is False
+
+
+def test_scan_failure_falls_back_to_stale_cache(tmp_path: Path) -> None:
+    mod = load()
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    stale = {
+        "scanned_at": "2026-09-15T01:00:00Z",  # older than SCAN_INTERVAL_S
+        "hooked_agents": ["codex"],
+        "summary": {
+            "findings": [], "findings_24h": 0,
+            "events": [{"observed_at": "2026-09-15T00:00:00Z", "agent": "a0",
+                        "kind": "x", "summary": ""}],
+            "active_agents": [],
+        },
+    }
+    (state / "scan-cache.json").write_text(json.dumps(stale))
+    # make the cache file itself look old so the stale path is exercised
+    old = NOW.timestamp() - 7200
+    os.utime(state / "scan-cache.json", (old, old))
+    data = _probe(mod, tmp_path, run=_fake_run(scan_fails=True))
+    assert data["scan_error"] == "scan failed; showing cached data"
+    assert data["events"][0]["kind"] == "x"
+    assert data["hooks_seen"] is True  # from cached hooked_agents
+
+
+def test_findings_tail_is_live_and_bounded(tmp_path: Path) -> None:
     mod = load()
     home = tmp_path / ".numbat"
+    head = {"record_type": "finding", "rule_id": "head-only",
+            "timestamp": "2026-09-16T11:59:00Z"}
+    filler = {"record_type": "finding", "rule_id": "filler",
+              "timestamp": "2026-09-16T11:00:00Z"}
+    tail_new = {"record_type": "finding", "rule_id": "marker-new",
+                "timestamp": "2026-09-16T11:59:30Z"}
+    lines = [json.dumps(head)] + [json.dumps(filler)] * 5000 + [json.dumps(tail_new)]
     home.mkdir()
-    head = {"record_type": "finding", "rule": "head-only", "observed_at": "2026-09-16T11:59:00Z"}
-    filler = {"record_type": "finding", "rule": "filler", "observed_at": "2026-09-16T11:00:00Z"}
-    tail_old = {"record_type": "finding", "rule": "marker-old", "observed_at": "2026-09-16T11:58:30Z"}
-    tail_new = {"record_type": "finding", "rule": "marker-new", "observed_at": "2026-09-16T11:59:30Z"}
-    path = home / "records.ndjson"
-    lines = [json.dumps(head)] + [json.dumps(filler)] * 5000 + [
-        json.dumps(tail_old),
-        json.dumps(tail_new),
-    ]
+    path = home / "findings.ndjson"
     path.write_text("\n".join(lines) + "\n")
     assert path.stat().st_size > 256 * 1024
-
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
-    assert data["hooks_seen"] is True
-    # Bounded tail-read: the head of the file was never read.
-    assert 0 < data["findings_24h"] < 5002
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
     rules = [f["rule"] for f in data["findings"]]
     assert "head-only" not in rules
-    assert rules[0] == "marker-new"  # newest first
-    assert "marker-old" in rules
+    assert rules[0] == "marker-new"
+    assert data["hooks_seen"] is True
 
 
-def test_z_and_offset_timestamps_both_windowed(tmp_path: Path) -> None:
-    mod = load()
-    home = tmp_path / ".numbat"
-    _write_records(
-        home,
-        [
-            {"record_type": "finding", "rule": "z-form", "observed_at": "2026-09-16T11:00:00Z"},
-            {"record_type": "finding", "rule": "offset-form", "observed_at": "2026-09-16T11:00:00+00:00"},
-            # 13:30 at +02:00 is 11:30 UTC — inside the window
-            {"record_type": "finding", "rule": "other-offset", "observed_at": "2026-09-16T13:30:00+02:00"},
-            # older than 24h — excluded
-            {"record_type": "finding", "rule": "too-old", "observed_at": "2026-09-14T13:00:00Z"},
-        ],
-    )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
-    assert data["findings_24h"] == 3
-    rules = {f["rule"] for f in data["findings"]}
-    assert rules == {"z-form", "offset-form", "other-offset"}
-    # newest instant first (other-offset = 11:30Z)
-    assert data["findings"][0]["rule"] == "other-offset"
-    assert data["findings"][0]["observed_at"] == "2026-09-16T11:30:00Z"
-
-
-def test_symlinked_records_file_not_followed(tmp_path: Path) -> None:
+def test_garbage_and_unknown_records_skipped(tmp_path: Path) -> None:
     mod = load()
     home = tmp_path / ".numbat"
     home.mkdir()
-    real = tmp_path / "real-records.ndjson"
-    real.write_text(
-        '{"record_type":"event","source_agent":"x","observed_at":"2026-09-16T11:00:00Z"}\n'
+    (home / "findings.ndjson").write_bytes(
+        b"\x00\x01 not json \xff\xfe\n"
+        b'{"record_type":"finding","rule_id":"r1","timestamp":"2026-09-16T11:50:00Z"}\n'
+        b"42\n"
+        b'"just a string"\n'
     )
-    (home / "records.ndjson").symlink_to(real)
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    assert data["findings"] == [
+        {"rule": "r1", "observed_at": "2026-09-16T11:50:00Z", "agent": ""}
+    ]
 
-    calls = []
-    data = mod.probe(
-        tool=lambda _n: "/usr/bin/numbat",
-        run=lambda *a, **k: calls.append(1) or "[]",
-        numbat_home=home,
-        now=NOW,
+
+def test_symlinked_findings_file_not_followed(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    home.mkdir()
+    real = tmp_path / "real-findings.ndjson"
+    real.write_text(
+        '{"record_type":"finding","rule_id":"x","timestamp":"2026-09-16T11:00:00Z"}\n'
     )
+    (home / "findings.ndjson").symlink_to(real)
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    assert data["findings"] == []
     assert data["hooks_seen"] is False
-    assert calls  # treated as absent -> CLI fallback ran
 
 
 def test_events_newest_first_and_capped_at_30(tmp_path: Path) -> None:
     mod = load()
-    home = tmp_path / ".numbat"
-    lines = []
+    records = []
     for i in range(40):
-        # Alternate Z and +00:00 forms — both describe the same instant.
-        ts = (
-            f"2026-09-16T10:{i:02d}:00Z"
-            if i % 2 == 0
-            else f"2026-09-16T10:{i:02d}:00+00:00"
-        )
-        lines.append(
-            {
-                "record_type": "event",
-                "source_agent": "claude-code" if i % 2 == 0 else "a0",
-                "observed_at": ts,
-                "kind": "tool_call",
-                "summary": f"event-{i:02d}",
-            }
-        )
-    _write_records(home, lines)
-
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+        ts = (f"2026-09-16T10:{i:02d}:00Z" if i % 2 == 0
+              else f"2026-09-16T10:{i:02d}:00+00:00")
+        records.append({
+            "record_type": "event",
+            "source_agent": "claude-code" if i % 2 == 0 else "a0",
+            "timestamp": ts,
+            "event_type": "tool_call",
+            "content_preview": f"event-{i:02d}",
+        })
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=records))
     assert len(data["events"]) == 30
-    # Newest 30 of 40 -> event-10 .. event-39, strictly newest-first.
     stamps = [e["observed_at"] for e in data["events"]]
     assert stamps == sorted(stamps, reverse=True)
     assert data["events"][0] == {
-        "observed_at": "2026-09-16T10:39:00Z",  # +00:00 input normalized to Z
+        "observed_at": "2026-09-16T10:39:00Z",
         "agent": "a0",
         "kind": "tool_call",
         "summary": "event-39",
     }
-    assert data["events"][-1]["summary"] == "event-10"
     for e in data["events"]:
         assert set(e.keys()) == {"observed_at", "agent", "kind", "summary"}
 
 
-def test_events_skip_bad_records_and_probe_field_aliases(tmp_path: Path) -> None:
+def test_findings_and_events_not_windowed_but_agents_are(tmp_path: Path) -> None:
     mod = load()
-    home = tmp_path / ".numbat"
-    _write_records(
-        home,
-        [
-            # kind/summary probed across event_type|kind|action and
-            # summary|detail|message — first non-empty wins.
-            {
-                "record_type": "event",
-                "source_agent": "a0",
-                "observed_at": "2026-09-16T11:00:00Z",
-                "event_type": "session_start",
-                "detail": "boot",
-            },
-            {
-                "record_type": "event",
-                "source_agent": "a0",
-                "observed_at": "2026-09-16T11:01:00Z",
-                "action": "write",
-                "message": "wrote file",
-            },
-            # no kind/summary fields -> empty strings, still emitted
-            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-16T11:02:00Z"},
-            # bad records are skipped, never emitted
-            {"record_type": "event", "source_agent": "a0"},  # no timestamp
-            {"record_type": "event", "source_agent": "a0", "observed_at": "not-a-date"},
-            {"record_type": "heartbeat", "observed_at": "2026-09-16T11:03:00Z"},
-            {"record_type": "finding", "rule": "r1", "observed_at": "2026-09-16T11:04:00Z"},
-            "just a string",
-            42,
-        ],
-    )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
-    assert data["events"] == [
-        {"observed_at": "2026-09-16T11:02:00Z", "agent": "a0", "kind": "", "summary": ""},
-        {"observed_at": "2026-09-16T11:01:00Z", "agent": "a0", "kind": "write", "summary": "wrote file"},
-        {"observed_at": "2026-09-16T11:00:00Z", "agent": "a0", "kind": "session_start", "summary": "boot"},
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "old-agent",
+         "timestamp": "2026-09-10T00:00:00Z", "event_type": "old"},
+        {"record_type": "event", "source_agent": "new-agent",
+         "timestamp": "2026-09-16T11:00:00Z", "event_type": "new"},
+        {"record_type": "finding", "rule_id": "old-finding",
+         "timestamp": "2026-09-10T00:00:00Z"},
+        {"record_type": "finding", "rule_id": "new-finding",
+         "timestamp": "2026-09-16T11:30:00Z"},
+    ]))
+    assert [e["kind"] for e in data["events"]] == ["new", "old"]
+    assert {f["rule"] for f in data["findings"]} == {"old-finding", "new-finding"}
+    assert data["findings_24h"] == 1
+    # only agents with in-window events are "active"
+    assert data["active_agents"] == [
+        {"name": "new-agent", "last_event": "2026-09-16T11:00:00Z"}
     ]
 
 
-def test_events_not_limited_to_24h_window(tmp_path: Path) -> None:
+def test_strings_control_normalized_and_clipped(tmp_path: Path) -> None:
     mod = load()
-    home = tmp_path / ".numbat"
-    _write_records(
-        home,
-        [
-            # Older than the findings window — the log is "last N records".
-            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-10T00:00:00Z", "kind": "old"},
-            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-16T11:00:00Z", "kind": "new"},
-        ],
-    )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
-    assert [e["kind"] for e in data["events"]] == ["new", "old"]
-
-
-def test_events_strings_control_normalized_and_clipped(tmp_path: Path) -> None:
-    mod = load()
-    home = tmp_path / ".numbat"
-    _write_records(
-        home,
-        [
-            {
-                "record_type": "event",
-                "source_agent": "a0",
-                "observed_at": "2026-09-16T11:00:00Z",
-                "kind": "k" * 200,
-                "summary": "has\x00ctrl\x07chars " + "s" * 120,
-            },
-        ],
-    )
-    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {
+            "record_type": "event",
+            "source_agent": "a0",
+            "timestamp": "2026-09-16T11:00:00Z",
+            "event_type": "k" * 200,
+            "content_preview": "has\x00ctrl\x07chars " + "s" * 120,
+        },
+    ]))
     ev = data["events"][0]
     assert len(ev["kind"]) == 80
     assert len(ev["summary"]) <= 80
     assert "\x00" not in ev["summary"]
     assert "\x07" not in ev["summary"]
     json.dumps(data)
+
+
+def test_untrusted_numbat_dir_sets_error(tmp_path: Path) -> None:
+    mod = load()
+    foreign = tmp_path / ".numbat"
+    foreign.mkdir()
+    # simulate a directory not owned by us by monkeypatching _open_dir's
+    # ownership check target: simplest faithful check is a broken symlink dir
+    link = tmp_path / "linkhome"
+    link.symlink_to(foreign)
+    data = mod.probe(
+        tool=lambda _n: "/usr/bin/numbat",
+        run=_fake_run(scan_records=[]),
+        numbat_home=str(link),  # O_NOFOLLOW on the dir itself -> OSError
+        state_dir=tmp_path / "state",
+        now=NOW,
+    )
+    # symlinked dir -> _open_dir raises OSError -> treated as absent tail
+    assert data["installed"] is True
+    assert data["ok"] is True

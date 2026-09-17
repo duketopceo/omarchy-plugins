@@ -3,24 +3,36 @@
 
 Emits one JSON object on stdout describing numbat's presence and recent
 signal: installed, hooks_seen, active_agents, findings_24h, findings,
-events.
+events, scanned_at, error.
+
+Data model (verified against numbat 0.2.0, schema 0.3.0):
+  * `numbat hook install` writes findings-only hooks that append to
+    ~/.numbat/findings.ndjson — tailed live on every call.
+  * `numbat scan` reconstructs events + findings from on-disk agent
+    artifacts and emits NDJSON to stdout. It is run on a stale-cache
+    cycle (SCAN_INTERVAL_S) and the parsed result is cached under
+    ~/.local/state/omarchy/numbat/ — never under ~/.numbat.
+  * `numbat hook status` reports which agents have installed hooks and
+    is folded into the same cache cycle.
 
 This helper is an observe-only consumer: it never runs `numbat hook
 install`, never writes under ~/.numbat, and never enables enforce mode.
-Its only inputs are a bounded tail-read of ~/.numbat/records.ndjson and,
-when no records exist, `numbat agents --all`.
 
 All external tools run by absolute path under a fixed minimal environment
 with a per-call byte budget and deadline; the whole job self-terminates at
-JOB_DEADLINE_S. ~/.numbat is opened descriptor-relative with O_NOFOLLOW;
-records are untrusted user-owned input — strings are control-char
-normalized and length-capped before they reach the QML layer.
+JOB_DEADLINE_S. ~/.numbat and the state dir are opened descriptor-relative
+with O_NOFOLLOW; records are untrusted user-owned input — strings are
+control-char normalized and length-capped before they reach the QML layer.
 """
 import json, os, selectors, shutil, signal, stat, subprocess, sys, time
 from datetime import datetime, timezone
 
-JOB_DEADLINE_S = 8
+JOB_DEADLINE_S = 30
+SCAN_TIMEOUT_S = 25          # per-exec deadline for `numbat scan`
+SCAN_INTERVAL_S = int(os.environ.get("NUMBAT_SCAN_INTERVAL_S", "600"))
+HOOKS_TIMEOUT_S = 3.0
 MAX_OUT_BYTES = 262144
+SCAN_MAX_BYTES = 32 * 1024 * 1024
 TAIL_BYTES = 256 * 1024
 WINDOW_S = 24 * 3600
 FUTURE_SKEW_S = 300
@@ -29,20 +41,24 @@ MAX_FINDINGS = 20
 MAX_EVENTS = 30
 EVENT_STR = 80
 MAX_AGENTS = 10
-MAX_AGENT_ITEMS = 64
-AGENTS_TIMEOUT_S = 2.0
-AGENTS_MAX_BYTES = 65536
+CACHE_MAX_BYTES = 128 * 1024
 
 SAFE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin:" + os.path.join(
     os.path.expanduser("~"), ".local", "bin")
-SAFE_ENV = {"PATH": SAFE_PATH, "LC_ALL": "C", "LANG": "C"}
+SAFE_ENV = {"PATH": SAFE_PATH, "HOME": os.path.expanduser("~"),
+            "LC_ALL": "C", "LANG": "C"}
 
-RECORDS_NAME = "records.ndjson"
-RECORDS_PATH_DISPLAY = "~/.numbat/records.ndjson"
-TS_FIELDS = ("observed_at", "ts", "timestamp")
-AGENT_TS_FIELDS = ("last_event", "last_seen", "observed_at", "ts", "timestamp")
-EVENT_KIND_FIELDS = ("event_type", "kind", "action")
-EVENT_SUMMARY_FIELDS = ("summary", "detail", "message")
+NUMBAT_HOME = os.path.join(os.path.expanduser("~"), ".numbat")
+STATE_DIR = os.path.join(os.path.expanduser("~"),
+                         ".local", "state", "omarchy", "numbat")
+FINDINGS_NAME = "findings.ndjson"
+CACHE_NAME = "scan-cache.json"
+FINDINGS_PATH_DISPLAY = "~/.numbat/findings.ndjson"
+TS_FIELDS = ("observed_at", "detected_at", "timestamp", "ts")
+EVENT_KIND_FIELDS = ("observed_event_type", "event_type", "kind", "action")
+EVENT_SUMMARY_FIELDS = ("summary", "detail", "message", "content_preview",
+                        "observed_content_preview")
+FINDING_NAME_FIELDS = ("title", "rule_id", "rule_name")
 
 
 def _tool(name):
@@ -191,6 +207,49 @@ def _read_tail(dirfd, name, limit):
         os.close(fd)
 
 
+def _read_capped(dirfd, name, limit):
+    """Read a whole file bounded to limit bytes; None on anomaly."""
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid():
+            return None
+        data = b""
+        remaining = limit + 1
+        while remaining > 0:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            data += chunk
+            remaining -= len(chunk)
+        if len(data) > limit:
+            return None
+        return data
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _publish(dirfd, name, payload):
+    """Atomic 0600 publish: exclusive temp + rename, same directory."""
+    tmp = "." + name + ".tmp"
+    try:
+        os.unlink(tmp, dir_fd=dirfd)
+    except OSError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600, dir_fd=dirfd)
+    try:
+        os.write(fd, payload)
+    finally:
+        os.close(fd)
+    os.replace(tmp, name, src_dir_fd=dirfd, dst_dir_fd=dirfd)
+
+
 def _iter_records(data, seeked):
     """Yield parsed JSON-object lines; the possibly-partial first tail line
     and any malformed lines are skipped — records are untrusted input."""
@@ -209,7 +268,7 @@ def _iter_records(data, seeked):
             yield rec
 
 
-def _load_records(numbat_home):
+def _load_findings_tail(numbat_home):
     """-> (records|None, status) where status is ok | absent | untrusted."""
     try:
         dirfd = _open_dir(numbat_home)
@@ -218,7 +277,7 @@ def _load_records(numbat_home):
     except OSError:
         return None, "absent"
     try:
-        res = _read_tail(dirfd, RECORDS_NAME, TAIL_BYTES)
+        res = _read_tail(dirfd, FINDINGS_NAME, TAIL_BYTES)
     finally:
         os.close(dirfd)
     if res is None:
@@ -272,13 +331,8 @@ def _agent_name(rec):
     return _clean(rec.get("source_agent") or rec.get("agent") or rec.get("agent_name"))
 
 
-def _rule_name(rec):
-    rule = rec.get("rule")
-    if isinstance(rule, dict):
-        rule = rule.get("id") or rule.get("name") or rule.get("title")
-    elif rule is None:
-        rule = rec.get("rule_id") or rec.get("rule_name")
-    return _clean(rule)
+def _finding_name(rec):
+    return _first_clean(rec, FINDING_NAME_FIELDS, 96)
 
 
 def _first_clean(rec, fields, limit):
@@ -291,73 +345,169 @@ def _first_clean(rec, fields, limit):
     return ""
 
 
-def _agents_via_cli(binary, run):
-    """Coarse discovery list from `numbat agents --all`.
+def _finding_item(rec, dt):
+    item = {
+        "rule": _finding_name(rec),
+        "observed_at": _iso_z(dt),
+        "agent": _agent_name(rec),
+    }
+    if "severity" in rec:
+        item["severity"] = _clean(rec["severity"])
+    return item
 
-    Returns a list (possibly empty) on success, or None when the call
-    itself failed/timed out. Non-JSON output degrades to an empty list.
+
+def _event_item(rec, dt):
+    return {
+        "observed_at": _iso_z(dt),
+        "agent": _agent_name(rec),
+        "kind": _first_clean(rec, EVENT_KIND_FIELDS, EVENT_STR),
+        "summary": _first_clean(rec, EVENT_SUMMARY_FIELDS, EVENT_STR),
+    }
+
+
+def _summarize_records(records, now):
+    """Fold raw records into a bounded summary dict for the cache + panel.
+
+    Findings and events keep the newest MAX_* rows regardless of age so a
+    stale tail still shows what numbat last saw; findings_24h counts the
+    in-window subset, and active_agents only lists agents with in-window
+    events.
     """
-    out = run([binary, "agents", "--all"], timeout=AGENTS_TIMEOUT_S, max_bytes=AGENTS_MAX_BYTES)
+    findings, events, agents = [], [], {}
+    findings_24h = 0
+    for rec in records:
+        rtype = rec.get("record_type")
+        if rtype not in ("event", "finding"):
+            continue
+        dt = _ts_of(rec)
+        if dt is None:
+            continue
+        if rtype == "event":
+            events.append((dt, rec))
+            if _within(dt, now):
+                name = _agent_name(rec)
+                if name and (name not in agents or dt > agents[name]):
+                    agents[name] = dt
+        else:
+            findings.append((dt, rec))
+            if _within(dt, now):
+                findings_24h += 1
+    findings.sort(key=lambda item: item[0], reverse=True)
+    events.sort(key=lambda item: item[0], reverse=True)
+    return {
+        "findings": [_finding_item(rec, dt)
+                     for dt, rec in findings[:MAX_FINDINGS]],
+        "findings_24h": findings_24h,
+        "events": [_event_item(rec, dt)
+                   for dt, rec in events[:MAX_EVENTS]],
+        "active_agents": [
+            {"name": name, "last_event": _iso_z(dt)}
+            for name, dt in sorted(agents.items(),
+                                   key=lambda kv: kv[1],
+                                   reverse=True)[:MAX_AGENTS]
+        ],
+    }
+
+
+def _hooked_agents(binary, run):
+    """Agent names with numbat-owned hooks installed (`numbat hook status`).
+
+    Returns a sorted list (possibly empty) or None when the call failed.
+    """
+    out = run([binary, "hook", "status"], timeout=HOOKS_TIMEOUT_S,
+              max_bytes=65536)
     if out is None:
         return None
+    hooked = []
+    for line in out.splitlines():
+        line = line.strip().lower()
+        if not line or line.startswith("agent"):
+            continue
+        # status rows look like: "codex    installed ..." or "x  not installed"
+        if "install" in line and "not" not in line.split()[1:3]:
+            name = line.split()[0]
+            if name and name not in hooked:
+                hooked.append(name)
+    return hooked
+
+
+def _scan_records(binary, run):
+    """`numbat scan` NDJSON -> record list, or None on failure."""
+    out = run([binary, "scan", "--emit", "all"], timeout=SCAN_TIMEOUT_S,
+              max_bytes=SCAN_MAX_BYTES)
+    if out is None:
+        return None
+    return list(_iter_records(out.encode(), False))
+
+
+def _load_scan_cache(state_dir):
+    """-> (dict|None): cached scan payload if present and parseable."""
     try:
-        data = json.loads(out)
+        dirfd = _open_dir(state_dir)
+    except (PermissionError, OSError):
+        return None
+    try:
+        data = _read_capped(dirfd, CACHE_NAME, CACHE_MAX_BYTES)
+    finally:
+        os.close(dirfd)
+    if data is None:
+        return None
+    try:
+        obj = json.loads(data.decode("utf-8", errors="replace"))
     except ValueError:
-        return []
-    if isinstance(data, dict):
-        if isinstance(data.get("agents"), list):
-            items = data["agents"]
-        else:
-            items = [
-                dict(v, name=k) if isinstance(v, dict) else {"name": k}
-                for k, v in data.items()
-            ]
-    elif isinstance(data, list):
-        items = data
-    else:
-        return []
-    agents = []
-    for item in items[:MAX_AGENT_ITEMS]:
-        if isinstance(item, str):
-            item = {"name": item}
-        if not isinstance(item, dict):
-            continue
-        name = _clean(
-            item.get("name") or item.get("agent") or item.get("id") or item.get("source_agent")
-        )
-        if not name:
-            continue
-        last = ""
-        for field in AGENT_TS_FIELDS:
-            if field in item:
-                dt = _parse_ts(item[field])
-                if dt is not None:
-                    last = _iso_z(dt)
-                    break
-        agents.append({"name": name, "last_event": last})
-        if len(agents) >= MAX_AGENTS:
-            break
-    return agents
+        return None
+    if not isinstance(obj, dict):
+        return None
+    try:
+        mtime = os.lstat(os.path.join(state_dir, CACHE_NAME)).st_mtime
+    except OSError:
+        return None
+    obj["_mtime"] = mtime
+    return obj
 
 
-def probe(tool=_tool, run=_run, numbat_home=None, now=None):
+def _write_scan_cache(state_dir, payload):
+    """Atomic 0600 publish of the scan cache; failure is non-fatal."""
+    try:
+        os.makedirs(state_dir, mode=0o700, exist_ok=True)
+        dirfd = _open_dir(state_dir)
+    except (PermissionError, OSError):
+        return
+    try:
+        _publish(dirfd, CACHE_NAME, json.dumps(payload).encode())
+    except OSError:
+        pass
+    finally:
+        os.close(dirfd)
+
+
+def _fresh_enough(cache, now_ts):
+    mtime = cache.get("_mtime")
+    if not isinstance(mtime, (int, float)):
+        return False
+    return (now_ts - mtime) < SCAN_INTERVAL_S
+
+
+def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
     """Assemble the numbat data packet. All seams injectable for tests."""
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
-    home = numbat_home if numbat_home is not None else os.path.join(
-        os.path.expanduser("~"), ".numbat"
-    )
+    home = numbat_home if numbat_home is not None else NUMBAT_HOME
+    state = state_dir if state_dir is not None else STATE_DIR
 
     result = {
         "installed": False,
         "ok": False,
         "hooks_seen": False,
+        "hooked_agents": [],
         "active_agents": [],
         "findings_24h": 0,
         "findings": [],
         "events": [],
-        "records_path": RECORDS_PATH_DISPLAY,
+        "scanned_at": None,
+        "scan_error": None,
+        "records_path": FINDINGS_PATH_DISPLAY,
         "error": None,
     }
 
@@ -366,76 +516,78 @@ def probe(tool=_tool, run=_run, numbat_home=None, now=None):
         return result
     result["installed"] = True
 
-    records, status = _load_records(home)
-    if status == "untrusted":
+    tail, tail_status = _load_findings_tail(home)
+    if tail_status == "untrusted":
         result["error"] = "untrusted ~/.numbat directory"
         return result
 
-    if records:
-        result["hooks_seen"] = True
-        findings = []
-        events = []
-        agents = {}
-        for rec in records:
-            rtype = rec.get("record_type")
-            if rtype not in ("event", "finding"):
+    # --- scan + hook-status on a stale-cache cycle ---
+    cache = _load_scan_cache(state)
+    if cache is None or not _fresh_enough(cache, time.time()):
+        records = _scan_records(binary, run)
+        hooked = _hooked_agents(binary, run)
+        if records is not None:
+            payload = {
+                "scanned_at": _iso_z(now),
+                "summary": _summarize_records(records, now),
+                "hooked_agents": hooked if isinstance(hooked, list) else [],
+            }
+            _write_scan_cache(state, payload)
+            cache = dict(payload)
+            cache["_mtime"] = time.time()
+            result["scanned_at"] = payload["scanned_at"]
+        elif cache is not None:
+            result["scan_error"] = "scan failed; showing cached data"
+            result["scanned_at"] = cache.get("scanned_at")
+        else:
+            result["scan_error"] = "numbat scan failed"
+    else:
+        result["scanned_at"] = cache.get("scanned_at")
+
+    summary = (cache.get("summary") or {}) if isinstance(cache, dict) else {}
+    hooked = cache.get("hooked_agents", []) if isinstance(cache, dict) else []
+    if isinstance(hooked, list):
+        result["hooked_agents"] = [_clean(a, 32) for a in hooked][:32]
+        result["hooks_seen"] = bool(result["hooked_agents"])
+
+    # Live findings tail takes precedence (it is the hook sink); scan
+    # findings fill in the retroactive picture.
+    s_findings = summary.get("findings") or []
+    s_events = summary.get("events") or []
+    s_agents = summary.get("active_agents") or []
+
+    live_findings = []
+    if tail:
+        lt = []
+        for rec in tail:
+            if rec.get("record_type") != "finding":
                 continue
             dt = _ts_of(rec)
-            if dt is None:
-                continue
-            # The events log is a "last N records" surface — not windowed to
-            # 24h like findings/active_agents — so stale tails still show what
-            # numbat last saw instead of an empty pane.
-            if rtype == "event":
-                events.append((dt, rec))
-            if not _within(dt, now):
-                continue
-            if rtype == "finding":
-                findings.append((dt, rec))
-            else:
-                name = _agent_name(rec)
-                if name and (name not in agents or dt > agents[name]):
-                    agents[name] = dt
-        findings.sort(key=lambda item: item[0], reverse=True)
-        result["findings_24h"] = len(findings)
-        out_findings = []
-        for dt, rec in findings[:MAX_FINDINGS]:
-            item = {
-                "rule": _rule_name(rec),
-                "observed_at": _iso_z(dt),
-                "agent": _agent_name(rec),
-            }
-            # Pass severity through when the record carries it so the panel
-            # can urgency-tint those rows; absent -> uniform styling.
-            if "severity" in rec:
-                item["severity"] = _clean(rec["severity"])
-            out_findings.append(item)
-        result["findings"] = out_findings
-        events.sort(key=lambda item: item[0], reverse=True)
-        result["events"] = [
-            {
-                "observed_at": _iso_z(dt),
-                "agent": _agent_name(rec),
-                "kind": _first_clean(rec, EVENT_KIND_FIELDS, EVENT_STR),
-                "summary": _first_clean(rec, EVENT_SUMMARY_FIELDS, EVENT_STR),
-            }
-            for dt, rec in events[:MAX_EVENTS]
-        ]
-        result["active_agents"] = [
-            {"name": name, "last_event": _iso_z(dt)}
-            for name, dt in sorted(agents.items(), key=lambda kv: kv[1], reverse=True)[
-                :MAX_AGENTS
-            ]
-        ]
-        result["ok"] = True
-        return result
+            if dt is not None:
+                lt.append((dt, rec))
+        lt.sort(key=lambda item: item[0], reverse=True)
+        live_findings = [_finding_item(rec, dt) for dt, rec in lt]
+        if tail_status == "ok" and lt:
+            result["hooks_seen"] = True
 
-    # records.ndjson absent/empty/unparseable -> coarse CLI discovery.
-    agents = _agents_via_cli(binary, run)
-    if agents is None:
-        result["error"] = "numbat agents --all failed"
-        return result
-    result["active_agents"] = agents
+    seen = set()
+    merged = []
+    for item in live_findings + s_findings:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("rule"), item.get("observed_at"), item.get("agent"))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+        if len(merged) >= MAX_FINDINGS:
+            break
+    result["findings"] = merged
+    result["findings_24h"] = sum(
+        1 for item in merged
+        if _within(_parse_ts(item.get("observed_at")) or now, now))
+    result["events"] = s_events
+    result["active_agents"] = s_agents
     result["ok"] = True
     return result
 
