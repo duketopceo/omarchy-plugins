@@ -19,6 +19,7 @@ Panel {
   property var events: []
   property string recordsPath: ""
   property string probeError: ""
+  property string scanError: ""
   property bool isRefreshing: false
   property string currentTab: "activity" // "activity" | "findings" | "log"
 
@@ -143,6 +144,7 @@ Panel {
           root.events = (Array.isArray(data.events) ? data.events : []).slice(0, 30)
           root.recordsPath = typeof data.records_path === "string" ? data.records_path : ""
           root.probeError = typeof data.error === "string" && data.error !== null ? data.error : ""
+          root.scanError = typeof data.scan_error === "string" ? data.scan_error : ""
         } catch (e) {}
       }
     }
@@ -628,7 +630,7 @@ Panel {
       Text {
         visible: root.events.length === 0
         width: parent.width
-        text: "No events recorded yet"
+        text: root.scanError !== "" ? root.scanError : "No events recorded yet"
         textFormat: Text.PlainText
         color: root.dim
         font.family: root.fontFamily
