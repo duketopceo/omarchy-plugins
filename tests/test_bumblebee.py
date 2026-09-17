@@ -345,3 +345,157 @@ def test_run_timeout_group_kills():
         timeout=0.4)
     assert text is None and err == "timeout"
     assert time.monotonic() - start < 10
+
+
+def log_path(home: Path) -> Path:
+    return cache_dir(home) / "scan-log.json"
+
+
+def complete_run(argv, timeout=None, max_bytes=None):
+    return ndjson({"record_type": "scan_summary", "status": "complete"}), None, 0
+
+
+def test_log_entry_written_on_scan(tmp_path):
+    mod = load()
+    out = ndjson(finding(),
+                 {"record_type": "scan_summary", "status": "complete"})
+    payload = mod.collect(
+        now=NOW,
+        run=lambda argv, timeout=None, max_bytes=None: (out, None, 0),
+        home=tmp_path,
+        tool="/usr/bin/bumblebee",
+    )
+    log = payload["log"]
+    assert len(log) == 1
+    e = log[0]
+    assert e["status"] == "complete"
+    assert e["exposure_count"] == 1
+    assert e["scanned_at"] == mod._iso(NOW)
+    assert e["duration_ms"] >= 0
+    assert "error" not in e
+    f = log_path(tmp_path)
+    assert json.loads(f.read_text()) == log
+    assert stat.S_IMODE(os.stat(f).st_mode) == 0o600
+
+
+def test_log_entry_status_error_and_partial(tmp_path):
+    mod = load()
+    payload = mod.collect(
+        now=NOW,
+        run=lambda argv, timeout=None, max_bytes=None: (None, "timeout", None),
+        home=tmp_path,
+        tool="/usr/bin/bumblebee",
+    )
+    e = payload["log"][0]
+    assert e["status"] == "error"
+    assert e["error"] == "timeout"
+    assert e["exposure_count"] == 0
+
+    home2 = tmp_path / "h2"
+    out = ndjson({"record_type": "scan_summary", "status": "interrupted"})
+    payload = mod.collect(
+        now=NOW,
+        run=lambda argv, timeout=None, max_bytes=None: (out, None, 0),
+        home=home2,
+        tool="/usr/bin/bumblebee",
+    )
+    assert payload["partial"] is True
+    assert payload["log"][0]["status"] == "partial"
+
+
+def test_log_capped_at_20_newest_first(tmp_path):
+    mod = load()
+    d = cache_dir(tmp_path)
+    d.mkdir(parents=True, exist_ok=True)
+    old = [{"scanned_at": f"2026-01-01T00:00:{i:02d}Z", "status": "complete",
+            "exposure_count": i, "duration_ms": 1} for i in range(25)]
+    log_path(tmp_path).write_text(json.dumps(old))
+    payload = mod.collect(now=NOW, run=complete_run, home=tmp_path,
+                          tool="/usr/bin/bumblebee")
+    log = payload["log"]
+    assert len(log) == mod.MAX_LOG_ENTRIES == 20
+    assert log[0]["scanned_at"] == mod._iso(NOW)  # new entry lands first
+    assert log[1]["exposure_count"] == 0          # then oldest-kept order
+    assert json.loads(log_path(tmp_path).read_text()) == log
+
+
+def test_corrupt_log_tolerated(tmp_path):
+    mod = load()
+    d = cache_dir(tmp_path)
+    d.mkdir(parents=True, exist_ok=True)
+    log_path(tmp_path).write_bytes(b"\x00\xff garbage")
+    payload = mod.collect(now=NOW, run=complete_run, home=tmp_path,
+                          tool="/usr/bin/bumblebee")
+    assert payload["ok"] is True
+    assert len(payload["log"]) == 1
+    assert payload["log"][0]["status"] == "complete"
+    json.loads(log_path(tmp_path).read_text())  # republished as valid json
+
+
+def test_cache_hit_reemits_stored_log(tmp_path):
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": True, "exposure_count": 3},
+                age_s=60)
+    cache_dir(tmp_path)  # exists from write_cache
+    log_path(tmp_path).write_text(json.dumps(
+        [{"scanned_at": "2026-09-16T01:00:00Z", "status": "error",
+          "exposure_count": 3, "duration_ms": 5, "error": "timeout"},
+         "junk", 42, None]))  # non-dict entries filtered on re-emit
+    payload = mod.collect(now=NOW, run=never_run, home=tmp_path,
+                          tool="/usr/bin/bumblebee")
+    assert len(payload["log"]) == 1
+    e = payload["log"][0]
+    assert e["status"] == "error" and e["error"] == "timeout"
+    assert e["exposure_count"] == 3 and e["duration_ms"] == 5
+
+
+def test_force_bypasses_fresh_cache(tmp_path):
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": True, "exposure_count": 9},
+                age_s=10)
+    calls = []
+
+    def fake_run(argv, timeout=None, max_bytes=None):
+        calls.append(1)
+        return ndjson({"record_type": "scan_summary", "status": "complete"}), None, 0
+
+    payload = mod.collect(now=NOW, run=fake_run, home=tmp_path,
+                          tool="/usr/bin/bumblebee", force=True)
+    assert calls == [1]
+    assert payload["exposure_count"] == 0  # scan result, not the cached 9
+    # The forced scan's republished cache is honored again without --force.
+    payload2 = mod.collect(now=NOW, run=never_run, home=tmp_path,
+                           tool="/usr/bin/bumblebee")
+    assert payload2["scanned_at"] == mod._iso(NOW)
+
+
+def test_main_parses_force_flag(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod.os, "setsid", lambda: None)
+    monkeypatch.setattr(mod.signal, "alarm", lambda *_: None)
+    seen = {}
+    monkeypatch.setattr(mod, "collect", lambda **kw: seen.update(kw) or {})
+    monkeypatch.setattr(mod.sys, "argv", ["scan_bumblebee.py", "--force"])
+    mod.main()
+    assert seen.get("force") is True
+
+
+def test_catalog_names_emitted_capped_clean(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod, "_tool", lambda name: None)
+    shipped = json.loads(SHIPPED_CATALOG.read_text())["entries"]
+    payload = mod.collect(now=NOW, run=never_run, home=tmp_path)
+    assert payload["catalog_names"] == [e["name"] for e in shipped]
+    assert len(payload["catalog_names"]) <= mod.MAX_CATALOG_NAMES == 12
+    for n in payload["catalog_names"]:
+        assert all(ord(c) >= 0x20 for c in n)
+
+    # User catalog.d names merge after the shipped ones under the same cap.
+    catd = tmp_path / ".config/omarchy/plugins-data/bumblebee/catalog.d"
+    catd.mkdir(parents=True)
+    (catd / "extra.json").write_text(json.dumps(
+        {"entries": [{"name": "user-advisory-a"}, {"id": "user-advisory-b"}]}))
+    payload = mod.collect(now=NOW, run=never_run, home=tmp_path)
+    assert payload["catalog_names"][-2:] == ["user-advisory-a",
+                                             "user-advisory-b"]
+    assert payload["catalog_entries"] == shipped_count() + 2

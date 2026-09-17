@@ -16,17 +16,18 @@ Panel {
   property int findingsCount: 0
   property var findings: []
   property var activeAgents: []
+  property var events: []
   property string recordsPath: ""
   property string probeError: ""
   property bool isRefreshing: false
+  property string currentTab: "activity" // "activity" | "findings" | "log"
 
-  readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: Color.urgent
+  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color dim: Qt.darker(foreground, 1.5)
   readonly property color accent: Color.accent
-  readonly property color muted: Color.muted
-  readonly property color cardBg: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
-  readonly property color cardBorder: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-  // Setup state exists only once a probe answer has landed — the button must
+  readonly property color urgent: (Color.urgent === undefined || Color.urgent === null) ? foreground : Color.urgent
+  readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  // Setup state exists only once a probe answer has landed — the banner must
   // not flash "not installed" on machines that have numbat before first poll.
   readonly property bool needsSetup: probed && (!installed || !hooksSeen)
   readonly property string pluginRoot: {
@@ -54,6 +55,40 @@ Panel {
     statusDeadline.restart()
   }
 
+  // _rgb / accentFill / fgFill — same helpers dayflow uses so every tint in
+  // this panel is derived from theme colors, never a hardcoded hex.
+  function _rgb(c) {
+    if (typeof c === "string") {
+      var h = c.charAt(0) === "#" ? c.substring(1) : c
+      if (h.length === 8) h = h.substring(0, 6)
+      if (h.length === 3)
+        h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2)
+      if (h.length === 6) {
+        return [parseInt(h.substring(0, 2), 16) / 255,
+                parseInt(h.substring(2, 4), 16) / 255,
+                parseInt(h.substring(4, 6), 16) / 255]
+      }
+      return [1, 1, 1]
+    }
+    if (c === undefined || c === null) return [1, 1, 1]
+    return [c.r, c.g, c.b]
+  }
+
+  function accentFill(alpha) {
+    var rgb = _rgb(accent)
+    return Qt.rgba(rgb[0], rgb[1], rgb[2], alpha)
+  }
+
+  function urgentFill(alpha) {
+    var rgb = _rgb(urgent)
+    return Qt.rgba(rgb[0], rgb[1], rgb[2], alpha)
+  }
+
+  function fgFill(alpha) {
+    var rgb = _rgb(foreground)
+    return Qt.rgba(rgb[0], rgb[1], rgb[2], alpha)
+  }
+
   // probe_numbat.py emits ISO-8601 "Z" timestamps; V4's Date parses them
   // directly. Unparseable/absent input collapses to "—" instead of "NaNh ago".
   function relTime(iso) {
@@ -67,6 +102,15 @@ Panel {
     if (d > 0) return d + "d " + (h % 24) + "h ago"
     if (h > 0) return h + "h " + (m % 60) + "m ago"
     return m + "m ago"
+  }
+
+  // Findings carry severity only when the source record had the field; any
+  // meaningful level highlights the row's left border, absent/low -> uniform.
+  function severe(f) {
+    if (!f) return false
+    var s = String(f.severity === undefined || f.severity === null ? "" : f.severity).toLowerCase()
+    if (s === "") return false
+    return !(s === "info" || s === "low" || s === "none" || s === "debug")
   }
 
   visible: true
@@ -96,8 +140,9 @@ Panel {
           root.findingsCount = Math.max(0, Number(data.findings_24h) || 0)
           root.findings = (Array.isArray(data.findings) ? data.findings : []).slice(0, 20)
           root.activeAgents = (Array.isArray(data.active_agents) ? data.active_agents : []).slice(0, 10)
+          root.events = (Array.isArray(data.events) ? data.events : []).slice(0, 30)
           root.recordsPath = typeof data.records_path === "string" ? data.records_path : ""
-          root.probeError = typeof data.error === "string" ? data.error : ""
+          root.probeError = typeof data.error === "string" && data.error !== null ? data.error : ""
         } catch (e) {}
       }
     }
@@ -108,8 +153,8 @@ Panel {
   }
   // Hard whole-job deadline: a stuck probe is killed and reaped, never left
   // running past one refresh interval. probe_numbat.py calls os.setsid() and
-  // keeps helpers in its own session group, so a group-kill reaches the whole
-  // tree even if Python is stuck inside a helper wait.
+  // keeps helpers in its own session group (JOB_DEADLINE_S = 8s inside), so a
+  // group-kill reaches the whole tree even if Python is stuck in a wait.
   Timer {
     id: statusDeadline
     interval: 10000
@@ -155,291 +200,483 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    contentWidth: panel.fittedContentWidth(Style.space(400), 460)
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, 720)
+    focusTarget: keyCatcher
+    contentWidth: panel.fittedContentWidth(Style.space(500))
+    contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(640))
 
-    Column {
-      id: mainColumn
-      width: parent.width
-      spacing: Style.space(12)
+    PanelKeyCatcher {
+      id: keyCatcher
+      anchors.fill: parent
+      onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTextKey: function(t) { if (t === "r" || t === "R") root.refresh() }
 
-      // Header card: title + findings-24h pill + active-agent count.
-      Rectangle {
+      Column {
+        id: content
         width: parent.width
-        height: 64
-        radius: 10
-        color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.08)
-        border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.25)
-        border.width: 1
+        leftPadding: Style.space(12)
+        rightPadding: Style.space(12)
+        topPadding: Style.space(12)
+        bottomPadding: Style.space(12)
+        spacing: Style.space(10)
 
-        RowLayout {
-          anchors.fill: parent
-          anchors.leftMargin: 16
-          anchors.rightMargin: 16
-          spacing: 12
+        // ---- header ----
+        Row {
+          width: parent.width - content.leftPadding - content.rightPadding
+          spacing: Style.space(10)
 
+          // Radar glyph tile
           Rectangle {
-            width: 36
-            height: 36
-            radius: 8
-            color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2)
+            width: Style.space(36)
+            height: Style.space(36)
+            radius: Style.cornerRadius
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.accentFill(0.15)
+            border.color: root.accentFill(0.30)
+
             Text {
-              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: "󰐷"
-              color: root.hooksSeen ? root.accent : root.muted
-              font.pixelSize: 20
+              textFormat: Text.PlainText
+              color: root.hooksSeen ? root.accent : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.iconLarge
             }
           }
+
           Column {
-            Layout.fillWidth: true
-            spacing: 2
-            Text {
-              textFormat: Text.PlainText
-              text: "AGENT ACTIVITY RADAR"
-              color: root.fg
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: true
-            }
-            Text {
-              width: parent.width
-              text: root.probeError !== "" ? root.probeError
-                : (root.hooksSeen && root.recordsPath !== ""
-                  ? "Watching " + root.recordsPath
-                  : "Hook-driven agent activity monitor")
-              textFormat: Text.PlainText
-              color: root.muted
-              font.pixelSize: 10
-              elide: Text.ElideMiddle
-            }
-          }
-          Column {
-            visible: root.hooksSeen
-            spacing: 4
-            Rectangle {
-              height: 22
-              width: 84
-              radius: 11
-              color: root.findingsCount > 0
-                ? Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.2)
-                : Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.15)
+            width: parent.width - Style.space(36) - statusPill.width - parent.spacing * 2
+            spacing: Style.space(2)
+            anchors.verticalCenter: parent.verticalCenter
+
+            Row {
+              spacing: Style.space(6)
+
+              Rectangle {
+                width: Style.space(7)
+                height: Style.space(7)
+                radius: width / 2
+                anchors.verticalCenter: parent.verticalCenter
+                color: root.findingsCount > 0 ? root.urgent
+                  : root.hooksSeen ? root.accent : root.dim
+              }
+
               Text {
-                anchors.centerIn: parent
-                text: root.findingsCount + " / 24H"
+                text: "Numbat"
                 textFormat: Text.PlainText
-                color: root.findingsCount > 0 ? root.urgent : root.accent
-                font.pixelSize: 9
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.subtitle
                 font.bold: true
               }
             }
+
             Text {
-              anchors.horizontalCenter: parent.horizontalCenter
-              text: root.activeAgents.length + " agent" + (root.activeAgents.length === 1 ? "" : "s") + " active"
+              width: parent.width
+              text: "ai-agent activity radar"
               textFormat: Text.PlainText
-              color: root.muted
-              font.pixelSize: 9
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
           }
+
+          // Status pill — FINDINGS (urgent) > LIVE (accent) > SETUP (dim)
           Rectangle {
-            visible: root.needsSetup
-            height: 22
-            width: 62
-            radius: 11
-            color: Qt.rgba(root.muted.r, root.muted.g, root.muted.b, 0.15)
+            id: statusPill
+            height: Style.space(28)
+            width: statusText.implicitWidth + Style.space(16)
+            radius: Style.cornerRadius
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.findingsCount > 0 ? root.urgentFill(0.15)
+              : root.hooksSeen ? root.accentFill(0.12)
+              : root.fgFill(0.06)
+            border.color: root.findingsCount > 0 ? root.urgentFill(0.5)
+              : root.hooksSeen ? root.accentFill(0.45)
+              : root.fgFill(0.15)
+
             Text {
-              textFormat: Text.PlainText
+              id: statusText
               anchors.centerIn: parent
-              text: "SETUP"
-              color: root.muted
-              font.pixelSize: 9
+              textFormat: Text.PlainText
+              text: root.findingsCount > 0
+                ? root.findingsCount + " FINDING" + (root.findingsCount === 1 ? "" : "S")
+                : root.hooksSeen ? "LIVE"
+                : root.probed ? "SETUP" : "···"
+              color: root.findingsCount > 0 ? root.urgent
+                : root.hooksSeen ? root.accent : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
               font.bold: true
             }
           }
         }
-      }
 
-      // Setup pane — replaces the lists until numbat is installed and its
-      // hooks have produced records.
-      Rectangle {
-        visible: root.needsSetup
-        width: parent.width
-        height: setupColumn.implicitHeight + 24
-        radius: 10
-        color: root.cardBg
-        border.color: root.cardBorder
-        border.width: 1
-        Column {
-          id: setupColumn
-          anchors.fill: parent
-          anchors.margins: 12
-          spacing: 8
-          Text {
-            text: root.installed ? "HOOKS NOT INSTALLED" : "NUMBAT NOT INSTALLED"
-            textFormat: Text.PlainText
-            color: root.fg
-            font.pixelSize: Style.font.bodySmall
-            font.bold: true
-          }
-          Text {
-            width: parent.width
-            wrapMode: Text.WordWrap
-            text: root.installed
-              ? "numbat is installed, but no hook events have been recorded yet. Install the hooks once and agent activity shows up here automatically."
-              : "numbat watches coding-agent hooks and records what they do. Install the numbat CLI to switch this radar on."
-            textFormat: Text.PlainText
-            color: root.muted
-            font.pixelSize: 10
-          }
-          // A user instruction, not a live command — PlainText, never exec'd.
-          Rectangle {
-            visible: root.installed && !root.hooksSeen
-            width: parent.width
-            height: 30
-            radius: 6
-            color: Qt.rgba(root.muted.r, root.muted.g, root.muted.b, 0.1)
-            border.color: root.cardBorder
-            border.width: 1
+        // ---- setup banner (dayflow error-banner look) ----
+        // Stays above the tabs — the tabs remain visible/usable either way.
+        Rectangle {
+          visible: root.needsSetup
+          width: parent.width - content.leftPadding - content.rightPadding
+          height: setupColumn.implicitHeight + Style.space(20)
+          radius: Style.cornerRadius
+          color: root.fgFill(0.04)
+          border.color: root.fgFill(0.10)
+
+          Column {
+            id: setupColumn
+            width: parent.width - Style.space(24)
+            anchors.centerIn: parent
+            spacing: Style.space(6)
+
             Text {
-              anchors.centerIn: parent
-              text: "Run: numbat hook install --agent all"
+              width: parent.width
+              text: "! " + (root.installed ? "hooks not installed" : "numbat not installed")
               textFormat: Text.PlainText
-              color: root.fg
-              font.pixelSize: 10
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
               font.bold: true
+              wrapMode: Text.WordWrap
+            }
+
+            Text {
+              width: parent.width
+              text: root.probeError !== "" ? "! " + root.probeError
+                : root.installed
+                  ? "numbat is installed, but no hook events have been recorded yet. Install the hooks once and agent activity shows up here automatically."
+                  : "numbat watches coding-agent hooks and records what they do. Get the CLI at github.com/perplexityai/numbat/releases, then run `numbat hook install --agent all`."
+              textFormat: Text.PlainText
+              color: root.probeError !== "" ? root.urgent : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            // A user instruction, not a live command — PlainText, never exec'd.
+            Rectangle {
+              visible: root.installed && !root.hooksSeen
+              width: parent.width
+              height: Style.space(30)
+              radius: Style.cornerRadius
+              color: root.fgFill(0.05)
+              border.color: root.accentFill(0.25)
+
+              Text {
+                anchors.centerIn: parent
+                text: "run: numbat hook install --agent all"
+                textFormat: Text.PlainText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
             }
           }
         }
+
+        // ---- pill tab bar ----
+        Row {
+          width: parent.width - content.leftPadding - content.rightPadding
+          spacing: Style.space(6)
+
+          Repeater {
+            model: [
+              { id: "activity", label: "Activity" },
+              { id: "findings", label: "Findings" },
+              { id: "log", label: "Log" }
+            ]
+
+            delegate: Rectangle {
+              height: Style.space(28)
+              width: tabLabel.implicitWidth + Style.space(16)
+              radius: Style.cornerRadius
+              color: root.currentTab === modelData.id
+                ? root.accentFill(0.12)
+                : (tabMouse.containsMouse ? root.accentFill(0.06) : "transparent")
+              border.color: root.currentTab === modelData.id
+                ? root.accentFill(0.45)
+                : "transparent"
+
+              Text {
+                id: tabLabel
+                anchors.centerIn: parent
+                text: modelData.label
+                textFormat: Text.PlainText
+                color: root.currentTab === modelData.id ? root.foreground : root.dim
+                font.bold: root.currentTab === modelData.id
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              MouseArea {
+                id: tabMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.currentTab = modelData.id
+              }
+            }
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
+        // ---- tab content (bounded scroll; card never outgrows the screen) ----
+        Flickable {
+          width: parent.width - content.leftPadding - content.rightPadding
+          height: Math.min(Style.space(380), tabLoader.item ? tabLoader.item.implicitHeight : Style.space(80))
+          contentWidth: width
+          contentHeight: tabLoader.item ? tabLoader.item.implicitHeight : 0
+          clip: true
+
+          Loader {
+            id: tabLoader
+            width: parent.width
+            sourceComponent: root.currentTab === "activity" ? activityTab
+              : root.currentTab === "findings" ? findingsTab
+              : logTab
+          }
+        }
+
+        PanelSeparator { foreground: root.foreground }
+
+        // ---- status footer ----
+        Text {
+          width: parent.width - content.leftPadding - content.rightPadding
+          text: !root.probed ? "probing numbat…"
+            : root.activeAgents.length + " agent" + (root.activeAgents.length === 1 ? "" : "s")
+              + " · " + root.findingsCount + " finding" + (root.findingsCount === 1 ? "" : "s") + "/24h"
+              + (root.events.length > 0 ? " · " + root.events.length + " events" : "")
+              + (root.recordsPath !== "" ? " · " + root.recordsPath : "")
+              + (root.isRefreshing ? " · refreshing" : "")
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+      }
+    }
+  }
+
+  // ---- tab components ----
+
+  Component {
+    id: activityTab
+
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(6)
+
+      PanelSectionHeader { text: "ACTIVE AGENTS"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Text {
+        visible: root.activeAgents.length === 0
+        width: parent.width
+        // A user instruction, not a live command — PlainText, never exec'd.
+        text: "No agent activity recorded — run `numbat hook install --agent all`"
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WordWrap
       }
 
-      // Scrollable findings + agents area.
-      Flickable {
-        visible: root.hooksSeen
-        width: parent.width
-        height: Math.min(440, contentColumn.implicitHeight)
-        contentWidth: width
-        contentHeight: contentColumn.implicitHeight
-        clip: true
-        Column {
-          id: contentColumn
+      Repeater {
+        model: root.activeAgents
+
+        delegate: Rectangle {
           width: parent.width
-          spacing: Style.space(10)
-          Column {
-            width: parent.width
-            spacing: 6
-            Text {
-              textFormat: Text.PlainText
-              text: "FINDINGS (24H)"
-              color: root.muted
-              font.pixelSize: 10
-              font.bold: true
+          height: Style.space(46)
+          radius: Style.cornerRadius
+          color: root.fgFill(0.04)
+          border.color: root.fgFill(0.08)
+
+          RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(12)
+            anchors.rightMargin: Style.space(12)
+            spacing: Style.space(10)
+
+            Rectangle {
+              Layout.preferredWidth: Style.space(8)
+              Layout.preferredHeight: Style.space(8)
+              radius: width / 2
+              color: root.accent
             }
-            Text {
-              textFormat: Text.PlainText
-              visible: root.findings.length === 0
-              text: "No findings in the last 24h"
-              color: root.muted
-              font.pixelSize: 10
-            }
-            Repeater {
-              model: root.findings
-              delegate: Rectangle {
+
+            Column {
+              Layout.fillWidth: true
+              spacing: Style.space(2)
+
+              Text {
                 width: parent.width
-                height: 44
-                radius: 8
-                color: root.cardBg
-                border.color: root.cardBorder
-                border.width: 1
-                RowLayout {
-                  anchors.fill: parent
-                  anchors.leftMargin: 12
-                  anchors.rightMargin: 12
-                  spacing: 10
-                  Rectangle {
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: root.accent
-                  }
-                  Column {
-                    Layout.fillWidth: true
-                    spacing: 2
-                    Text {
-                      width: parent.width
-                      text: modelData.rule || "unnamed rule"
-                      textFormat: Text.PlainText
-                      color: root.fg
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                      elide: Text.ElideRight
-                    }
-                    Text {
-                      width: parent.width
-                      text: (modelData.agent || "unknown agent") + " · " + root.relTime(modelData.observed_at)
-                      textFormat: Text.PlainText
-                      color: root.muted
-                      font.pixelSize: 10
-                      elide: Text.ElideRight
-                    }
-                  }
-                }
+                text: modelData.name || "unnamed agent"
+                textFormat: Text.PlainText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                width: parent.width
+                text: "last event " + root.relTime(modelData.last_event)
+                textFormat: Text.PlainText
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
               }
             }
           }
-          Column {
-            width: parent.width
-            spacing: 6
-            Text {
-              textFormat: Text.PlainText
-              text: "ACTIVE AGENTS"
-              color: root.muted
-              font.pixelSize: 10
-              font.bold: true
-            }
-            Text {
-              textFormat: Text.PlainText
-              visible: root.activeAgents.length === 0
-              text: "No agent activity recorded"
-              color: root.muted
-              font.pixelSize: 10
-            }
-            Repeater {
-              model: root.activeAgents
-              delegate: Rectangle {
+        }
+      }
+    }
+  }
+
+  Component {
+    id: findingsTab
+
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(6)
+
+      PanelSectionHeader { text: "FINDINGS · 24H"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Text {
+        visible: root.findings.length === 0
+        width: parent.width
+        text: "No findings in the last 24h"
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Repeater {
+        model: root.findings
+
+        delegate: Rectangle {
+          width: parent.width
+          height: Style.space(46)
+          radius: Style.cornerRadius
+          color: root.fgFill(0.04)
+          border.color: root.severe(modelData) ? root.urgentFill(0.45) : root.fgFill(0.08)
+
+          // Left-border accent: urgent when the record's severity is
+          // meaningful, a uniform faint strip otherwise.
+          Rectangle {
+            width: Style.space(3)
+            height: parent.height - Style.space(16)
+            radius: width / 2
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            color: root.severe(modelData) ? root.urgent : root.fgFill(0.14)
+          }
+
+          RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(16)
+            anchors.rightMargin: Style.space(12)
+            spacing: Style.space(10)
+
+            Column {
+              Layout.fillWidth: true
+              spacing: Style.space(2)
+
+              Text {
                 width: parent.width
-                height: 40
-                radius: 8
-                color: root.cardBg
-                border.color: root.cardBorder
-                border.width: 1
-                RowLayout {
-                  anchors.fill: parent
-                  anchors.leftMargin: 12
-                  anchors.rightMargin: 12
-                  spacing: 10
-                  Rectangle {
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: root.accent
-                  }
-                  Text {
-                    Layout.fillWidth: true
-                    text: modelData.name || "unnamed agent"
-                    textFormat: Text.PlainText
-                    color: root.fg
-                    font.pixelSize: Style.font.bodySmall
-                    font.bold: true
-                    elide: Text.ElideRight
-                  }
-                  Text {
-                    text: root.relTime(modelData.last_event)
-                    textFormat: Text.PlainText
-                    color: root.muted
-                    font.pixelSize: 10
-                  }
-                }
+                text: modelData.rule || "unnamed rule"
+                textFormat: Text.PlainText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                elide: Text.ElideRight
               }
+
+              Text {
+                width: parent.width
+                text: (modelData.agent || "unknown agent") + " · " + root.relTime(modelData.observed_at)
+                textFormat: Text.PlainText
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Component {
+    id: logTab
+
+    Column {
+      width: parent ? parent.width : 0
+      spacing: Style.space(6)
+
+      PanelSectionHeader { text: "RECENT EVENTS"; foreground: root.foreground; fontFamily: root.fontFamily }
+
+      Text {
+        visible: root.events.length === 0
+        width: parent.width
+        text: "No events recorded yet"
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
+      Repeater {
+        model: root.events
+
+        delegate: Rectangle {
+          width: parent.width
+          height: Style.space(34)
+          radius: Style.cornerRadius
+          color: root.fgFill(0.04)
+          border.color: root.fgFill(0.08)
+
+          RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Style.space(12)
+            anchors.rightMargin: Style.space(12)
+            spacing: Style.space(10)
+
+            Text {
+              text: modelData.agent || "unknown"
+              textFormat: Text.PlainText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              elide: Text.ElideRight
+              Layout.maximumWidth: Style.space(130)
+            }
+
+            Text {
+              Layout.fillWidth: true
+              text: (modelData.kind || "event") + (modelData.summary ? " · " + modelData.summary : "")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+
+            Text {
+              text: root.relTime(modelData.observed_at)
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
             }
           }
         }

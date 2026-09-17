@@ -2,7 +2,8 @@
 """Read-only numbat activity probe for the io.github.duketopceo.numbat panel.
 
 Emits one JSON object on stdout describing numbat's presence and recent
-signal: installed, hooks_seen, active_agents, findings_24h, findings.
+signal: installed, hooks_seen, active_agents, findings_24h, findings,
+events.
 
 This helper is an observe-only consumer: it never runs `numbat hook
 install`, never writes under ~/.numbat, and never enables enforce mode.
@@ -25,6 +26,8 @@ WINDOW_S = 24 * 3600
 FUTURE_SKEW_S = 300
 MAX_STR = 64
 MAX_FINDINGS = 20
+MAX_EVENTS = 30
+EVENT_STR = 80
 MAX_AGENTS = 10
 MAX_AGENT_ITEMS = 64
 AGENTS_TIMEOUT_S = 2.0
@@ -38,6 +41,8 @@ RECORDS_NAME = "records.ndjson"
 RECORDS_PATH_DISPLAY = "~/.numbat/records.ndjson"
 TS_FIELDS = ("observed_at", "ts", "timestamp")
 AGENT_TS_FIELDS = ("last_event", "last_seen", "observed_at", "ts", "timestamp")
+EVENT_KIND_FIELDS = ("event_type", "kind", "action")
+EVENT_SUMMARY_FIELDS = ("summary", "detail", "message")
 
 
 def _tool(name):
@@ -276,6 +281,16 @@ def _rule_name(rec):
     return _clean(rule)
 
 
+def _first_clean(rec, fields, limit):
+    """First non-empty control-normalized, length-capped field value."""
+    for field in fields:
+        if field in rec:
+            s = _clean(rec[field], limit)
+            if s:
+                return s
+    return ""
+
+
 def _agents_via_cli(binary, run):
     """Coarse discovery list from `numbat agents --all`.
 
@@ -341,6 +356,7 @@ def probe(tool=_tool, run=_run, numbat_home=None, now=None):
         "active_agents": [],
         "findings_24h": 0,
         "findings": [],
+        "events": [],
         "records_path": RECORDS_PATH_DISPLAY,
         "error": None,
     }
@@ -358,13 +374,21 @@ def probe(tool=_tool, run=_run, numbat_home=None, now=None):
     if records:
         result["hooks_seen"] = True
         findings = []
+        events = []
         agents = {}
         for rec in records:
             rtype = rec.get("record_type")
             if rtype not in ("event", "finding"):
                 continue
             dt = _ts_of(rec)
-            if dt is None or not _within(dt, now):
+            if dt is None:
+                continue
+            # The events log is a "last N records" surface — not windowed to
+            # 24h like findings/active_agents — so stale tails still show what
+            # numbat last saw instead of an empty pane.
+            if rtype == "event":
+                events.append((dt, rec))
+            if not _within(dt, now):
                 continue
             if rtype == "finding":
                 findings.append((dt, rec))
@@ -374,13 +398,28 @@ def probe(tool=_tool, run=_run, numbat_home=None, now=None):
                     agents[name] = dt
         findings.sort(key=lambda item: item[0], reverse=True)
         result["findings_24h"] = len(findings)
-        result["findings"] = [
-            {
+        out_findings = []
+        for dt, rec in findings[:MAX_FINDINGS]:
+            item = {
                 "rule": _rule_name(rec),
                 "observed_at": _iso_z(dt),
                 "agent": _agent_name(rec),
             }
-            for dt, rec in findings[:MAX_FINDINGS]
+            # Pass severity through when the record carries it so the panel
+            # can urgency-tint those rows; absent -> uniform styling.
+            if "severity" in rec:
+                item["severity"] = _clean(rec["severity"])
+            out_findings.append(item)
+        result["findings"] = out_findings
+        events.sort(key=lambda item: item[0], reverse=True)
+        result["events"] = [
+            {
+                "observed_at": _iso_z(dt),
+                "agent": _agent_name(rec),
+                "kind": _first_clean(rec, EVENT_KIND_FIELDS, EVENT_STR),
+                "summary": _first_clean(rec, EVENT_SUMMARY_FIELDS, EVENT_STR),
+            }
+            for dt, rec in events[:MAX_EVENTS]
         ]
         result["active_agents"] = [
             {"name": name, "last_event": _iso_z(dt)}

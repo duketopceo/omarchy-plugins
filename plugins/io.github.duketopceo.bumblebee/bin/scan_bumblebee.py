@@ -12,15 +12,21 @@ Contract with the panel — exactly one JSON object on stdout, exit 0:
   {"installed": bool, "ok": bool, "scanned_at": iso8601|null,
    "age_s": int|null, "exposure_count": int,
    "exposures": [{"name","ecosystem","package","version","severity"}],
-   "catalog_entries": int, "partial": bool, "error": string|null}
+   "catalog_entries": int, "catalog_names": [str],
+   "log": [{"scanned_at","status","exposure_count","duration_ms","error"?}],
+   "partial": bool, "error": string|null}
 
 Scans are expensive, so the last result is cached at
 ~/.local/state/omarchy/bumblebee/last-scan.json and only re-run once the
 cache is older than SCAN_INTERVAL_S (default 6h; BUMBLEBEE_SCAN_INTERVAL_S
-overrides, in seconds). bumblebee is a v0.x tool: every flag/record
-assumption below is handled defensively — malformed NDJSON lines are
-skipped, non-zero exits are tolerated when records still parse, and a
-missing binary degrades to {"installed": false} instead of a dead call.
+overrides, in seconds; `--force` argv bypasses freshness entirely). Every
+scan attempt also appends to a rolling log at scan-log.json next to the
+cache — newest first, capped at 20 entries, same descriptor-relative +
+atomic 0600 publish as the cache — and the payload re-emits it as "log".
+bumblebee is a v0.x tool: every flag/record assumption below is handled
+defensively — malformed NDJSON lines are skipped, non-zero exits are
+tolerated when records still parse, and a missing binary degrades to
+{"installed": false} instead of a dead call.
 """
 import json
 import os
@@ -41,6 +47,9 @@ CATALOG_MAX_BYTES = 256 * 1024 # per-catalog-file read cap
 MAX_CATALOG_FILES = 64
 MAX_EXPOSURES = 50             # cap on the emitted exposure list
 MAX_STR = 96
+MAX_LOG_ENTRIES = 20           # rolling scan-log cap, newest first
+MAX_CATALOG_NAMES = 12         # cap on emitted catalog_names preview
+LOG_MAX_BYTES = 32 * 1024      # scan-log read cap
 
 DEFAULT_SCAN_INTERVAL_S = 6 * 3600
 INTERVAL_ENV = "BUMBLEBEE_SCAN_INTERVAL_S"
@@ -54,6 +63,7 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 SHIPPED_CATALOG_DIR = PLUGIN_ROOT / "catalog"
 CACHE_DIR_REL = ".local/state/omarchy/bumblebee"
 CACHE_NAME = "last-scan.json"
+LOG_NAME = "scan-log.json"
 USER_CATALOG_REL = ".config/omarchy/plugins-data/bumblebee/catalog.d"
 
 # Fixed tool-lookup path: no ambient $PATH, but the user's own ~/.local/bin is
@@ -262,6 +272,81 @@ def _write_cache(cache_dir, payload):
         os.close(dirfd)
 
 
+# --- rolling scan log (same descriptor-relative + atomic-publish rules) ---
+
+def _clean_int(value):
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _clean_log_entry(entry):
+    """Fixed-shape copy of a stored entry — the file is user-writable, so
+    re-emission re-clips strings and coerces ints instead of trusting it."""
+    if not isinstance(entry, dict):
+        return None
+    out = {
+        "scanned_at": _clean(entry.get("scanned_at"), 40),
+        "status": _clean(entry.get("status"), 16),
+        "exposure_count": _clean_int(entry.get("exposure_count")),
+        "duration_ms": _clean_int(entry.get("duration_ms")),
+    }
+    err = _clean(entry.get("error"), 120)
+    if err:
+        out["error"] = err
+    return out
+
+
+def _read_log(cache_dir):
+    """-> stored entries newest-first (<=MAX_LOG_ENTRIES); [] on anomaly."""
+    try:
+        dirfd = _open_dir(cache_dir)
+    except (OSError, PermissionError):
+        return []
+    try:
+        raw, _mtime = _read_capped(dirfd, LOG_NAME, LOG_MAX_BYTES)
+    finally:
+        os.close(dirfd)
+    if raw is None:
+        return []
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(data, list):
+        return []
+    entries = []
+    for e in data:
+        e = _clean_log_entry(e)
+        if e is not None:
+            entries.append(e)
+        if len(entries) >= MAX_LOG_ENTRIES:
+            break
+    return entries
+
+
+def _append_log(cache_dir, entry):
+    """Prepend entry, cap at MAX_LOG_ENTRIES, atomic 0600 republish.
+
+    Returns the in-memory list (also what's written) so the payload still
+    carries the new entry even when the publish fails.
+    """
+    entries = ([entry] + _read_log(cache_dir))[:MAX_LOG_ENTRIES]
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        dirfd = _open_dir(cache_dir)
+    except (OSError, PermissionError):
+        return entries
+    try:
+        _publish(dirfd, LOG_NAME, json.dumps(entries))
+    except OSError:
+        pass
+    finally:
+        os.close(dirfd)
+    return entries
+
+
 # --- exposure catalog counting (shipped dir + user catalog.d) ---
 
 def _read_file_capped(path, limit):
@@ -280,15 +365,20 @@ def _read_file_capped(path, limit):
         os.close(fd)
 
 
-def _count_catalog_dir(dir_path):
-    """Sum of entries[] across *.json in dir_path; bad files are skipped."""
+def _catalog_stats(dir_path, name_cap):
+    """-> (entry_count, names[:name_cap]) across *.json; bad files skipped.
+
+    names is a small preview for the panel's catalog tab: each entry's
+    "name" (or "id"), cleaned and clipped like any emitted string.
+    """
     total = 0
+    names = []
     try:
-        names = sorted(os.listdir(dir_path))
+        file_names = sorted(os.listdir(dir_path))
     except OSError:
-        return 0
+        return total, names
     seen = 0
-    for name in names:
+    for name in file_names:
         if not name.endswith(".json"):
             continue
         seen += 1
@@ -303,11 +393,25 @@ def _count_catalog_dir(dir_path):
             continue
         if isinstance(data, dict):
             entries = data.get("entries")
-            if isinstance(entries, list):
-                total += len(entries)
         elif isinstance(data, list):
-            total += len(data)
-    return total
+            entries = data
+        else:
+            continue
+        if not isinstance(entries, list):
+            continue
+        total += len(entries)
+        for e in entries:
+            if len(names) >= name_cap:
+                break
+            if isinstance(e, dict):
+                n = _clean(e.get("name") or e.get("id"))
+            elif isinstance(e, str):
+                n = _clean(e)
+            else:
+                continue
+            if n:
+                names.append(n)
+    return total, names
 
 
 # --- NDJSON parsing (defensive: record_type-keyed, malformed lines skipped) ---
@@ -381,13 +485,17 @@ def _base_payload(installed, catalog_entries):
         "exposure_count": 0,
         "exposures": [],
         "catalog_entries": catalog_entries,
+        "catalog_names": [],
+        "log": [],
         "partial": False,
         "error": None,
     }
 
 
-def collect(now=None, run=None, tool=None, home=None, plugin_root=None):
-    """Build the payload. run/tool/home/plugin_root/now are injectable seams."""
+def collect(now=None, run=None, tool=None, home=None, plugin_root=None,
+            force=False):
+    """Build the payload. run/tool/home/plugin_root/now/force are injectable
+    seams; force=True bypasses cache freshness (the panel's Rescan button)."""
     if now is None:
         now = time.time()
     if run is None:
@@ -399,19 +507,27 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None):
     shipped_dir = plugin_root / "catalog"
     user_cat = home / USER_CATALOG_REL
     cache_dir = home / CACHE_DIR_REL
-    catalog_entries = (_count_catalog_dir(shipped_dir)
-                       + _count_catalog_dir(user_cat))
+    shipped_count, names = _catalog_stats(shipped_dir, MAX_CATALOG_NAMES)
+    user_count, user_names = _catalog_stats(
+        user_cat, max(0, MAX_CATALOG_NAMES - len(names)))
+    catalog_entries = shipped_count + user_count
+    catalog_names = (names + user_names)[:MAX_CATALOG_NAMES]
 
     if tool is None:
         tool = _tool("bumblebee")
     if not tool:
         # Capability degrade: no binary, no exec, still a valid payload.
-        return _base_payload(False, catalog_entries)
+        payload = _base_payload(False, catalog_entries)
+        payload["catalog_names"] = catalog_names
+        payload["log"] = _read_log(cache_dir)
+        return payload
 
     cached, mtime = _read_cache(cache_dir)
-    if cached is not None and (now - mtime) < interval:
+    if not force and cached is not None and (now - mtime) < interval:
         cached["age_s"] = max(0, int(now - mtime))
         cached["catalog_entries"] = catalog_entries
+        cached["catalog_names"] = catalog_names
+        cached["log"] = _read_log(cache_dir)
         return cached
 
     argv = [tool, "scan", "--profile", "baseline",
@@ -420,10 +536,12 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None):
         argv += ["--exposure-catalog", str(user_cat)]
     argv += ["--findings-only", "--output", "stdout"]
 
+    started = time.monotonic()
     try:
         text, err, rc = run(argv, timeout=SCAN_TIMEOUT_S, max_bytes=MAX_OUT_BYTES)
     except Exception:
         text, err, rc = None, "run_failed", None
+    duration_ms = int((time.monotonic() - started) * 1000)
 
     exposures, findings, partial, records_seen = [], 0, False, False
     error = err
@@ -431,6 +549,16 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None):
         exposures, findings, partial, records_seen = parse_ndjson(text)
         if error is None and rc not in (0, None) and not records_seen:
             error = f"exit {rc}"
+
+    entry = {
+        "scanned_at": _iso(now),
+        "status": "error" if error is not None
+                  else ("partial" if partial else "complete"),
+        "exposure_count": findings,
+        "duration_ms": duration_ms,
+    }
+    if error is not None:
+        entry["error"] = _clean(error, 120)
 
     payload = {
         "installed": True,
@@ -440,6 +568,8 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None):
         "exposure_count": findings,
         "exposures": exposures,
         "catalog_entries": catalog_entries,
+        "catalog_names": catalog_names,
+        "log": _append_log(cache_dir, entry),
         "partial": partial,
         "error": error,
     }
@@ -456,8 +586,9 @@ def main():
         pass
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(JOB_DEADLINE_S)
+    force = "--force" in sys.argv[1:]
     try:
-        payload = collect()
+        payload = collect(force=force)
     except Exception as exc:
         payload = _base_payload(False, 0)
         payload["error"] = "internal: " + _clean(exc, 120)

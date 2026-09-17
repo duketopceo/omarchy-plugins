@@ -16,6 +16,7 @@ EXPECTED_KEYS = [
     "active_agents",
     "findings_24h",
     "findings",
+    "events",
     "records_path",
     "error",
 ]
@@ -50,6 +51,7 @@ def test_missing_binary_installed_false(tmp_path: Path) -> None:
     assert data["active_agents"] == []
     assert data["findings_24h"] == 0
     assert data["findings"] == []
+    assert data["events"] == []
     assert data["records_path"] == "~/.numbat/records.ndjson"
     json.dumps(data)
 
@@ -242,3 +244,121 @@ def test_symlinked_records_file_not_followed(tmp_path: Path) -> None:
     )
     assert data["hooks_seen"] is False
     assert calls  # treated as absent -> CLI fallback ran
+
+
+def test_events_newest_first_and_capped_at_30(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    lines = []
+    for i in range(40):
+        # Alternate Z and +00:00 forms — both describe the same instant.
+        ts = (
+            f"2026-09-16T10:{i:02d}:00Z"
+            if i % 2 == 0
+            else f"2026-09-16T10:{i:02d}:00+00:00"
+        )
+        lines.append(
+            {
+                "record_type": "event",
+                "source_agent": "claude-code" if i % 2 == 0 else "a0",
+                "observed_at": ts,
+                "kind": "tool_call",
+                "summary": f"event-{i:02d}",
+            }
+        )
+    _write_records(home, lines)
+
+    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    assert len(data["events"]) == 30
+    # Newest 30 of 40 -> event-10 .. event-39, strictly newest-first.
+    stamps = [e["observed_at"] for e in data["events"]]
+    assert stamps == sorted(stamps, reverse=True)
+    assert data["events"][0] == {
+        "observed_at": "2026-09-16T10:39:00Z",  # +00:00 input normalized to Z
+        "agent": "a0",
+        "kind": "tool_call",
+        "summary": "event-39",
+    }
+    assert data["events"][-1]["summary"] == "event-10"
+    for e in data["events"]:
+        assert set(e.keys()) == {"observed_at", "agent", "kind", "summary"}
+
+
+def test_events_skip_bad_records_and_probe_field_aliases(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(
+        home,
+        [
+            # kind/summary probed across event_type|kind|action and
+            # summary|detail|message — first non-empty wins.
+            {
+                "record_type": "event",
+                "source_agent": "a0",
+                "observed_at": "2026-09-16T11:00:00Z",
+                "event_type": "session_start",
+                "detail": "boot",
+            },
+            {
+                "record_type": "event",
+                "source_agent": "a0",
+                "observed_at": "2026-09-16T11:01:00Z",
+                "action": "write",
+                "message": "wrote file",
+            },
+            # no kind/summary fields -> empty strings, still emitted
+            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-16T11:02:00Z"},
+            # bad records are skipped, never emitted
+            {"record_type": "event", "source_agent": "a0"},  # no timestamp
+            {"record_type": "event", "source_agent": "a0", "observed_at": "not-a-date"},
+            {"record_type": "heartbeat", "observed_at": "2026-09-16T11:03:00Z"},
+            {"record_type": "finding", "rule": "r1", "observed_at": "2026-09-16T11:04:00Z"},
+            "just a string",
+            42,
+        ],
+    )
+    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    assert data["events"] == [
+        {"observed_at": "2026-09-16T11:02:00Z", "agent": "a0", "kind": "", "summary": ""},
+        {"observed_at": "2026-09-16T11:01:00Z", "agent": "a0", "kind": "write", "summary": "wrote file"},
+        {"observed_at": "2026-09-16T11:00:00Z", "agent": "a0", "kind": "session_start", "summary": "boot"},
+    ]
+
+
+def test_events_not_limited_to_24h_window(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(
+        home,
+        [
+            # Older than the findings window — the log is "last N records".
+            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-10T00:00:00Z", "kind": "old"},
+            {"record_type": "event", "source_agent": "a0", "observed_at": "2026-09-16T11:00:00Z", "kind": "new"},
+        ],
+    )
+    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    assert [e["kind"] for e in data["events"]] == ["new", "old"]
+
+
+def test_events_strings_control_normalized_and_clipped(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(
+        home,
+        [
+            {
+                "record_type": "event",
+                "source_agent": "a0",
+                "observed_at": "2026-09-16T11:00:00Z",
+                "kind": "k" * 200,
+                "summary": "has\x00ctrl\x07chars " + "s" * 120,
+            },
+        ],
+    )
+    data = mod.probe(tool=lambda _n: "/usr/bin/numbat", run=_no_run, numbat_home=home, now=NOW)
+    ev = data["events"][0]
+    assert len(ev["kind"]) == 80
+    assert len(ev["summary"]) <= 80
+    assert "\x00" not in ev["summary"]
+    assert "\x07" not in ev["summary"]
+    json.dumps(data)
