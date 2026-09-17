@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.bumblebee",
+  "name": "Bumblebee",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "Supply-chain exposure radar: scans installed packages and dev tools against a known-compromise catalog (wraps Perplexity's bumblebee)",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Bumblebee",
+    "description": "Known-compromised package detection with a cached background scan",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

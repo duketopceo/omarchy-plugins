@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.numbat",
+  "name": "Numbat",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "AI-agent activity radar: live findings and per-agent visibility from Perplexity's numbat endpoint monitor",
+  "kinds": ["bar-widget"],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Numbat",
+    "description": "Ambient visibility into what coding agents are doing on this machine",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
