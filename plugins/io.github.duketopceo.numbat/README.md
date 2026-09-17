@@ -36,11 +36,15 @@ omarchy plugin enable io.github.duketopceo.numbat
 - Bar radar glyph shows live state; urgent tint when findings land in the last 24h
 - Dropdown: findings feed (rule, agent, relative time) + per-agent last-activity
 - Graceful setup pane when numbat or its hooks aren't installed yet — no dead calls
-- Reads `~/.numbat/records.ndjson` via a bounded 256KiB tail — safe on huge files
+- Reads `~/.numbat/findings.ndjson` live via a bounded 256KiB tail, and runs
+  `numbat scan --emit all` on a 10-min stale-cache cycle for the events feed
+  (summary cached at 0600 under `~/.local/state/omarchy/numbat/`)
 
 ## Privacy & security posture
 
-- The plugin only reads records numbat already wrote; it adds no new collection
+- The plugin only reads records numbat already produces (`findings.ndjson`
+  tail, `numbat scan`, `numbat hook status`); it adds no new collection and
+  never writes under `~/.numbat`
 - `~/.numbat` data is treated as untrusted input: descriptor-relative opens,
   `O_NOFOLLOW`, owner + regular-file checks, control-char normalization
 - Monitor-only by contract — shipped upstream rules are observe-only and this
