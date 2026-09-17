@@ -191,7 +191,6 @@ Panel {
               font.pixelSize: 20
             }
           }
-
           Column {
             Layout.fillWidth: true
             spacing: 2
@@ -215,7 +214,6 @@ Panel {
               elide: Text.ElideMiddle
             }
           }
-
           Column {
             visible: root.hooksSeen
             spacing: 4
@@ -243,7 +241,6 @@ Panel {
               font.pixelSize: 9
             }
           }
-
           Rectangle {
             visible: root.needsSetup
             height: 22
@@ -272,13 +269,11 @@ Panel {
         color: root.cardBg
         border.color: root.cardBorder
         border.width: 1
-
         Column {
           id: setupColumn
           anchors.fill: parent
           anchors.margins: 12
           spacing: 8
-
           Text {
             text: root.installed ? "HOOKS NOT INSTALLED" : "NUMBAT NOT INSTALLED"
             textFormat: Text.PlainText
