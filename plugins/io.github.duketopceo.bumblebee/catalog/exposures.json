@@ -1,70 +1,69 @@
 {
-  "schema_version": "0.2.0",
-  "description": "Starter supply-chain exposure catalog for the omarchy bumblebee plugin. Well-known public incidents only — add your own advisories as *.json files (same shape) under ~/.config/omarchy/plugins-data/bumblebee/catalog.d/ and they merge at scan time.",
+  "schema_version": "0.1.0",
+  "_comment": "Starter supply-chain exposure catalog for the omarchy bumblebee plugin. Well-known public incidents only — add your own advisories as *.json files (same shape) under ~/.config/omarchy/plugins-data/bumblebee/catalog.d/ and they merge at scan time.",
   "entries": [
     {
+      "id": "qix-phish-2025-09-chalk",
       "name": "chalk npm account-takeover release (Sep 2025 qix phish)",
       "ecosystem": "npm",
       "package": "chalk",
-      "version_spec": "5.6.1",
+      "versions": ["5.6.1"],
       "severity": "critical",
-      "notes": "GHSA-2v46-p5h4-248w / MAL-2025-46969 — maintainer phished 2025-09-08; chalk@5.6.1 shipped a crypto-clipping payload."
+      "source": "GHSA-2v46-p5h4-248w / MAL-2025-46969 — maintainer phished 2025-09-08; chalk@5.6.1 shipped a crypto-clipping payload."
     },
     {
+      "id": "qix-phish-2025-09-debug",
       "name": "debug npm account-takeover release (Sep 2025 qix phish)",
       "ecosystem": "npm",
       "package": "debug",
-      "version_spec": "4.4.2",
+      "versions": ["4.4.2"],
       "severity": "critical",
-      "notes": "GHSA-4x49-vf9v-38px — debug@4.4.2 published 2025-09-08 with a browser crypto-stealer payload."
+      "source": "GHSA-4x49-vf9v-38px — debug@4.4.2 published 2025-09-08 with a browser crypto-stealer payload."
     },
     {
+      "id": "event-stream-2018-flatmap-stream",
       "name": "event-stream flatmap-stream injection (2018)",
       "ecosystem": "npm",
       "package": "event-stream",
-      "version_spec": "3.3.6",
+      "versions": ["3.3.6"],
       "severity": "high",
-      "notes": "Malicious flatmap-stream dependency injected into event-stream@3.3.6 to harvest Copay bitcoin wallet keys."
+      "source": "Malicious flatmap-stream dependency injected into event-stream@3.3.6 to harvest Copay bitcoin wallet keys."
     },
     {
+      "id": "ua-parser-js-2021-hijack",
       "name": "ua-parser-js hijacked releases (Oct 2021)",
       "ecosystem": "npm",
       "package": "ua-parser-js",
-      "version_spec": "0.7.29 || 0.8.0 || 1.0.0",
+      "versions": ["0.7.29", "0.8.0", "1.0.0"],
       "severity": "high",
-      "notes": "GHSA-pjwm-rvh2-c87w / CVE-2021-4229 — hijacked releases bundled a cryptominer and credential stealer."
+      "source": "Maintainer account takeover; malicious releases shipped cryptominers and credential stealers."
     },
     {
-      "name": "rc npm account-takeover releases (Dec 2021)",
+      "id": "rc-2021-hijack",
+      "name": "rc hijacked releases (Nov 2021)",
       "ecosystem": "npm",
       "package": "rc",
-      "version_spec": "1.2.9 || 1.3.9 || 2.3.9",
+      "versions": ["1.2.9", "1.3.9", "2.3.9"],
       "severity": "high",
-      "notes": "Same hijack campaign as coa/ua-parser-js — trojanized rc releases dropped credential stealers."
+      "source": "Maintainer account takeover; trojanized releases harvested environment credentials."
     },
     {
-      "name": "node-ipc protestware wiper (Mar 2022)",
+      "id": "node-ipc-2022-protestware",
+      "name": "node-ipc protestware payload (Mar 2022)",
       "ecosystem": "npm",
       "package": "node-ipc",
-      "version_spec": "10.1.1 || 10.1.2",
+      "versions": ["10.1.1", "10.1.2"],
       "severity": "high",
-      "notes": "CVE-2022-23812 — overwrote files on hosts geolocated to RU/BY; 9.2.2 and >=11.0.0 also bundle peacenotwar."
+      "source": "peacenotwar sabotage payload wiped/rewrote files on RU/BY-located hosts."
     },
     {
-      "name": "ctx PyPI domain-expiry takeover (May 2022)",
+      "id": "ctx-2022-pypi-takeover",
+      "name": "ctx PyPI domain-takeover release (May 2022)",
       "ecosystem": "pypi",
       "package": "ctx",
-      "version_spec": ">=0.1.2-1",
+      "versions": ["0.1.2", "0.2.2"],
       "severity": "critical",
-      "notes": "GHSA-4g82-3jcr-q52w / PYSEC-2022-199 — every release uploaded after the 2014 original exfiltrated os.environ (AWS keys)."
-    },
-    {
-      "name": "xz-utils upstream backdoor (CVE-2024-3094)",
-      "ecosystem": "system",
-      "package": "xz",
-      "version_spec": "5.6.0 || 5.6.1",
-      "severity": "critical",
-      "notes": "Backdoored xz 5.6.x tarballs targeted sshd via liblzma; may also surface as xz-utils/liblzma in lockfiles."
+      "source": "Expired maintainer domain re-registered; poisoned 0.1.2/0.2.2 uploads exfiltrated AWS credentials."
     }
   ]
 }

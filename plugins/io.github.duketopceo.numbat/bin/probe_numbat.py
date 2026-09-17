@@ -30,7 +30,8 @@ MAX_AGENT_ITEMS = 64
 AGENTS_TIMEOUT_S = 2.0
 AGENTS_MAX_BYTES = 65536
 
-SAFE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+SAFE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin:" + os.path.join(
+    os.path.expanduser("~"), ".local", "bin")
 SAFE_ENV = {"PATH": SAFE_PATH, "LC_ALL": "C", "LANG": "C"}
 
 RECORDS_NAME = "records.ndjson"
