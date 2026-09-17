@@ -6,7 +6,10 @@
     "lukedaduke.standby",
     "lukedaduke.nexus",
     "lukedaduke.connections",
-    "lukedaduke.power"
+    "lukedaduke.power",
+    "io.github.duketopceo.bumblebee",
+    "io.github.duketopceo.numbat",
+    "io.github.duketopceo.pplx"
   ],
   "own_plugin_in_separate_repo": [
     {

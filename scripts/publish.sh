@@ -5,20 +5,24 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Keyed by full plugin id — the directory name under plugins/.
 declare -A REPO=(
-  [fan]="git@github.com:duketopceo/omarchy-fan.git"
-  [ticker]="git@github.com:duketopceo/omarchy-ticker.git"
-  [agents]="git@github.com:duketopceo/omarchy-agents.git"
-  [standby]="git@github.com:duketopceo/omarchy-standby.git"
-  [nexus]="git@github.com:duketopceo/omarchy-nexus.git"
-  [connections]="git@github.com:duketopceo/omarchy-connections.git"
-  [power]="git@github.com:duketopceo/omarchy-power.git"
+  [lukedaduke.fan]="git@github.com:duketopceo/omarchy-fan.git"
+  [lukedaduke.ticker]="git@github.com:duketopceo/omarchy-ticker.git"
+  [lukedaduke.agents]="git@github.com:duketopceo/omarchy-agents.git"
+  [lukedaduke.standby]="git@github.com:duketopceo/omarchy-standby.git"
+  [lukedaduke.nexus]="git@github.com:duketopceo/omarchy-nexus.git"
+  [lukedaduke.connections]="git@github.com:duketopceo/omarchy-connections.git"
+  [lukedaduke.power]="git@github.com:duketopceo/omarchy-power.git"
+  [io.github.duketopceo.bumblebee]="git@github.com:duketopceo/omarchy-bumblebee.git"
+  [io.github.duketopceo.numbat]="git@github.com:duketopceo/omarchy-numbat.git"
+  [io.github.duketopceo.pplx]="git@github.com:duketopceo/omarchy-pplx.git"
 )
 
 ship() {
-  local short="$1" id="lukedaduke.$1"
+  local id="$1" short="${1##*.}"
   [[ -d "plugins/$id" ]] || { echo "no such plugin: $id"; return 1; }
-  local remote="${REPO[$short]}"
+  local remote="${REPO[$id]}"
   echo "== $id -> $remote"
 
   local split
@@ -43,11 +47,23 @@ ship() {
   git push "$remote" "$merged:refs/heads/main"
 }
 
+# Accept a full plugin id or its unique last segment (fan -> lukedaduke.fan,
+# pplx -> io.github.duketopceo.pplx).
+resolve() {
+  local arg="$1" id
+  [[ -n $arg && -n ${REPO[$arg]:-} ]] && { echo "$arg"; return; }
+  for id in "${!REPO[@]}"; do
+    [[ ${id##*.} == "$arg" ]] && { echo "$id"; return; }
+  done
+  return 1
+}
+
 if [[ ${1:-} == all ]]; then
   for k in "${!REPO[@]}"; do ship "$k"; done
-elif [[ -n ${REPO[${1:-}]:-} ]]; then
-  ship "$1"
+elif id=$(resolve "${1:-}"); then
+  ship "$id"
 else
-  echo "usage: $0 <fan|ticker|agents|standby|nexus|connections|power|all>" >&2
+  echo "usage: $0 <plugin-id-or-short-name|all>" >&2
+  printf 'known: %s\n' "${!REPO[@]}" >&2
   exit 1
 fi
