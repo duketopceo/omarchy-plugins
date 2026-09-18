@@ -134,7 +134,7 @@ def test_env_key_injected_never_on_argv() -> None:
     assert all(SECRET not in a for a in calls[0]["argv"])
     argv = calls[0]["argv"]
     assert argv[1:3] == ["search", "web"]
-    assert "--limit" in argv and "8" in argv
+    assert "-n" in argv and "8" in argv
 
 
 def test_omaseal_key_resolution() -> None:
@@ -371,29 +371,37 @@ def test_main_stdout_has_no_history_key(capsys, monkeypatch) -> None:
 def test_status_installed_authed_env() -> None:
     run, calls = make_run({})
     res = pplx_status.status(environ={"PERPLEXITY_API_KEY": SECRET},
-                             run=run, tool=make_tool({"pplx"}))
-    assert res == {"installed": True, "authed": True, "history": []}
+                             run=run, tool=make_tool({"pplx"}),
+                             copy_bin="/nonexistent-wl-copy")
+    assert res == {"installed": True, "authed": True,
+                   "copy_available": False, "history": []}
     assert calls == []  # env key short-circuits, no omaseal probe
 
 
 def test_status_omaseal_authed() -> None:
     run, calls = make_run({"omaseal": _resp(SECRET + "\n")})
     res = pplx_status.status(environ={}, run=run,
-                             tool=make_tool({"pplx", "omaseal"}))
-    assert res == {"installed": True, "authed": True, "history": []}
+                             tool=make_tool({"pplx", "omaseal"}),
+                             copy_bin="/nonexistent-wl-copy")
+    assert res == {"installed": True, "authed": True,
+                   "copy_available": False, "history": []}
     assert len(calls) == 1
 
 
 def test_status_no_key() -> None:
     run, _ = make_run({})
-    res = pplx_status.status(environ={}, run=run, tool=make_tool({"pplx"}))
-    assert res == {"installed": True, "authed": False, "history": []}
+    res = pplx_status.status(environ={}, run=run, tool=make_tool({"pplx"}),
+                             copy_bin="/nonexistent-wl-copy")
+    assert res == {"installed": True, "authed": False,
+                   "copy_available": False, "history": []}
 
 
 def test_status_missing_binary() -> None:
     run, calls = make_run({})
-    res = pplx_status.status(environ={}, run=run, tool=make_tool(set()))
-    assert res == {"installed": False, "authed": False, "history": []}
+    res = pplx_status.status(environ={}, run=run, tool=make_tool(set()),
+                             copy_bin="/nonexistent-wl-copy")
+    assert res == {"installed": False, "authed": False,
+                   "copy_available": False, "history": []}
     assert calls == []
 
 
@@ -477,3 +485,209 @@ def test_main_usage_error(capsys) -> None:
     assert rc == 2
     assert data["ok"] is False
     assert "usage" in (data["error"] or "")
+
+
+# --- search option flags (KTD4) ------------------------------------------------
+
+def _flagged_argv(opts):
+    """Argv the helper would exec for a search under the given panel opts."""
+    run, calls = make_run({"pplx": _resp(json.dumps(HITS_PAYLOAD))})
+    pplx_search.search("q", environ={"PERPLEXITY_API_KEY": SECRET},
+                       run=run, tool=make_tool({"pplx"}), opts=opts)
+    return calls[0]["argv"]
+
+
+def test_flag_mapping_recency_context_limit() -> None:
+    argv = _flagged_argv({"recency": "week", "context": "high", "limit": "15"})
+    assert argv[1:3] == ["search", "web"]
+    i = argv.index("--recency-filter")
+    assert argv[i + 1] == "week"
+    i = argv.index("--search-context-size")
+    assert argv[i + 1] == "high"
+    i = argv.index("-n")
+    assert argv[i + 1] == "15"
+    assert argv[-2] == "--" and argv[-1] == "q"   # query stays last, terminated
+
+
+def test_flag_allowlist_defaults() -> None:
+    argv = _flagged_argv(None)
+    assert argv[3:5] == ["-n", "8"]
+    assert "--recency-filter" not in argv
+    assert "--search-context-size" not in argv
+
+
+def test_injection_shaped_values_dropped() -> None:
+    for bad in ("week; rm -rf /", "../etc", "$(id)", "WEEK", "week ",
+                "week --recency-filter day", "day\x00"):
+        argv = _flagged_argv({"recency": bad})
+        assert "--recency-filter" not in argv, bad
+    for bad in ("high;id", "../x", "HIGH", "high ", "medium\x00"):
+        argv = _flagged_argv({"context": bad})
+        assert "--search-context-size" not in argv, bad
+    # non-string / non-dict inputs can't reach argv either
+    argv = _flagged_argv({"recency": ["week"], "context": 42, "limit": None})
+    assert argv[3:5] == ["-n", "8"]
+    assert "--recency-filter" not in argv
+    assert "--search-context-size" not in argv
+    assert pplx_search._search_flags("junk") == ["-n", "8"]
+
+
+def test_limit_clamping() -> None:
+    for bad in ("0", "21", "-3", "abc", "3.5", "", "0x10"):
+        argv = _flagged_argv({"limit": bad})
+        i = argv.index("-n")
+        assert argv[i + 1] == "8", (bad, argv)
+    for good in ("1", "10", "20"):
+        argv = _flagged_argv({"limit": good})
+        i = argv.index("-n")
+        assert argv[i + 1] == good, (good, argv)
+
+
+def test_parse_args_splits_opts_from_query() -> None:
+    opts, tail = pplx_search._parse_args(
+        ["--recency", "week", "--context", "high", "--limit", "12",
+         "--", "real query"])
+    assert opts == {"recency": "week", "context": "high", "limit": "12"}
+    assert tail == ["real query"]
+    # a query that is flag-shaped text stays byte-identical behind --
+    opts, tail = pplx_search._parse_args(["--", "--recency", "week"])
+    assert opts == {} and tail == ["--recency", "week"]
+    # unknown flags are never consumed — they join the query tail
+    opts, tail = pplx_search._parse_args(["--bogus", "x"])
+    assert opts == {} and tail == ["--bogus", "x"]
+    # a dangling known flag keeps its place in the query too
+    opts, tail = pplx_search._parse_args(["--recency"])
+    assert opts == {} and tail == ["--recency"]
+    # values are consumed verbatim; validation happens in _search_flags
+    opts, tail = pplx_search._parse_args(["--recency", "week; x", "q"])
+    assert opts == {"recency": "week; x"} and tail == ["q"]
+
+
+def test_main_passes_opts_and_query(capsys, monkeypatch) -> None:
+    captured = {}
+
+    def fake_search(query, **kw):
+        captured["query"] = query
+        captured["opts"] = kw.get("opts")
+        return {"ok": True, "needs_key": False, "installed": True,
+                "hits": [], "error": None, "elapsed_ms": 1}
+
+    monkeypatch.setattr(pplx_search, "search", fake_search)
+    rc = pplx_search.main(["pplx_search.py", "--recency", "week",
+                           "--limit", "12", "--", "real query"])
+    assert rc == 0
+    assert captured["query"] == "real query"
+    assert captured["opts"] == {"recency": "week", "limit": "12"}
+
+
+# --- history delete verb ---------------------------------------------------------
+
+def _seed_history(tmp_path, n=3):
+    entries = [{"query": "q%d" % i, "hits_count": i, "elapsed_ms": i * 10,
+                "at": "2026-09-16T00:00:%02d+00:00" % i} for i in range(n)]
+    (tmp_path / pplx_status.HISTORY_NAME).write_text(json.dumps(entries))
+    return entries
+
+
+def test_delete_removes_exactly_one_preserves_order(tmp_path) -> None:
+    _seed_history(tmp_path, 4)
+    res = pplx_status.delete_history(1, state_dir=tmp_path)
+    assert res["ok"] is True
+    assert res["error"] is None
+    hist = json.loads((tmp_path / pplx_status.HISTORY_NAME).read_text())
+    assert [e["query"] for e in hist] == ["q0", "q2", "q3"]  # only q1 gone
+    assert [e["query"] for e in res["history"]] == ["q0", "q2", "q3"]
+    # rewritten atomically at 0600 like the search helper's journal
+    assert ((tmp_path / pplx_status.HISTORY_NAME).stat().st_mode
+            & 0o777) == 0o600
+
+
+def test_delete_out_of_range_is_noop(tmp_path) -> None:
+    _seed_history(tmp_path, 3)
+    before = (tmp_path / pplx_status.HISTORY_NAME).read_text()
+    for bad in (-1, 3, 99, None, "2", 1.5, True):
+        res = pplx_status.delete_history(bad, state_dir=tmp_path)
+        assert res["ok"] is False, bad
+        assert res["error"], bad
+        # the unchanged list still comes back for the panel
+        assert [e["query"] for e in res["history"]] == ["q0", "q1", "q2"]
+    assert (tmp_path / pplx_status.HISTORY_NAME).read_text() == before
+
+
+def test_delete_missing_and_corrupt_history(tmp_path) -> None:
+    res = pplx_status.delete_history(0, state_dir=tmp_path)
+    assert res["ok"] is False and res["error"]
+    assert not (tmp_path / pplx_status.HISTORY_NAME).exists()
+    (tmp_path / pplx_status.HISTORY_NAME).write_text("{not json")
+    res = pplx_status.delete_history(0, state_dir=tmp_path)
+    assert res["ok"] is False and res["error"]
+    # corrupt file left untouched — no destructive rewrite
+    assert (tmp_path / pplx_status.HISTORY_NAME).read_text() == "{not json"
+
+
+def test_delete_via_main_verb(capsys, tmp_path) -> None:
+    # autouse fixture points HOME at tmp_path, so the journal lives nested.
+    state_dir = tmp_path / ".local/state/omarchy/pplx"
+    state_dir.mkdir(parents=True)
+    (state_dir / pplx_status.HISTORY_NAME).write_text(json.dumps([
+        {"query": "a", "hits_count": 1, "elapsed_ms": 1, "at": "t"},
+        {"query": "b", "hits_count": 1, "elapsed_ms": 1, "at": "t"}]))
+    rc = pplx_status.main(["pplx_status.py", "--delete", "1"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["ok"] is True
+    assert [e["query"] for e in data["history"]] == ["a"]
+    # --delete with a non-integer index is an error, not a crash
+    rc = pplx_status.main(["pplx_status.py", "--delete", "bogus"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["ok"] is False and data["error"]
+
+
+def test_copy_available_flag(tmp_path) -> None:
+    fake = tmp_path / "wl-copy"
+    res = pplx_status.status(environ={}, run=make_run({})[0],
+                             tool=make_tool(set()), state_dir=tmp_path,
+                             copy_bin=str(fake))
+    assert res["copy_available"] is False
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    res = pplx_status.status(environ={}, run=make_run({})[0],
+                             tool=make_tool(set()), state_dir=tmp_path,
+                             copy_bin=str(fake))
+    assert res["copy_available"] is True
+    # a non-executable file doesn't count either
+    fake.chmod(0o644)
+    res = pplx_status.status(environ={}, run=make_run({})[0],
+                             tool=make_tool(set()), state_dir=tmp_path,
+                             copy_bin=str(fake))
+    assert res["copy_available"] is False
+
+
+# --- panel wiring (structural greps, same style as test_manifests) ---------------
+
+PANEL = ROOT / "plugins/io.github.duketopceo.pplx/Panel.qml"
+
+
+def test_panel_copy_gate_https_only() -> None:
+    # copyHit() shares openHit's scheme gate and execs the fixed wl-copy
+    # path detached with the URL as the sole argv element — non-http(s)
+    # can never reach the clipboard tool.
+    panel = PANEL.read_text()
+    gate = panel.index("function copyHit")
+    seg = panel[gate:gate + 700]
+    assert "/^https?:\\/\\//" in seg
+    assert 'execDetached(["/usr/bin/wl-copy", url])' in seg
+
+
+def test_panel_chips_and_delete_wiring() -> None:
+    panel = PANEL.read_text()
+    # chip state maps to the helper's allowlisted flag pairs behind --
+    assert 'cmd.push("--recency", root.recency)' in panel
+    assert 'cmd.push("--context", root.context)' in panel
+    assert 'cmd.push("--", q)' in panel
+    # history ✕ runs the status helper's delete verb with the row index
+    assert '"--delete", String(index)' in panel
+    # no hardcoded colors anywhere (repo rule)
+    import re as _re
+    assert _re.search(r"#[0-9a-fA-F]{3,8}\b", panel) is None
