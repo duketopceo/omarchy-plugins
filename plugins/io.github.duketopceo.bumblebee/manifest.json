@@ -2,11 +2,14 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.bumblebee",
   "name": "Bumblebee",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "duketopceo",
   "license": "MIT",
   "description": "Supply-chain exposure radar: scans installed packages and dev tools against a known-compromise catalog (wraps Perplexity's bumblebee)",
-  "kinds": ["service", "bar-widget"],
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
   "activation": "on-demand",
   "entryPoints": {
     "service": "Service.qml",

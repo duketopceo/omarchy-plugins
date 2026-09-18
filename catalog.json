@@ -68,8 +68,9 @@
     {
       "id": "io.github.duketopceo.bumblebee",
       "path": "plugins/io.github.duketopceo.bumblebee",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "kinds": [
+        "service",
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-bumblebee"
@@ -77,8 +78,9 @@
     {
       "id": "io.github.duketopceo.numbat",
       "path": "plugins/io.github.duketopceo.numbat",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "kinds": [
+        "service",
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-numbat"
@@ -86,7 +88,7 @@
     {
       "id": "io.github.duketopceo.pplx",
       "path": "plugins/io.github.duketopceo.pplx",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "kinds": [
         "bar-widget"
       ],
