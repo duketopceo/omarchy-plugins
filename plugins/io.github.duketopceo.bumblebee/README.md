@@ -28,6 +28,13 @@ omarchy plugin enable io.github.duketopceo.bumblebee
 - Background scans run on a stale-cache refresh: the helper re-scans at most
   every 6 hours (`BUMBLEBEE_SCAN_INTERVAL_S` to override) and serves cached
   results between runs — no daemon, no shipped systemd units
+- An always-on `service` component (kept loaded by the shell) checks the
+  cache age once an hour and force-rescans when it's stale — the radar stays
+  fresh even if you never open the panel
+- When a scan finds **new** exposures that weren't in the previous baseline,
+  the service raises an urgent toast in the top-right corner (~10s, click to
+  dismiss, max 3 stacked). The toast only fires on the *delta*: the first
+  poll baselines silently, and zero exposures is always silent
 - Partial scans surface a `PARTIAL` chip instead of silently undercounting
 - Results cache at `~/.local/state/omarchy/bumblebee/last-scan.json` (0600,
   atomic writes)
@@ -42,7 +49,20 @@ catalog. This plugin ships a small starter set at `catalog/exposures.json`
 Drop additional advisories as `*.json` files in
 `~/.config/omarchy/plugins-data/bumblebee/catalog.d/` — they are merged at scan
 time. Catalog updates to the shipped set ride plugin updates; nothing is fetched
-at runtime.
+at runtime unless you ask for it.
+
+### Advisory refresh (opt-in)
+
+Upstream releases ship a `threat_intel/` directory of advisories (~1000
+entries). The **Refresh** button in the panel's Catalog tab — or
+`bin/refresh_catalog.py` directly — downloads the **pinned** release tarball
+(`perplexityai/bumblebee` tag `v0.1.2`, HTTPS only, ~64MiB cap), extracts
+only `threat_intel/*.json` (path-traversal/symlink/non-regular members
+rejected), validates each entry against the 0.1.0 catalog schema, and merges
+them atomically to `catalog.d/upstream.json` (0600). It runs only when
+invoked — never on a timer, never during status polls — and any failure
+leaves `catalog.d` untouched. The Catalog tab shows "upstream refreshed Xd
+ago" so staleness is visible instead of silent.
 
 ## Privacy & security posture
 
@@ -50,9 +70,13 @@ at runtime.
   source files; MCP `env` values (which can hold secrets) are not emitted.
 - The helper runs with a scrubbed environment, fixed tool paths, bounded output,
   and hard deadlines; cache files are owner-verified, descriptor-relative, 0600.
-- No telemetry, no network calls from the plugin itself.
+- No telemetry. The only network call is the opt-in catalog refresh (pinned
+  repo+tag, HTTPS); everything else is local.
 
 ## External dependencies
+
+See [UPSTREAM.md](UPSTREAM.md) for the upstream tool repo, license, and
+per-architecture install commands.
 
 - `bumblebee` binary (upstream releases; both amd64 and arm64 published)
 

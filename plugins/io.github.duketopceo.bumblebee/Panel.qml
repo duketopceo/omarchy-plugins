@@ -16,10 +16,13 @@ Panel {
   property var exposures: []
   property int catalogEntries: 0
   property var catalogNames: []
+  property string catalogRefreshedAt: ""
   property var scanLog: []
   property bool partial: false
   property string lastError: ""
   property bool isRefreshing: false
+  property bool isCatalogRefreshing: false
+  property string catalogRefreshError: ""
   property string currentTab: "exposures" // "exposures" | "catalog" | "log"
 
   // ---- palette: fg/dim + alpha fills only, never a raw hex ----
@@ -93,6 +96,24 @@ Panel {
       statusProc.running = true
       statusDeadline.restart()
     }
+  }
+
+  // Catalog refresh is opt-in only — the helper fetches the pinned upstream
+  // threat_intel release over HTTPS. It runs solely on this button press:
+  // never on a timer, never inside a status poll.
+  function refreshCatalog() {
+    if (!catalogProc.running) {
+      catalogProc.command = [root.py, root.pluginRoot + "/bin/refresh_catalog.py"]
+      isCatalogRefreshing = true
+      catalogRefreshError = ""
+      catalogProc.running = true
+      catalogDeadline.restart()
+    }
+  }
+
+  function catalogSubtitle() {
+    if (root.catalogRefreshedAt === "") return "upstream catalog not fetched yet"
+    return "upstream refreshed " + root.relTime(root.catalogRefreshedAt)
   }
 
   function fmtAge(ageS) {
@@ -182,6 +203,8 @@ Panel {
           root.catalogEntries = (typeof data.catalog_entries === "number" && data.catalog_entries > 0)
                                 ? Math.round(data.catalog_entries) : 0
           root.catalogNames = (Array.isArray(data.catalog_names) ? data.catalog_names : []).slice(0, 12)
+          root.catalogRefreshedAt = typeof data.catalog_refreshed_at === "string"
+                                    ? data.catalog_refreshed_at : ""
           root.scanLog = (Array.isArray(data.log) ? data.log : []).slice(0, 20)
           root.partial = data.partial === true
           root.lastError = typeof data.error === "string" ? data.error : ""
@@ -219,6 +242,58 @@ Panel {
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
+  }
+
+  // Opt-in upstream catalog fetch — invoked only by the Refresh button in
+  // the Catalog tab (refreshCatalog() above). Same exec contract as
+  // statusProc: absolute interpreter, scrubbed env, JSON on stdout.
+  Process {
+    id: catalogProc
+    command: [root.py, root.pluginRoot + "/bin/refresh_catalog.py"]
+    clearEnvironment: true
+    environment: root.procEnv
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        catalogDeadline.stop()
+        root.isCatalogRefreshing = false
+        try {
+          if (!text || text.trim().length === 0) return
+          if (text.length > 64000) return
+          var data = JSON.parse(text)
+          if (!data || typeof data !== "object") return
+          if (data.ok === true) {
+            root.catalogRefreshError = ""
+            // Recount so "N advisories" + refreshed-at update in place.
+            root.refresh()
+          } else {
+            root.catalogRefreshError = typeof data.error === "string"
+                                       ? data.error : "refresh_failed"
+          }
+        } catch (e) {}
+      }
+    }
+    onExited: {
+      catalogDeadline.stop()
+      root.isCatalogRefreshing = false
+    }
+  }
+
+  // 30s deadline for the fetch (helper's own backstop is 25s); group-kill
+  // reaps the whole tree — refresh_catalog.py calls os.setsid().
+  Timer {
+    id: catalogDeadline
+    interval: 30000
+    onTriggered: {
+      if (catalogProc.running) {
+        var pid = catalogProc.pid
+        if (pid > 0)
+          Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
+        catalogProc.signal(9)
+        root.isCatalogRefreshing = false
+        root.catalogRefreshError = "refresh timed out"
+      }
+    }
   }
 
   // Refresh on any open path — bar click below, IPC/keyboard summon here.
@@ -605,7 +680,8 @@ Panel {
           }
 
           Column {
-            width: parent.width - catCount.implicitWidth - parent.spacing
+            width: parent.width - catCount.implicitWidth - catRefreshBtn.width
+                   - parent.spacing * 2
             spacing: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
 
@@ -621,6 +697,15 @@ Panel {
             }
             Text {
               width: parent.width
+              text: root.catalogSubtitle()
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+            Text {
+              width: parent.width
               text: "add advisories in ~/.config/omarchy/plugins-data/bumblebee/catalog.d/"
               textFormat: Text.PlainText
               color: root.dim
@@ -629,7 +714,50 @@ Panel {
               wrapMode: Text.WordWrap
             }
           }
+
+          // Opt-in fetch of the pinned upstream threat_intel release.
+          // Offline by default — nothing fetches until this is pressed.
+          Rectangle {
+            id: catRefreshBtn
+            height: Style.space(24)
+            width: catRefreshText.implicitWidth + Style.space(14)
+            radius: Style.cornerRadius
+            color: mCatRefresh.containsMouse ? root.accentFill(0.12) : "transparent"
+            border.color: root.accentFill(0.5)
+            opacity: root.isCatalogRefreshing ? 0.6 : 1.0
+            anchors.verticalCenter: parent.verticalCenter
+
+            Text {
+              id: catRefreshText
+              anchors.centerIn: parent
+              text: root.isCatalogRefreshing ? "Fetching" : "Refresh"
+              textFormat: Text.PlainText
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            MouseArea {
+              id: mCatRefresh
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              enabled: !root.isCatalogRefreshing
+              onClicked: root.refreshCatalog()
+            }
+          }
         }
+      }
+
+      Text {
+        visible: root.catalogRefreshError !== ""
+        width: parent.width
+        text: "! " + root.catalogRefreshError
+        textFormat: Text.PlainText
+        color: root.urgent
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
       }
 
       Repeater {

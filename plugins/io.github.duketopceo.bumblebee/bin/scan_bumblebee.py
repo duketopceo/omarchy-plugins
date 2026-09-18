@@ -12,9 +12,18 @@ Contract with the panel — exactly one JSON object on stdout, exit 0:
   {"installed": bool, "ok": bool, "scanned_at": iso8601|null,
    "age_s": int|null, "exposure_count": int,
    "exposures": [{"name","ecosystem","package","version","severity"}],
-   "catalog_entries": int, "catalog_names": [str],
+   "exposure_ids": [str], "catalog_entries": int, "catalog_names": [str],
+   "catalog_refreshed_at": iso8601|null,
+   "catalog_sources": {"bundled","catalog_d","upstream"},
    "log": [{"scanned_at","status","exposure_count","duration_ms","error"?}],
    "partial": bool, "error": string|null}
+
+`age` (first argv) is a pure-stat probe for the always-on service: it reads
+only the cache and emits {"installed", "ok", "last_scan_age_s",
+"exposure_count", "exposure_ids", "exposures", "error"} WITHOUT running a
+scan — the service decides whether a --force rescan is due. exposure_ids are
+stable "name|ecosystem|package@version" keys the service watermark-diffs to
+alert only on NEW exposures.
 
 Scans are expensive, so the last result is cached at
 ~/.local/state/omarchy/bumblebee/last-scan.json and only re-run once the
@@ -43,7 +52,7 @@ JOB_DEADLINE_S = 30            # whole-job wall clock backstop
 SCAN_TIMEOUT_S = 20            # per-exec deadline for the bumblebee scan
 MAX_OUT_BYTES = 512 * 1024     # NDJSON stdout budget (findings-only should be small)
 CACHE_MAX_BYTES = 64 * 1024    # cached payload read cap
-CATALOG_MAX_BYTES = 256 * 1024 # per-catalog-file read cap
+CATALOG_MAX_BYTES = 1024 * 1024 # per-catalog-file read cap (merged upstream.json ~370KiB)
 MAX_CATALOG_FILES = 64
 MAX_EXPOSURES = 50             # cap on the emitted exposure list
 MAX_STR = 96
@@ -65,6 +74,9 @@ CACHE_DIR_REL = ".local/state/omarchy/bumblebee"
 CACHE_NAME = "last-scan.json"
 LOG_NAME = "scan-log.json"
 USER_CATALOG_REL = ".config/omarchy/plugins-data/bumblebee/catalog.d"
+# refresh_catalog.py owns this file inside catalog.d — its mtime is the
+# "upstream refreshed at" timestamp the panel surfaces.
+MERGED_CATALOG_NAME = "upstream.json"
 
 # Fixed tool-lookup path: no ambient $PATH, but the user's own ~/.local/bin is
 # where a `go install`/tarball bumblebee most likely lives.
@@ -414,6 +426,59 @@ def _catalog_stats(dir_path, name_cap):
     return total, names
 
 
+def _catalog_file_count(path):
+    """Entry count of one catalog file; 0 on absent/corrupt/oversized."""
+    raw = _read_file_capped(path, CATALOG_MAX_BYTES)
+    if raw is None:
+        return 0
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return 0
+    if isinstance(data, dict):
+        entries = data.get("entries")
+    elif isinstance(data, list):
+        entries = data
+    else:
+        return 0
+    return len(entries) if isinstance(entries, list) else 0
+
+
+def _file_mtime(path):
+    """mtime of a regular file without following symlinks; None on anomaly."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None
+        return st.st_mtime
+    finally:
+        os.close(fd)
+
+
+def _exposure_ids(exposures):
+    """Stable per-exposure keys for the service's new-exposure watermark.
+
+    "name|ecosystem|package@version" — deterministic across scans, so the
+    service can diff poll-to-poll and toast only on NEW exposures.
+    """
+    ids = []
+    for e in exposures or []:
+        if not isinstance(e, dict):
+            continue
+        key = (_clean(e.get("name")) + "|" + _clean(e.get("ecosystem"))
+               + "|" + _clean(e.get("package")) + "@"
+               + _clean(e.get("version")))
+        if key.strip("|@"):
+            ids.append(key[:200])
+        if len(ids) >= MAX_EXPOSURES:
+            break
+    return ids
+
+
 # --- NDJSON parsing (defensive: record_type-keyed, malformed lines skipped) ---
 
 def _pick(*vals):
@@ -484,8 +549,12 @@ def _base_payload(installed, catalog_entries):
         "age_s": None,
         "exposure_count": 0,
         "exposures": [],
+        "exposure_ids": [],
         "catalog_entries": catalog_entries,
         "catalog_names": [],
+        "catalog_refreshed_at": None,
+        "catalog_sources": {"bundled": catalog_entries,
+                            "catalog_d": 0, "upstream": 0},
         "log": [],
         "partial": False,
         "error": None,
@@ -513,20 +582,40 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None,
     catalog_entries = shipped_count + user_count
     catalog_names = (names + user_names)[:MAX_CATALOG_NAMES]
 
+    # Catalog provenance: the shipped dir is "bundled"; inside catalog.d the
+    # refresh helper owns upstream.json ("upstream") and everything else is
+    # the user's own files ("catalog_d"). upstream.json's mtime is the
+    # panel's "upstream refreshed Xd ago" timestamp.
+    merged_path = user_cat / MERGED_CATALOG_NAME
+    upstream_count = _catalog_file_count(merged_path)
+    merged_mtime = _file_mtime(merged_path)
+    catalog_refreshed_at = (_iso(merged_mtime)
+                            if merged_mtime is not None else None)
+    catalog_sources = {
+        "bundled": shipped_count,
+        "catalog_d": max(0, user_count - upstream_count),
+        "upstream": upstream_count,
+    }
+
     if tool is None:
         tool = _tool("bumblebee")
     if not tool:
         # Capability degrade: no binary, no exec, still a valid payload.
         payload = _base_payload(False, catalog_entries)
         payload["catalog_names"] = catalog_names
+        payload["catalog_refreshed_at"] = catalog_refreshed_at
+        payload["catalog_sources"] = catalog_sources
         payload["log"] = _read_log(cache_dir)
         return payload
 
     cached, mtime = _read_cache(cache_dir)
     if not force and cached is not None and (now - mtime) < interval:
         cached["age_s"] = max(0, int(now - mtime))
+        cached["exposure_ids"] = _exposure_ids(cached.get("exposures"))
         cached["catalog_entries"] = catalog_entries
         cached["catalog_names"] = catalog_names
+        cached["catalog_refreshed_at"] = catalog_refreshed_at
+        cached["catalog_sources"] = catalog_sources
         cached["log"] = _read_log(cache_dir)
         return cached
 
@@ -567,13 +656,52 @@ def collect(now=None, run=None, tool=None, home=None, plugin_root=None,
         "age_s": 0,
         "exposure_count": findings,
         "exposures": exposures,
+        "exposure_ids": _exposure_ids(exposures),
         "catalog_entries": catalog_entries,
         "catalog_names": catalog_names,
+        "catalog_refreshed_at": catalog_refreshed_at,
+        "catalog_sources": catalog_sources,
         "log": _append_log(cache_dir, entry),
         "partial": partial,
         "error": error,
     }
     _write_cache(cache_dir, payload)
+    return payload
+
+
+def collect_age(now=None, tool=None, home=None):
+    """Pure-stat staleness probe for the service — reads only the cache.
+
+    Emits {"installed","ok","last_scan_age_s","exposure_count",
+    "exposure_ids","exposures","error"}. last_scan_age_s is None when no
+    usable cache exists (the service treats that as stale and force-scans).
+    Never execs bumblebee beyond a PATH lookup.
+    """
+    if now is None:
+        now = time.time()
+    home = Path(home) if home is not None else HOME
+    if tool is None:
+        tool = _tool("bumblebee")
+    cached, mtime = _read_cache(home / CACHE_DIR_REL)
+    payload = {
+        "installed": bool(tool),
+        "ok": True,
+        "last_scan_age_s": None,
+        "exposure_count": 0,
+        "exposure_ids": [],
+        "exposures": [],
+        "error": None,
+    }
+    if cached is None or mtime is None:
+        return payload
+    payload["last_scan_age_s"] = max(0, int(now - mtime))
+    count = cached.get("exposure_count")
+    if isinstance(count, int) and count > 0:
+        payload["exposure_count"] = count
+    exposures = cached.get("exposures")
+    if isinstance(exposures, list):
+        payload["exposures"] = exposures[:MAX_EXPOSURES]
+        payload["exposure_ids"] = _exposure_ids(exposures)
     return payload
 
 
@@ -586,11 +714,19 @@ def main():
         pass
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(JOB_DEADLINE_S)
-    force = "--force" in sys.argv[1:]
+    args = sys.argv[1:]
     try:
-        payload = collect(force=force)
+        if "age" in args:
+            payload = collect_age()
+        else:
+            payload = collect(force="--force" in args)
     except Exception as exc:
-        payload = _base_payload(False, 0)
+        if "age" in args:
+            payload = {"installed": False, "ok": False, "last_scan_age_s": None,
+                       "exposure_count": 0, "exposure_ids": [],
+                       "exposures": []}
+        else:
+            payload = _base_payload(False, 0)
         payload["error"] = "internal: " + _clean(exc, 120)
     sys.stdout.write(json.dumps(payload)[:MAX_OUT_BYTES] + "\n")
 

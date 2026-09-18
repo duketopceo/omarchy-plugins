@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import os
 import stat
+import tarfile
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HELPER = ROOT / "plugins/io.github.duketopceo.bumblebee/bin/scan_bumblebee.py"
+REFRESH = ROOT / "plugins/io.github.duketopceo.bumblebee/bin/refresh_catalog.py"
 SHIPPED_CATALOG = ROOT / "plugins/io.github.duketopceo.bumblebee/catalog/exposures.json"
 
 NOW = 1_800_000_000.0  # fixed clock for deterministic age_s assertions
@@ -499,3 +502,352 @@ def test_catalog_names_emitted_capped_clean(tmp_path, monkeypatch):
     assert payload["catalog_names"][-2:] == ["user-advisory-a",
                                              "user-advisory-b"]
     assert payload["catalog_entries"] == shipped_count() + 2
+
+
+# --- age verb (service staleness probe — pure stat, never scans) ---
+
+def test_age_verb_stats_cache_no_scan(tmp_path):
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": True,
+                           "exposure_count": 2,
+                           "exposures": [
+                               {"name": "adv-a", "ecosystem": "npm",
+                                "package": "p1", "version": "1.0"},
+                               {"name": "", "ecosystem": "pypi",
+                                "package": "p2", "version": "2.0"},
+                           ]},
+                age_s=3600)
+    payload = mod.collect_age(now=NOW, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["installed"] is True
+    assert payload["ok"] is True
+    assert payload["last_scan_age_s"] == 3600
+    assert payload["exposure_count"] == 2
+    assert payload["exposure_ids"] == ["adv-a|npm|p1@1.0", "|pypi|p2@2.0"]
+    assert len(payload["exposures"]) == 2
+    assert payload["error"] is None
+    json.dumps(payload)
+
+
+def test_age_verb_no_cache_is_null_age(tmp_path):
+    mod = load()
+    payload = mod.collect_age(now=NOW, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["installed"] is True
+    assert payload["last_scan_age_s"] is None  # service treats as stale
+    assert payload["exposure_count"] == 0
+    assert payload["exposure_ids"] == []
+    json.dumps(payload)
+
+
+def test_age_verb_reports_installed_flag(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod, "_tool", lambda name: None)
+    payload = mod.collect_age(now=NOW, home=tmp_path)
+    assert payload["installed"] is False
+    assert payload["error"] is None
+
+
+def test_age_verb_never_execs_run(tmp_path):
+    # collect_age has no run seam at all — scanning is impossible by shape.
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": True,
+                           "exposure_count": 1,
+                           "exposures": [{"name": "n", "ecosystem": "e",
+                                          "package": "p", "version": "v"}]},
+                age_s=60)
+    payload = mod.collect_age(now=NOW, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["exposure_ids"] == ["n|e|p@v"]
+
+
+def test_main_parses_age_verb(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod.os, "setsid", lambda: None)
+    monkeypatch.setattr(mod.signal, "alarm", lambda *_: None)
+    seen = {}
+    monkeypatch.setattr(mod, "collect_age",
+                        lambda **kw: seen.update(kw) or {"ok": True})
+    monkeypatch.setattr(mod, "collect",
+                        lambda **kw: (_ for _ in ()).throw(
+                            AssertionError("collect must not run on age")))
+    monkeypatch.setattr(mod.sys, "argv", ["scan_bumblebee.py", "age"])
+    mod.main()
+    assert seen == {}
+
+
+# --- catalog provenance + refresh timestamp ---
+
+def catalog_d(home: Path) -> Path:
+    return home / ".config/omarchy/plugins-data/bumblebee/catalog.d"
+
+
+def test_catalog_refreshed_at_and_sources(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod, "_tool", lambda name: None)
+    catd = catalog_d(tmp_path)
+    catd.mkdir(parents=True)
+    upstream = catd / "upstream.json"
+    upstream.write_text(json.dumps(
+        {"entries": [{"id": "u1"}, {"id": "u2"}]}))
+    (catd / "mine.json").write_text(json.dumps({"entries": [{"id": "m1"}]}))
+    os.utime(upstream, (NOW - 86400, NOW - 86400))
+    payload = mod.collect(now=NOW, run=never_run, home=tmp_path)
+    assert payload["catalog_refreshed_at"] == mod._iso(NOW - 86400)
+    assert payload["catalog_sources"] == {
+        "bundled": shipped_count(), "catalog_d": 1, "upstream": 2}
+    assert payload["catalog_entries"] == shipped_count() + 3
+
+
+def test_catalog_refreshed_at_null_without_upstream(tmp_path, monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod, "_tool", lambda name: None)
+    catd = catalog_d(tmp_path)
+    catd.mkdir(parents=True)
+    (catd / "mine.json").write_text(json.dumps({"entries": [{"id": "m1"}]}))
+    payload = mod.collect(now=NOW, run=never_run, home=tmp_path)
+    assert payload["catalog_refreshed_at"] is None
+    assert payload["catalog_sources"]["upstream"] == 0
+    assert payload["catalog_sources"]["catalog_d"] == 1
+
+
+def test_exposure_ids_in_payload_and_cache_reemit(tmp_path):
+    mod = load()
+    out = ndjson(finding(),
+                 {"record_type": "scan_summary", "status": "complete"})
+    payload = mod.collect(
+        now=NOW,
+        run=lambda argv, timeout=None, max_bytes=None: (out, None, 0),
+        home=tmp_path, tool="/usr/bin/bumblebee")
+    assert payload["exposure_ids"] == [
+        "chalk npm account-takeover release (Sep 2025 qix phish)"
+        "|npm|chalk@5.6.1"]
+    # A cached re-emit recomputes ids from the stored exposures. The
+    # republished cache carries the real mtime, so pin it to NOW for a
+    # deterministic fresh hit.
+    cached_file = cache_dir(tmp_path) / "last-scan.json"
+    os.utime(cached_file, (NOW, NOW))
+    payload2 = mod.collect(now=NOW + 60, run=never_run, home=tmp_path,
+                           tool="/usr/bin/bumblebee")
+    assert payload2["exposure_ids"] == payload["exposure_ids"]
+
+
+# --- refresh_catalog.py: pinned opt-in upstream merge ---
+
+def load_refresh():
+    spec = importlib.util.spec_from_file_location("refresh_catalog", REFRESH)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def make_entry(i, **kw):
+    base = {
+        "id": f"adv-{i}",
+        "name": f"advisory {i}",
+        "ecosystem": "npm",
+        "package": f"pkg{i}",
+        "versions": ["1.0.0"],
+        "severity": "high",
+    }
+    base.update(kw)
+    return base
+
+
+def make_tarball(members, top="bumblebee-0.1.2") -> bytes:
+    """members: {relpath: str|bytes} placed under <top>/ in the tar."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for rel, data in members.items():
+            blob = data if isinstance(data, bytes) else data.encode()
+            ti = tarfile.TarInfo(f"{top}/{rel}")
+            ti.size = len(blob)
+            tf.addfile(ti, io.BytesIO(blob))
+    return buf.getvalue()
+
+
+def fake_fetch(blob):
+    def fetch(url, timeout_s=None, max_bytes=None):
+        return blob
+    return fetch
+
+
+def catalog_doc(entries):
+    return json.dumps({"schema_version": "0.1.0", "entries": entries})
+
+
+def test_refresh_success_merges_atomically(tmp_path):
+    mod = load_refresh()
+    blob = make_tarball({
+        "threat_intel/one.json": catalog_doc([make_entry(1), make_entry(2)]),
+        "threat_intel/two.json": catalog_doc([make_entry(3)]),
+        "threat_intel/README.md": "docs, not json",
+        "src/main.go": "package main",
+    })
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is True
+    assert payload["error"] is None
+    assert payload["entries_added"] == 3
+    assert payload["entries_total"] == 3
+    assert payload["entries_skipped"] == 0
+    assert payload["tag"] == mod.RELEASE_TAG
+    assert payload["refreshed_at"] == mod._iso(NOW)
+    merged = catalog_d(tmp_path) / "upstream.json"
+    doc = json.loads(merged.read_text())
+    assert doc["upstream_tag"] == mod.RELEASE_TAG
+    assert len(doc["entries"]) == 3
+    assert stat.S_IMODE(os.stat(merged).st_mode) == 0o600
+
+
+def test_refresh_http_error_leaves_dir_untouched(tmp_path):
+    mod = load_refresh()
+
+    def fail(url, timeout_s=None, max_bytes=None):
+        raise mod.FetchError("http_404")
+
+    payload = mod.refresh(fetch=fail, home=tmp_path, now=NOW)
+    assert payload["ok"] is False
+    assert payload["error"] == "http_404"
+    assert not (catalog_d(tmp_path) / "upstream.json").exists()
+
+
+def test_refresh_oversized_blob_aborts(tmp_path):
+    mod = load_refresh()
+    blob = b"x" * (mod.MAX_TARBALL_BYTES + 1)
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is False
+    assert payload["error"] == "too_large"
+    assert not (catalog_d(tmp_path) / "upstream.json").exists()
+
+
+def test_fetch_byte_cap_aborts_download(monkeypatch):
+    mod = load_refresh()
+
+    class Resp:
+        headers = {}
+
+        def read(self, n=-1):
+            return b"x" * (n if n and n > 0 else 65536)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen",
+                        lambda *a, **k: Resp())
+    try:
+        mod._fetch("https://example.invalid/x", timeout_s=5, max_bytes=1024)
+        assert False, "expected FetchError"
+    except mod.FetchError as exc:
+        assert str(exc) == "too_large"
+
+
+def test_fetch_rejects_non_https():
+    mod = load_refresh()
+    for bad in ("http://github.com/x", "file:///etc/passwd", ""):
+        try:
+            mod._fetch(bad, timeout_s=1, max_bytes=10)
+            assert False, bad
+        except mod.FetchError as exc:
+            assert str(exc) == "scheme_not_https"
+
+
+def test_refresh_schema_invalid_entries_skipped(tmp_path):
+    mod = load_refresh()
+    blob = make_tarball({
+        "threat_intel/ok.json": catalog_doc([
+            make_entry(1),
+            make_entry(2, versions=[]),            # empty versions list
+            make_entry(3, versions="1.0.0"),       # versions not a list
+            {"id": "x", "name": "no ecosystem"},   # missing fields
+            "not-a-dict",
+        ]),
+    })
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is True
+    assert payload["entries_added"] == 1
+    assert payload["entries_total"] == 1
+    assert payload["entries_skipped"] == 4
+
+
+def test_refresh_creates_catalog_d_modes(tmp_path):
+    mod = load_refresh()
+    blob = make_tarball({"threat_intel/one.json": catalog_doc([make_entry(1)])})
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is True
+    catd = catalog_d(tmp_path)
+    assert stat.S_IMODE(os.stat(catd).st_mode) == 0o700
+    merged = catd / "upstream.json"
+    assert stat.S_IMODE(os.stat(merged).st_mode) == 0o600
+
+
+def test_refresh_rejects_traversal_and_nonregular(tmp_path):
+    mod = load_refresh()
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        # Path traversal + absolute members: must never be read as intel.
+        for name in ("pkg/threat_intel/../../evil.json",
+                     "/abs/threat_intel/x.json",
+                     "pkg/threat_intel/../x.json"):
+            blob = catalog_doc([make_entry(9)]).encode()
+            ti = tarfile.TarInfo(name)
+            ti.size = len(blob)
+            tf.addfile(ti, io.BytesIO(blob))
+        # A symlink at the intel path: never followed.
+        ti = tarfile.TarInfo("pkg/threat_intel/link.json")
+        ti.type = tarfile.SYMTYPE
+        ti.linkname = "/etc/passwd"
+        tf.addfile(ti)
+        # One real advisory keeps the refresh honest.
+        blob = catalog_doc([make_entry(1)]).encode()
+        ti = tarfile.TarInfo("pkg/threat_intel/ok.json")
+        ti.size = len(blob)
+        tf.addfile(ti, io.BytesIO(blob))
+    payload = mod.refresh(fetch=fake_fetch(buf.getvalue()),
+                          home=tmp_path, now=NOW)
+    assert payload["ok"] is True
+    assert payload["entries_total"] == 1
+    doc = json.loads((catalog_d(tmp_path) / "upstream.json").read_text())
+    assert [e["id"] for e in doc["entries"]] == ["adv-1"]
+
+
+def test_refresh_no_threat_intel_is_error(tmp_path):
+    mod = load_refresh()
+    blob = make_tarball({"src/main.go": "package main", "README.md": "x"})
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is False
+    assert payload["error"] == "no_threat_intel"
+    assert not (catalog_d(tmp_path) / "upstream.json").exists()
+
+
+def test_refresh_bad_tarball_is_error(tmp_path):
+    mod = load_refresh()
+    payload = mod.refresh(fetch=fake_fetch(b"not a tarball"),
+                          home=tmp_path, now=NOW)
+    assert payload["ok"] is False
+    assert payload["error"] == "bad_tarball"
+
+
+def test_refresh_entries_added_is_delta_vs_prior(tmp_path):
+    mod = load_refresh()
+    catd = catalog_d(tmp_path)
+    catd.mkdir(parents=True)
+    (catd / "upstream.json").write_text(catalog_doc([make_entry(1)]))
+    blob = make_tarball({
+        "threat_intel/one.json": catalog_doc([make_entry(1), make_entry(2)]),
+    })
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert payload["ok"] is True
+    assert payload["entries_added"] == 1   # adv-2 only; adv-1 already known
+    assert payload["entries_total"] == 2
+
+
+def test_refresh_never_prints_advisory_bodies(tmp_path):
+    mod = load_refresh()
+    blob = make_tarball({
+        "threat_intel/one.json": catalog_doc(
+            [make_entry(1, name="SECRET-ADVISORY-NAME")]),
+    })
+    payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
+    assert "SECRET-ADVISORY-NAME" not in json.dumps(payload)
+    assert "advisory 1" not in json.dumps(payload)

@@ -6,9 +6,10 @@
   "author": "duketopceo",
   "license": "MIT",
   "description": "Supply-chain exposure radar: scans installed packages and dev tools against a known-compromise catalog (wraps Perplexity's bumblebee)",
-  "kinds": ["bar-widget"],
+  "kinds": ["service", "bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
+    "service": "Service.qml",
     "barWidget": "Panel.qml"
   },
   "barWidget": {
