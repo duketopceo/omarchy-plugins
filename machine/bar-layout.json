@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "updated": "2026-09-16T02:04:22-06:00",
+    "source": "live ~/.config/omarchy/shell.json",
+    "note": "Sanitized bar+idle only. Full state: dotfiles/m1-restore/omarchy-host-snapshot.json"
+  },
   "idle": {
     "lock": 600,
     "screensaver": 300
@@ -8,17 +13,19 @@
     "omarchy.clock",
     "omarchy.tray",
     "omarchy.monitor",
-    "lukedaduke.agents",
     "omarchy.keyboard-layout"
   ],
   "bar": {
-    "position": "top",
-    "transparent": true,
     "centerAnchor": "tmn73.calendar",
     "layout": {
       "center": [
         {
           "id": "omarchy.indicators"
+        },
+        {
+          "id": "mohamedmansour.finance",
+          "showChange": false,
+          "showLastUpdated": true
         },
         {
           "id": "tmn73.calendar",
@@ -29,10 +36,6 @@
         {
           "id": "omarchy.weather",
           "unit": "imperial"
-        },
-        {
-          "id": "robzolkos.github",
-          "iconAlwaysUnlit": true
         },
         {
           "id": "omarchy.system-update"
@@ -46,6 +49,12 @@
           "id": "omarchy.workspaces"
         },
         {
+          "id": "omaplug"
+        },
+        {
+          "id": "io.github.twiking.omasettings"
+        },
+        {
           "id": "omarchy.active-window"
         },
         {
@@ -55,33 +64,46 @@
       ],
       "right": [
         {
-          "id": "io.github.tyrichards.tray"
+          "id": "io.github.tyrichards.tray",
+          "widgets": [
+            {
+              "entry": {
+                "id": "jankeesvw.herdr"
+              },
+              "listed": true
+            },
+            {
+              "entry": {
+                "id": "lukedaduke.nexus"
+              },
+              "listed": true
+            }
+          ],
+          "order": [
+            "1Password_status_icon_1",
+            "fastpotify",
+            "jankeesvw.herdr",
+            "lukedaduke.nexus",
+            "NordVPN"
+          ]
         },
         {
-          "id": "jankeesvw.notification-center"
-        },
-        {
-          "id": "hancore.voxtype-enhance"
+          "id": "nixfred.blip"
         },
         {
           "id": "akitaonrails.ai-usagebar",
-          "showValue": false,
-          "lastSelectedEntryId": "anthropic"
-        },
-        {
-          "id": "lukedaduke.ticker"
+          "lastSelectedEntryId": "cursor",
+          "showProvider": false,
+          "showValue": false
         },
         {
           "id": "omarchy.tailscale"
         },
         {
+          "id": "lukedaduke.connections"
+        },
+        {
           "id": "soup.airpods"
-        },
-        {
-          "id": "omarchy.bluetooth"
-        },
-        {
-          "id": "omarchy.network"
         },
         {
           "id": "omarchy.audio"
@@ -90,18 +112,54 @@
           "id": "crmne.hyprmoncfg"
         },
         {
-          "id": "lukedaduke.fan"
-        },
-        {
-          "id": "omarchy.power",
+          "id": "lukedaduke.power",
           "showPercentage": true
         },
         {
           "id": "io.github.ncr.omaphones",
-          "deviceMatch": "Between 3ANC",
-          "useModeControl": false
+          "useModeControl": false,
+          "useFastPair": false
+        },
+        {
+          "id": "lukedaduke.fan"
+        },
+        {
+          "id": "io.github.duketopceo.dayflow"
+        },
+        {
+          "id": "robzolkos.github",
+          "iconAlwaysUnlit": true,
+          "linkBehavior": "Browser tab"
+        },
+        {
+          "id": "gemini-bar"
+        },
+        {
+          "id": "io.github.duketopceo.omaseal"
         }
       ]
+    },
+    "position": "top",
+    "transparent": false
+  },
+  "plugins": [
+    {
+      "id": "io.github.sirjul1337.lock-explorer"
+    },
+    {
+      "id": "crmne.hyprmoncfg"
+    },
+    {
+      "id": "lukedaduke.standby"
+    },
+    {
+      "id": "localdev.secrets"
+    },
+    {
+      "id": "jankeesvw.herdr"
+    },
+    {
+      "id": "lukedaduke.nexus"
     }
-  }
+  ]
 }
