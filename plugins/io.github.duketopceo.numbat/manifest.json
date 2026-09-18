@@ -6,9 +6,10 @@
   "author": "duketopceo",
   "license": "MIT",
   "description": "AI-agent activity radar: live findings and per-agent visibility from Perplexity's numbat endpoint monitor",
-  "kinds": ["bar-widget"],
+  "kinds": ["service", "bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
+    "service": "Service.qml",
     "barWidget": "Panel.qml"
   },
   "barWidget": {

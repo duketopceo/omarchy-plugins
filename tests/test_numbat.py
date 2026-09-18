@@ -20,9 +20,11 @@ EXPECTED_KEYS = [
     "findings_24h",
     "findings",
     "events",
+    "events_live",
     "scanned_at",
     "scan_error",
     "records_path",
+    "live_records_path",
     "error",
 ]
 
@@ -42,6 +44,13 @@ def _no_run(*_a, **_k):
 def _write_findings(home: Path, lines) -> Path:
     home.mkdir(parents=True, exist_ok=True)
     path = home / "findings.ndjson"
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    return path
+
+
+def _write_records(home: Path, lines) -> Path:
+    home.mkdir(parents=True, exist_ok=True)
+    path = home / "records.ndjson"
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
     return path
 
@@ -409,3 +418,242 @@ def test_untrusted_numbat_dir_sets_error(tmp_path: Path) -> None:
     # symlinked dir -> _open_dir raises OSError -> treated as absent tail
     assert data["installed"] is True
     assert data["ok"] is True
+
+
+# ---- U1: live event stream from records.ndjson (--emit all hooks) ----
+
+
+def test_records_tail_streams_live_events(tmp_path: Path) -> None:
+    """records.ndjson events are emitted live and flag events_live."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    path = _write_records(home, [
+        {"record_type": "event", "source_agent": "devin-cli",
+         "observed_event_type": "command.exec",
+         "observed_content_preview": "ls -la",
+         "timestamp": "2026-09-16T11:59:30Z"},
+        # non-event record types in the live sink are skipped
+        {"record_type": "enforcement", "timestamp": "2026-09-16T11:59:31Z"},
+    ])
+    # malformed lines in the live sink are skipped, never fatal
+    path.write_bytes(
+        b"\x00\xff not json\n" + path.read_bytes() + b'"a string"\n42\n'
+    )
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    assert list(data.keys()) == EXPECTED_KEYS
+    assert data["events_live"] is True
+    assert data["live_records_path"] == "~/.numbat/records.ndjson"
+    assert data["events"] == [
+        {"observed_at": "2026-09-16T11:59:30Z", "agent": "devin-cli",
+         "kind": "command.exec", "summary": "ls -la"}
+    ]
+    # hook activity in the live sink also proves hooks are wired
+    assert data["hooks_seen"] is True
+
+
+def test_absent_records_file_reports_events_live_false(tmp_path: Path) -> None:
+    """No records.ndjson: scan-cached events only, events_live false."""
+    mod = load()
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "claude-code",
+         "timestamp": "2026-09-16T11:00:00Z", "event_type": "session.end"},
+    ]))
+    assert data["events_live"] is False
+    assert data["live_records_path"] is None
+    assert data["events"] == [
+        {"observed_at": "2026-09-16T11:00:00Z", "agent": "claude-code",
+         "kind": "session.end", "summary": ""}
+    ]
+
+
+def test_empty_records_file_is_present_but_not_live(tmp_path: Path) -> None:
+    """An empty records.ndjson exists (path reported) but yields no events."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    assert data["live_records_path"] == "~/.numbat/records.ndjson"
+    assert data["events_live"] is False
+
+
+def test_live_event_dedupes_identical_scan_event(tmp_path: Path) -> None:
+    """Same (agent, observed_at, kind) in live tail and scan: one entry."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "tool_call", "content_preview": "live-copy",
+         "timestamp": "2026-09-16T11:30:00Z"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "tool_call", "content_preview": "scan-copy",
+         "timestamp": "2026-09-16T11:30:00Z"},
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "session.end",
+         "timestamp": "2026-09-16T11:00:00Z"},
+    ]), home=home)
+    kinds = [(e["agent"], e["observed_at"], e["kind"]) for e in data["events"]]
+    assert len(kinds) == len(set(kinds))
+    # the live copy wins the dedupe and sorts first
+    assert data["events"][0]["summary"] == "live-copy"
+    assert [e["kind"] for e in data["events"]] == ["tool_call", "session.end"]
+
+
+def test_live_events_sort_before_newer_scan_events(tmp_path: Path) -> None:
+    """Live block precedes scan block even when a scan event is newer."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "live-kind",
+         "timestamp": "2026-09-16T10:00:00Z"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "scan-kind",
+         "timestamp": "2026-09-16T11:59:00Z"},
+    ]), home=home)
+    assert [e["kind"] for e in data["events"]] == ["live-kind", "scan-kind"]
+
+
+def test_records_finding_records_merge_into_findings(tmp_path: Path) -> None:
+    """emit-all sinks may carry finding records too — they merge in."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "finding", "rule_id": "live.rule",
+         "severity": "high", "source_agent": "windsurf",
+         "detected_at": "2026-09-16T11:58:00Z",
+         "title": "live finding from records"},
+    ])
+    _write_findings(home, [
+        {"record_type": "finding", "rule_id": "tail.rule",
+         "timestamp": "2026-09-16T11:50:00Z", "source_agent": "codex"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    rules = [f["rule"] for f in data["findings"]]
+    assert "live finding from records" in rules
+    assert "tail.rule" in rules
+    assert data["live_records_path"] == "~/.numbat/records.ndjson"
+    # findings alone don't flip the events feed live
+    assert data["events_live"] is False
+    assert data["hooks_seen"] is True
+    assert data["findings_24h"] == 2
+
+
+def test_records_finding_dedupes_findings_tail_copy(tmp_path: Path) -> None:
+    """A finding written to both sinks collapses to a single row."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    rec = {"record_type": "finding", "rule_id": "dup.rule",
+           "detected_at": "2026-09-16T11:58:00Z", "source_agent": "codex"}
+    _write_findings(home, [rec])
+    _write_records(home, [rec])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    assert [f["rule"] for f in data["findings"]] == ["dup.rule"]
+
+
+def test_symlinked_records_file_not_followed(tmp_path: Path) -> None:
+    """records.ndjson symlink: not followed; scan data still emitted."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    home.mkdir()
+    real = tmp_path / "real-records.ndjson"
+    real.write_text(
+        '{"record_type":"event","source_agent":"a0","event_type":"x",'
+        '"timestamp":"2026-09-16T11:00:00Z"}\n'
+    )
+    (home / "records.ndjson").symlink_to(real)
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "scan-kind",
+         "timestamp": "2026-09-16T11:00:00Z"},
+    ]), home=home)
+    assert data["events_live"] is False
+    assert data["live_records_path"] is None
+    assert [e["kind"] for e in data["events"]] == ["scan-kind"]
+
+
+def test_records_tail_is_bounded(tmp_path: Path) -> None:
+    """records.ndjson >256KiB: tail keeps the newest records only."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    head = {"record_type": "event", "source_agent": "a0",
+            "event_type": "head-only",
+            "timestamp": "2026-09-16T11:00:00Z"}
+    filler = {"record_type": "event", "source_agent": "a0",
+              "event_type": "filler",
+              "timestamp": "2026-09-16T11:30:00Z"}
+    tail_new = {"record_type": "event", "source_agent": "a0",
+                "event_type": "marker-new",
+                "timestamp": "2026-09-16T11:59:00Z"}
+    lines = [json.dumps(head)] + [json.dumps(filler)] * 5000 + [json.dumps(tail_new)]
+    home.mkdir()
+    path = home / "records.ndjson"
+    path.write_text("\n".join(lines) + "\n")
+    assert path.stat().st_size > 256 * 1024
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
+    kinds = [e["kind"] for e in data["events"]]
+    assert "head-only" not in kinds
+    assert "marker-new" in kinds
+    assert data["events_live"] is True
+
+
+# ---- U2: tail verb — the service's cheap stat-only poll ----
+
+
+def test_tail_verb_reports_stats_without_content_reads(tmp_path: Path) -> None:
+    """tail() emits file stats only; content is never parsed."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    # garbage bytes still count as a present file — proof nothing is read
+    _write_findings(home, ["not json at all", "still not json", "nope"])
+    _write_records(home, [{"record_type": "event"}])
+    info = mod.tail(numbat_home=str(home))
+    assert list(info.keys()) == [
+        "findings_count", "findings_bytes", "findings_mtime",
+        "records_count", "records_bytes", "records_mtime",
+        "newest_finding_ts",
+    ]
+    f_stat = (home / "findings.ndjson").stat()
+    r_stat = (home / "records.ndjson").stat()
+    assert info["findings_count"] == 1
+    assert info["findings_bytes"] == f_stat.st_size
+    assert info["findings_mtime"] == f_stat.st_mtime
+    assert info["records_count"] == 1
+    assert info["records_bytes"] == r_stat.st_size
+    assert info["records_mtime"] == r_stat.st_mtime
+    # newest_finding_ts tracks the newer of the two sink mtimes — the
+    # stat-only watermark the service baselines against
+    assert info["newest_finding_ts"] == max(f_stat.st_mtime, r_stat.st_mtime)
+    json.dumps(info)
+
+
+def test_tail_verb_handles_absent_files_and_dir(tmp_path: Path) -> None:
+    """Missing dir / missing files -> zeroed signature, never an error."""
+    mod = load()
+    info = mod.tail(numbat_home=str(tmp_path / ".numbat"))
+    assert info == {
+        "findings_count": 0, "findings_bytes": 0, "findings_mtime": 0.0,
+        "records_count": 0, "records_bytes": 0, "records_mtime": 0.0,
+        "newest_finding_ts": 0.0,
+    }
+    home = tmp_path / ".numbat"
+    _write_findings(home, [{"record_type": "finding"}])
+    info = mod.tail(numbat_home=str(home))
+    assert info["findings_count"] == 1
+    assert info["records_count"] == 0
+    assert info["newest_finding_ts"] == info["findings_mtime"]
+
+
+def test_tail_verb_does_not_follow_symlinks(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    home.mkdir()
+    real = tmp_path / "real-findings.ndjson"
+    real.write_text("{}\n")
+    (home / "findings.ndjson").symlink_to(real)
+    info = mod.tail(numbat_home=str(home))
+    assert info["findings_count"] == 0
+    assert info["newest_finding_ts"] == 0.0

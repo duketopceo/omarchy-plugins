@@ -19,6 +19,7 @@ Panel {
   property var agentsSeen: []
   property var hookedAgents: []
   property var events: []
+  property bool eventsLive: false
   property string recordsPath: ""
   property string probeError: ""
   property string scanError: ""
@@ -146,6 +147,7 @@ Panel {
           root.agentsSeen = (Array.isArray(data.agents_seen) ? data.agents_seen : []).slice(0, 10)
           root.hookedAgents = (Array.isArray(data.hooked_agents) ? data.hooked_agents : []).slice(0, 32)
           root.events = (Array.isArray(data.events) ? data.events : []).slice(0, 30)
+          root.eventsLive = data.events_live === true
           root.recordsPath = typeof data.records_path === "string" ? data.records_path : ""
           root.probeError = typeof data.error === "string" && data.error !== null ? data.error : ""
           root.scanError = typeof data.scan_error === "string" ? data.scan_error : ""
@@ -352,7 +354,7 @@ Panel {
               text: root.probeError !== "" ? "! " + root.probeError
                 : root.installed
                   ? "numbat is installed, but no hook events have been recorded yet. Install the hooks once and agent activity shows up here automatically."
-                  : "numbat watches coding-agent hooks and records what they do. Get the CLI at github.com/perplexityai/numbat/releases, then run `numbat hook install --agent all`."
+                  : "numbat watches coding-agent hooks and records what they do. Get the CLI at github.com/perplexityai/numbat/releases, then run `numbat hook install --agent all --emit all`."
               textFormat: Text.PlainText
               color: root.probeError !== "" ? root.urgent : root.dim
               font.family: root.fontFamily
@@ -371,7 +373,7 @@ Panel {
 
               Text {
                 anchors.centerIn: parent
-                text: "run: numbat hook install --agent all"
+                text: "run: numbat hook install --agent all --emit all"
                 textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
@@ -482,7 +484,7 @@ Panel {
         visible: root.activeAgents.length === 0
         width: parent.width
         // A user instruction, not a live command — PlainText, never exec'd.
-        text: "No agent activity recorded — run `numbat hook install --agent all`"
+        text: "No agent activity recorded — run `numbat hook install --agent all --emit all`"
         textFormat: Text.PlainText
         color: root.dim
         font.family: root.fontFamily
@@ -699,7 +701,9 @@ Panel {
       width: parent ? parent.width : 0
       spacing: Style.space(6)
 
-      PanelSectionHeader { text: "RECENT EVENTS"; foreground: root.foreground; fontFamily: root.fontFamily }
+      // STREAMED = records.ndjson (--emit all hooks) is the live feed;
+      // SCANNED = only the 10-min scan cache is feeding the list.
+      PanelSectionHeader { text: "RECENT EVENTS" + (root.probed ? " · " + (root.eventsLive ? "STREAMED" : "SCANNED") : ""); foreground: root.foreground; fontFamily: root.fontFamily }
 
       Text {
         visible: root.events.length === 0

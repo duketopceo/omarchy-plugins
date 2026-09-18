@@ -3,17 +3,25 @@
 
 Emits one JSON object on stdout describing numbat's presence and recent
 signal: installed, hooks_seen, active_agents, findings_24h, findings,
-events, scanned_at, error.
+events, events_live, live_records_path, scanned_at, error.
 
 Data model (verified against numbat 0.2.0, schema 0.3.0):
   * `numbat hook install` writes findings-only hooks that append to
     ~/.numbat/findings.ndjson — tailed live on every call.
+  * `numbat hook install --emit all` additionally streams events and
+    findings to ~/.numbat/records.ndjson — tailed live on every call too;
+    its events take precedence over the scan-cached feed (events_live)
+    and its finding records merge into the findings list. The file may
+    not exist until a hook fires — absence is empty, not an error.
   * `numbat scan` reconstructs events + findings from on-disk agent
     artifacts and emits NDJSON to stdout. It is run on a stale-cache
     cycle (SCAN_INTERVAL_S) and the parsed result is cached under
     ~/.local/state/omarchy/numbat/ — never under ~/.numbat.
   * `numbat hook status` reports which agents have installed hooks and
     is folded into the same cache cycle.
+  * `probe_numbat.py tail` is the service's cheap poll: pure file stats
+    (presence, size, mtime) for both record sinks — no content reads,
+    no scan, no subprocesses.
 
 This helper is an observe-only consumer: it never runs `numbat hook
 install`, never writes under ~/.numbat, and never enables enforce mode.
@@ -52,8 +60,10 @@ NUMBAT_HOME = os.path.join(os.path.expanduser("~"), ".numbat")
 STATE_DIR = os.path.join(os.path.expanduser("~"),
                          ".local", "state", "omarchy", "numbat")
 FINDINGS_NAME = "findings.ndjson"
+RECORDS_NAME = "records.ndjson"
 CACHE_NAME = "scan-cache.json"
 FINDINGS_PATH_DISPLAY = "~/.numbat/findings.ndjson"
+RECORDS_PATH_DISPLAY = "~/.numbat/records.ndjson"
 TS_FIELDS = ("observed_at", "detected_at", "timestamp", "ts")
 EVENT_KIND_FIELDS = ("observed_event_type", "event_type", "kind", "action")
 EVENT_SUMMARY_FIELDS = ("summary", "detail", "message", "content_preview",
@@ -268,22 +278,49 @@ def _iter_records(data, seeked):
             yield rec
 
 
-def _load_findings_tail(numbat_home):
-    """-> (records|None, status) where status is ok | absent | untrusted."""
+def _load_record_tails(numbat_home):
+    """Tail both record sinks in one descriptor-relative pass.
+
+    -> (findings_recs|None, records_recs|None, records_present, status)
+    where status is ok | absent | untrusted. A missing/unreadable sink
+    yields None for its list; records_present marks that records.ndjson
+    itself exists as an owned regular file (the --emit all hook sink) —
+    an empty file still counts as present.
+    """
     try:
         dirfd = _open_dir(numbat_home)
     except PermissionError:
-        return None, "untrusted"
+        return None, None, False, "untrusted"
     except OSError:
-        return None, "absent"
+        return None, None, False, "absent"
     try:
-        res = _read_tail(dirfd, FINDINGS_NAME, TAIL_BYTES)
+        findings_res = _read_tail(dirfd, FINDINGS_NAME, TAIL_BYTES)
+        records_res = _read_tail(dirfd, RECORDS_NAME, TAIL_BYTES)
     finally:
         os.close(dirfd)
-    if res is None:
-        return None, "absent"
-    data, seeked = res
-    return list(_iter_records(data, seeked)), "ok"
+    findings = (list(_iter_records(*findings_res))
+                if findings_res is not None else None)
+    records = (list(_iter_records(*records_res))
+               if records_res is not None else None)
+    return findings, records, records_res is not None, "ok"
+
+
+def _stat_file(dirfd, name):
+    """-> (bytes, mtime) for a no-follow, owned, regular file; None on any
+    anomaly. Stat only — no content is read."""
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid():
+            return None
+        return st.st_size, st.st_mtime
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
 
 
 def _parse_ts(value):
@@ -556,6 +593,47 @@ def _fresh_enough(cache, now_ts):
     return (now_ts - mtime) < SCAN_INTERVAL_S
 
 
+def tail(numbat_home=None):
+    """Pure-stat signature of the two record sinks — the service's cheap
+    5s poll. No content reads, no scan, no subprocesses: presence, size
+    and mtime only, so it stays safe to run even while hooks write.
+
+    `findings_count`/`records_count` are file-presence flags (0|1) — real
+    line counts would need a content read this verb deliberately skips.
+    `newest_finding_ts` is the newer of the two file mtimes: stat-only,
+    it approximates "a finding may have landed as recently as this" and
+    gives the service its silent-baseline watermark on first poll.
+    """
+    home = numbat_home if numbat_home is not None else NUMBAT_HOME
+    out = {
+        "findings_count": 0,
+        "findings_bytes": 0,
+        "findings_mtime": 0.0,
+        "records_count": 0,
+        "records_bytes": 0,
+        "records_mtime": 0.0,
+        "newest_finding_ts": 0.0,
+    }
+    try:
+        dirfd = _open_dir(home)
+    except (PermissionError, OSError):
+        return out
+    try:
+        f_stat = _stat_file(dirfd, FINDINGS_NAME)
+        r_stat = _stat_file(dirfd, RECORDS_NAME)
+    finally:
+        os.close(dirfd)
+    if f_stat is not None:
+        out["findings_count"] = 1
+        out["findings_bytes"], out["findings_mtime"] = f_stat
+    if r_stat is not None:
+        out["records_count"] = 1
+        out["records_bytes"], out["records_mtime"] = r_stat
+    out["newest_finding_ts"] = max(out["findings_mtime"],
+                                 out["records_mtime"])
+    return out
+
+
 def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
     """Assemble the numbat data packet. All seams injectable for tests."""
     now = now or datetime.now(timezone.utc)
@@ -574,9 +652,11 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         "findings_24h": 0,
         "findings": [],
         "events": [],
+        "events_live": False,
         "scanned_at": None,
         "scan_error": None,
         "records_path": FINDINGS_PATH_DISPLAY,
+        "live_records_path": None,
         "error": None,
     }
 
@@ -585,10 +665,12 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         return result
     result["installed"] = True
 
-    tail, tail_status = _load_findings_tail(home)
+    f_tail, r_tail, live_present, tail_status = _load_record_tails(home)
     if tail_status == "untrusted":
         result["error"] = "untrusted ~/.numbat directory"
         return result
+    if live_present:
+        result["live_records_path"] = RECORDS_PATH_DISPLAY
 
     # --- scan + hook-status on a stale-cache cycle ---
     cache = _load_scan_cache(state)
@@ -619,24 +701,48 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         result["hooked_agents"] = [_clean(a, 32) for a in hooked][:32]
         result["hooks_seen"] = bool(result["hooked_agents"])
 
-    # Live findings tail takes precedence (it is the hook sink); scan
-    # findings fill in the retroactive picture.
+    # Live record tails take precedence (they are the hook sinks); scan
+    # findings/events fill in the retroactive picture. findings.ndjson is
+    # the findings-only sink; records.ndjson (--emit all) carries events
+    # and may carry findings too — both record types merge in below.
     s_findings = summary.get("findings") or []
     s_events = summary.get("events") or []
     s_agents = summary.get("active_agents") or []
 
     live_findings = []
-    if tail:
-        lt = []
-        for rec in tail:
-            if rec.get("record_type") != "finding":
-                continue
-            dt = _ts_of(rec, {})
-            if dt is not None:
-                lt.append((dt, rec))
+    live_events = []
+    rec_yielded_events = False
+    lt, le = [], []
+    mtimes = {}
+    for rec in f_tail or []:
+        rtype = rec.get("record_type")
+        if rtype not in ("finding", "event"):
+            continue
+        dt = _ts_of(rec, mtimes)
+        if dt is None:
+            continue
+        if rtype == "finding":
+            lt.append((dt, rec))
+        else:
+            le.append((dt, rec))
+    for rec in r_tail or []:
+        rtype = rec.get("record_type")
+        if rtype not in ("finding", "event"):
+            continue
+        dt = _ts_of(rec, mtimes)
+        if dt is None:
+            continue
+        if rtype == "finding":
+            lt.append((dt, rec))
+        else:
+            le.append((dt, rec))
+            rec_yielded_events = True
+    if lt or le:
         lt.sort(key=lambda item: item[0], reverse=True)
+        le.sort(key=lambda item: item[0], reverse=True)
         live_findings = [_finding_item(rec, dt) for dt, rec in lt]
-        if tail_status == "ok" and lt:
+        live_events = [_event_item(rec, dt) for dt, rec in le]
+        if tail_status == "ok":
             result["hooks_seen"] = True
 
     seen = set()
@@ -655,7 +761,27 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
     result["findings_24h"] = sum(
         1 for item in merged
         if _within(_parse_ts(item.get("observed_at")) or now, now))
-    result["events"] = s_events
+
+    # Live events sort first — the streamed feed outranks scan backfill.
+    # Dedupe on (agent, observed_at, kind): a hook event the last scan
+    # also reconstructed collapses to the live copy.
+    seen_events = set()
+    merged_events = []
+    for item in live_events + s_events:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("agent"), item.get("observed_at"), item.get("kind"))
+        if key in seen_events:
+            continue
+        seen_events.add(key)
+        merged_events.append(item)
+        if len(merged_events) >= MAX_EVENTS:
+            break
+    result["events"] = merged_events
+    # events_live reports the --emit all records feed specifically: the
+    # Log tab's STREAMED hint is true only when records.ndjson actually
+    # produced event rows this poll.
+    result["events_live"] = rec_yielded_events
     result["active_agents"] = s_agents
     seen = summary.get("agents_seen") or []
     result["agents_seen"] = [
@@ -674,4 +800,7 @@ if __name__ == "__main__":
         pass
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(JOB_DEADLINE_S)
-    sys.stdout.write(json.dumps(probe())[:MAX_OUT_BYTES] + "\n")
+    if len(sys.argv) > 1 and sys.argv[1] == "tail":
+        sys.stdout.write(json.dumps(tail()) + "\n")
+    else:
+        sys.stdout.write(json.dumps(probe())[:MAX_OUT_BYTES] + "\n")
