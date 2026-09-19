@@ -514,6 +514,28 @@ def _summarize_records(records, now):
     }
 
 
+def _merge_agents(cached, live):
+    """Union of cached {name,last_event} rows and a live {name: datetime}
+    map — the newer timestamp wins per agent. Returns the bounded,
+    newest-first wire list the panel consumes."""
+    merged = dict(live)
+    for entry in cached:
+        if not isinstance(entry, dict):
+            continue
+        name = _clean(entry.get("name"))
+        dt = _parse_ts(entry.get("last_event"))
+        if not name or dt is None:
+            continue
+        if name not in merged or dt > merged[name]:
+            merged[name] = dt
+    return [
+        {"name": name, "last_event": _iso_z(dt)}
+        for name, dt in sorted(merged.items(),
+                               key=lambda kv: kv[1],
+                               reverse=True)[:MAX_AGENTS]
+    ]
+
+
 def _hooked_agents(binary, run):
     """Agent names with numbat-owned hooks installed (`numbat hook status`).
 
@@ -745,22 +767,49 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         if tail_status == "ok":
             result["hooks_seen"] = True
 
+    # findings_24h is the true in-window count, not the capped list length:
+    # _summarize_records counted every in-window scan finding before the
+    # MAX_FINDINGS display cap, so keep that count and add in-window live
+    # findings the scan summary does not already account for. A live finding
+    # duplicating a scan finding evicted past the top-20 can double-count —
+    # bounded and far rarer than the previous guaranteed undercount.
+    s_keys = {
+        (item.get("rule"), item.get("observed_at"), item.get("agent"))
+        for item in s_findings
+        if isinstance(item, dict)
+    }
+    scan_24h = summary.get("findings_24h")
+    if isinstance(scan_24h, bool) or not isinstance(scan_24h, (int, float)):
+        scan_24h = sum(
+            1 for item in s_findings
+            if isinstance(item, dict)
+            and _within(_parse_ts(item.get("observed_at")) or now, now))
+    live_24h = 0
     seen = set()
     merged = []
-    for item in live_findings + s_findings:
+    for item in live_findings:
         if not isinstance(item, dict):
             continue
         key = (item.get("rule"), item.get("observed_at"), item.get("agent"))
         if key in seen:
             continue
         seen.add(key)
-        merged.append(item)
-        if len(merged) >= MAX_FINDINGS:
-            break
+        if len(merged) < MAX_FINDINGS:
+            merged.append(item)
+        if (key not in s_keys
+                and _within(_parse_ts(item.get("observed_at")) or now, now)):
+            live_24h += 1
+    for item in s_findings:
+        if not isinstance(item, dict):
+            continue
+        key = (item.get("rule"), item.get("observed_at"), item.get("agent"))
+        if key in seen:
+            continue
+        seen.add(key)
+        if len(merged) < MAX_FINDINGS:
+            merged.append(item)
     result["findings"] = merged
-    result["findings_24h"] = sum(
-        1 for item in merged
-        if _within(_parse_ts(item.get("observed_at")) or now, now))
+    result["findings_24h"] = max(0, int(scan_24h)) + live_24h
 
     # Live events sort first — the streamed feed outranks scan backfill.
     # Dedupe on (agent, observed_at, kind): a hook event the last scan
@@ -782,11 +831,22 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
     # Log tab's STREAMED hint is true only when records.ndjson actually
     # produced event rows this poll.
     result["events_live"] = rec_yielded_events
-    result["active_agents"] = s_agents
-    seen = summary.get("agents_seen") or []
-    result["agents_seen"] = [
-        a for a in seen if isinstance(a, dict)
-    ][:MAX_AGENTS]
+    # Fold live-tail events into the agent maps — without this the Activity
+    # tab lags the Log tab's stream by a whole scan cycle (SCAN_INTERVAL_S),
+    # since the cached summary only refreshes when a scan reruns.
+    live_seen, live_active = {}, {}
+    for dt, rec in le:
+        name = _agent_name(rec)
+        if not name:
+            continue
+        if name not in live_seen or dt > live_seen[name]:
+            live_seen[name] = dt
+        if _within(dt, now) and (name not in live_active
+                                 or dt > live_active[name]):
+            live_active[name] = dt
+    result["active_agents"] = _merge_agents(s_agents, live_active)
+    result["agents_seen"] = _merge_agents(
+        summary.get("agents_seen") or [], live_seen)
     result["ok"] = True
     return result
 

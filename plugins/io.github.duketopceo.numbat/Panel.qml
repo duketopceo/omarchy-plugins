@@ -159,14 +159,16 @@ Panel {
       root.isRefreshing = false
     }
   }
-  // Hard whole-job deadline: a stuck probe is killed and reaped, never left
-  // running past one refresh interval. probe_numbat.py calls os.setsid() and
-  // keeps helpers in its own session group (JOB_DEADLINE_S = 30s inside, but
-  // a cold `numbat scan` is ~7s here, so the panel bound is tighter), so a
-  // group-kill reaches the whole tree even if Python is stuck in a wait.
+  // Hard whole-job deadline — last-resort backstop, set just past the
+  // helper's own JOB_DEADLINE_S (30s; worst-case work is ~28s =
+  // SCAN_TIMEOUT_S 25 + HOOKS_TIMEOUT_S 3 + tail reads). A tighter bound
+  // group-kills slow-but-healthy scans before the single-shot stdout.write
+  // and strands the panel at "probing numbat…". probe_numbat.py calls
+  // os.setsid() and keeps helpers in its own session group, so a group-kill
+  // still reaches the whole tree if Python is wedged in a wait.
   Timer {
     id: statusDeadline
-    interval: 14000
+    interval: 35000
     onTriggered: {
       if (statusProc.running) {
         var pid = statusProc.pid

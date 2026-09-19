@@ -313,9 +313,13 @@ Item {
     }
   }
 
+  // Same backstop contract as the panel's statusDeadline: just past the
+  // helper's own JOB_DEADLINE_S (30s) so a slow-but-healthy `numbat scan`
+  // (~28s worst case) still lands its packet; group-kill via setsid stays
+  // the last resort for a wedged process, not a timeout on useful work.
   Timer {
     id: probeDeadline
-    interval: 14000
+    interval: 35000
     onTriggered: {
       if (probeProc.running) {
         var pid = probeProc.pid

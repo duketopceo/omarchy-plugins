@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -657,3 +658,143 @@ def test_tail_verb_does_not_follow_symlinks(tmp_path: Path) -> None:
     info = mod.tail(numbat_home=str(home))
     assert info["findings_count"] == 0
     assert info["newest_finding_ts"] == 0.0
+
+
+# ---- JEV #13: watchdog deadline contract + true findings_24h count ----
+
+PANEL_QML = ROOT / "plugins/io.github.duketopceo.numbat/Panel.qml"
+SERVICE_QML = ROOT / "plugins/io.github.duketopceo.numbat/Service.qml"
+
+
+def _timer_interval_ms(path: Path, timer_id: str) -> int:
+    """`interval:` of the QML Timer with the given id (source-level check —
+    QML can't run under pytest)."""
+    text = path.read_text()
+    m = re.search(
+        r"Timer\s*\{\s*id:\s*" + re.escape(timer_id) + r"\b.*?interval:\s*(\d+)",
+        text, re.S)
+    assert m, f"Timer {timer_id} not found in {path.name}"
+    return int(m.group(1))
+
+
+def test_qml_watchdogs_outlive_helper_job_deadline() -> None:
+    """Panel + service group-kill only *past* the helper's own JOB_DEADLINE_S
+    plus slack, so a slow-but-healthy `numbat scan` (~28s worst case:
+    SCAN_TIMEOUT_S + HOOKS_TIMEOUT_S + tails) still emits its single-shot
+    packet instead of losing everything to a 14s kill."""
+    mod = load()
+    # helper self-deadline must stay above its own worst-case work
+    assert mod.SCAN_TIMEOUT_S + mod.HOOKS_TIMEOUT_S <= mod.JOB_DEADLINE_S
+    floor_ms = (mod.JOB_DEADLINE_S + 2) * 1000  # ≥32s per the review fix
+    assert _timer_interval_ms(PANEL_QML, "statusDeadline") >= floor_ms
+    assert _timer_interval_ms(SERVICE_QML, "probeDeadline") >= floor_ms
+    # the stat-only tail poll keeps its own tight bound — unaffected
+    assert _timer_interval_ms(SERVICE_QML, "tailDeadline") <= 10000
+
+
+def test_findings_24h_true_count_beyond_display_cap(tmp_path: Path) -> None:
+    """30 in-window scan findings: the list caps at 20, the count does not."""
+    mod = load()
+    records = [
+        {"record_type": "finding", "rule_id": f"r{i:02d}",
+         "timestamp": f"2026-09-16T11:{i:02d}:00Z", "source_agent": "a0"}
+        for i in range(30)
+    ]
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=records))
+    assert len(data["findings"]) == 20
+    assert data["findings_24h"] == 30
+
+
+def test_findings_24h_adds_live_only_delta(tmp_path: Path) -> None:
+    """Live findings the scan never saw add to the count; a live copy of a
+    scan finding does not double-count, and out-of-window rows stay out."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    dup = {"record_type": "finding", "rule_id": "dup.rule",
+           "detected_at": "2026-09-16T11:58:00Z", "source_agent": "codex"}
+    _write_findings(home, [
+        dup,
+        {"record_type": "finding", "rule_id": "live.only",
+         "timestamp": "2026-09-16T11:59:00Z", "source_agent": "codex"},
+        {"record_type": "finding", "rule_id": "old.one",
+         "timestamp": "2026-09-10T00:00:00Z", "source_agent": "codex"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        dup,
+        {"record_type": "finding", "rule_id": "scan.only",
+         "timestamp": "2026-09-16T11:00:00Z"},
+    ]), home=home)
+    # scan counted dup.rule + scan.only (2); live.only adds 1; old.one is
+    # out of window -> 3, not len(findings)
+    assert data["findings_24h"] == 3
+    rules = [f["rule"] for f in data["findings"]]
+    assert rules[0] == "live.only"  # live tail still sorts first
+    assert rules.count("dup.rule") == 1
+
+
+def test_live_events_feed_agent_activity(tmp_path: Path) -> None:
+    """records.ndjson events reach active_agents/agents_seen on the same
+    poll — no SCAN_INTERVAL_S wait for the next scan cycle."""
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "devin-cli",
+         "observed_event_type": "command.exec",
+         "timestamp": "2026-09-16T11:59:30Z"},
+        {"record_type": "event", "source_agent": "devin-cli",
+         "observed_event_type": "command.exec",
+         "timestamp": "2026-09-16T11:59:00Z"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(scan_records=[
+        {"record_type": "event", "source_agent": "scan-only",
+         "event_type": "session.end",
+         "timestamp": "2026-09-16T11:00:00Z"},
+    ]), home=home)
+    # newest per agent wins; live agent outranks the older scan-only one
+    assert data["active_agents"] == [
+        {"name": "devin-cli", "last_event": "2026-09-16T11:59:30Z"},
+        {"name": "scan-only", "last_event": "2026-09-16T11:00:00Z"},
+    ]
+    assert data["agents_seen"] == data["active_agents"]
+
+
+def test_live_events_merge_with_cached_agents(tmp_path: Path) -> None:
+    """A fresher live event advances a cached agent's last_event; an agent
+    the scan never saw appears beside cached rows; out-of-window live
+    events feed agents_seen but not active_agents."""
+    mod = load()
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    cache = {
+        "scanned_at": "2026-09-16T11:00:00Z",
+        "hooked_agents": [],
+        "summary": {
+            "findings": [], "findings_24h": 0, "events": [],
+            "active_agents": [
+                {"name": "a0", "last_event": "2026-09-16T10:00:00Z"}],
+            "agents_seen": [
+                {"name": "a0", "last_event": "2026-09-16T10:00:00Z"},
+                {"name": "ancient", "last_event": "2026-08-01T00:00:00Z"}],
+        },
+    }
+    (state / "scan-cache.json").write_text(json.dumps(cache))
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "tool_call", "timestamp": "2026-09-16T11:59:00Z"},
+        {"record_type": "event", "source_agent": "brand-new",
+         "event_type": "session.start", "timestamp": "2026-09-16T11:58:00Z"},
+        {"record_type": "event", "source_agent": "dormant",
+         "event_type": "old", "timestamp": "2026-09-10T00:00:00Z"},
+    ])
+    data = _probe(mod, tmp_path, run=_no_run, home=home)
+    assert data["active_agents"] == [
+        {"name": "a0", "last_event": "2026-09-16T11:59:00Z"},
+        {"name": "brand-new", "last_event": "2026-09-16T11:58:00Z"},
+    ]
+    assert data["agents_seen"] == [
+        {"name": "a0", "last_event": "2026-09-16T11:59:00Z"},
+        {"name": "brand-new", "last_event": "2026-09-16T11:58:00Z"},
+        {"name": "dormant", "last_event": "2026-09-10T00:00:00Z"},
+        {"name": "ancient", "last_event": "2026-08-01T00:00:00Z"},
+    ]
