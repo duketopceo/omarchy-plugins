@@ -92,13 +92,16 @@ Panel {
     }
   }
 
-  // Hard whole-job deadline: a stuck probe is killed and reaped, never left
-  // running past one refresh interval. probe_nexus.py calls os.setsid() and
-  // keeps helpers in its own session group, so a group-kill reaches the whole
+  // Hard whole-job deadline: a stuck probe is killed and reaped. This sits
+  // *above* the helper's own 8s SIGALRM cap (worst-case legitimate run is
+  // ~6s: three sequential helper calls at 2s each), so slow-but-healthy
+  // probes always finish before the watchdog fires — it is purely a
+  // stuck-process backstop. probe_nexus.py calls os.setsid() and keeps
+  // helpers in its own session group, so a group-kill reaches the whole
   // tree even if Python is stuck inside a helper wait.
   Timer {
     id: statusDeadline
-    interval: 5000
+    interval: 9000
     onTriggered: {
       if (statusProc.running) {
         var pid = statusProc.pid

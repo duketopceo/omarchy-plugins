@@ -312,7 +312,7 @@ def get_nexus():
             elif "SN520" in model:
                 title = "Data NVMe (256GB)"
                 desc = "Fast Storage (/mnt/data)"
-            elif tran == "usb" or name.startswith("sd"):
+            elif tran == "usb":
                 title = f"USB Flash Drive ({size})"
                 desc = "Ventoy Multi-Boot USB Stick"
                 icon = "󱊞"
