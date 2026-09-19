@@ -26,8 +26,10 @@ omarchy plugin enable io.github.duketopceo.bumblebee
 - Bar shield turns urgent and the dropdown lists each exposure when a scanned
   component matches the catalog
 - Background scans run on a stale-cache refresh: the helper re-scans at most
-  every 6 hours (`BUMBLEBEE_SCAN_INTERVAL_S` to override) and serves cached
-  results between runs — no daemon, no shipped systemd units
+  every 6 hours and serves cached results between runs — no daemon, no
+  shipped systemd units. (`BUMBLEBEE_SCAN_INTERVAL_S` overrides the interval
+  for direct CLI runs only — the panel and service exec the helper with a
+  scrubbed environment, so plugin-driven scans always use the 6h default)
 - An always-on `service` component (kept loaded by the shell) checks the
   cache age once an hour and force-rescans when it's stale — the radar stays
   fresh even if you never open the panel

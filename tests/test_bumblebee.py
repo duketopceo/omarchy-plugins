@@ -561,6 +561,70 @@ def test_age_verb_never_execs_run(tmp_path):
     assert payload["exposure_ids"] == ["n|e|p@v"]
 
 
+def test_age_verb_failed_scan_propagates_error(tmp_path):
+    # A cached FAILED scan must still look failed: if age re-emitted ok:true
+    # with empty exposures, the service's hourly diff would see an empty id
+    # set and persistLastSeen([]) — wiping the watermark so the next good
+    # scan re-toasts every known exposure as new.
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": False,
+                           "exposure_count": 0, "exposures": [],
+                           "error": "timeout"}, age_s=120)
+    payload = mod.collect_age(now=NOW, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["ok"] is False
+    assert payload["error"] == "timeout"
+    assert payload["last_scan_age_s"] == 120  # staleness still reported
+    assert payload["exposures"] == []
+    assert payload["exposure_ids"] == []
+    json.dumps(payload)
+
+
+def test_age_verb_not_ok_without_error_still_flags(tmp_path):
+    # Defensive: any cached not-ok scan must surface a non-empty error so
+    # the service's `if (data.error) return` guard always engages.
+    mod = load()
+    write_cache(tmp_path, {"installed": True, "ok": False,
+                           "exposure_count": 0}, age_s=30)
+    payload = mod.collect_age(now=NOW, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["ok"] is False
+    assert payload["error"]
+    assert payload["exposure_ids"] == []
+
+
+def test_age_verb_error_after_real_failed_collect(tmp_path):
+    # End to end: collect() caches the failure payload, and the age probe
+    # re-emits it as failed instead of a clean-looking empty result — the
+    # watermark survives because the service skips diffing on error.
+    mod = load()
+    failed = mod.collect(
+        now=NOW,
+        run=lambda argv, timeout=None, max_bytes=None: (None, "timeout", None),
+        home=tmp_path, tool="/usr/bin/bumblebee")
+    assert failed["ok"] is False
+    payload = mod.collect_age(now=NOW + 60, home=tmp_path,
+                              tool="/usr/bin/bumblebee")
+    assert payload["ok"] is False
+    assert payload["error"] == "timeout"
+    assert payload["exposure_ids"] == []
+
+
+def test_service_age_probe_guards_error_before_diff():
+    # QML side of the watermark fix (no QML runtime in tests — static check):
+    # the hourly age handler must skip diffNow on error, mirroring scanProc's
+    # `if (data.error) return` guard, and only after the stale-check so a
+    # stale failed-scan cache still triggers a rescan.
+    svc = (ROOT / "plugins/io.github.duketopceo.bumblebee/Service.qml"
+           ).read_text()
+    age_block = svc.split("id: ageProc", 1)[1].split("id: ageDeadline", 1)[0]
+    assert "if (data.error) return" in age_block
+    assert (age_block.index("if (data.error) return")
+            < age_block.index("diffNow(data)"))
+    assert (age_block.index("forceScan()")
+            < age_block.index("if (data.error) return"))
+
+
 def test_main_parses_age_verb(tmp_path, monkeypatch):
     mod = load()
     monkeypatch.setattr(mod.os, "setsid", lambda: None)
@@ -750,6 +814,64 @@ def test_fetch_rejects_non_https():
             assert False, bad
         except mod.FetchError as exc:
             assert str(exc) == "scheme_not_https"
+
+
+def test_fetch_rejects_redirect_downgrade(monkeypatch):
+    # urlopen follows redirects with the default opener — including
+    # http:/ftp: downgrades. The final URL must still be https or the body
+    # is refused unread: repo+tag+TLS is the integrity boundary, and a
+    # forged plaintext tarball must never reach the merge.
+    mod = load_refresh()
+
+    class Resp:
+        headers = {}
+
+        def __init__(self, final):
+            self._final = final
+
+        def geturl(self):
+            return self._final
+
+        def read(self, n=-1):
+            return b"forged-threat-intel"
+
+        def close(self):
+            pass
+
+    for final in ("http://github.com/x.tar.gz",
+                  "ftp://evil.example/x.tar.gz"):
+        monkeypatch.setattr(mod.urllib.request, "urlopen",
+                            lambda *a, **k: Resp(final))
+        try:
+            mod._fetch("https://github.com/x.tar.gz", timeout_s=1,
+                       max_bytes=1024)
+            assert False, final
+        except mod.FetchError as exc:
+            assert str(exc) == "redirect_not_https"
+
+
+def test_fetch_https_redirect_still_allowed(monkeypatch):
+    # The real flow redirects github -> codeload over https; that keeps
+    # working — only non-https final URLs are refused.
+    mod = load_refresh()
+
+    class Resp:
+        headers = {}
+        _reads = 0
+
+        def geturl(self):
+            return "https://codeload.github.com/perplexityai/bumblebee/x.gz"
+
+        def read(self, n=-1):
+            self._reads += 1
+            return b"tar-bytes" if self._reads == 1 else b""
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", lambda *a, **k: Resp())
+    assert (mod._fetch("https://github.com/x.tar.gz", timeout_s=5)
+            == b"tar-bytes")
 
 
 def test_refresh_schema_invalid_entries_skipped(tmp_path):

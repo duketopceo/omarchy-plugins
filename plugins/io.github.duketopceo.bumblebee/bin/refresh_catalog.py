@@ -8,7 +8,8 @@ a timer, never during status polls. Offline-by-default: nothing here runs
 unless the user asks.
 
 Integrity story: the fetch is pinned — fixed repo, fixed RELEASE_TAG (the
-release whose threat_intel was seeded into catalog.d), HTTPS only. Upstream
+release whose threat_intel was seeded into catalog.d), HTTPS only (re-checked
+on the final URL after redirects, so a downgrade can't drop TLS). Upstream
 ships no signature infra, so repo+tag+TLS is the documented boundary.
 
   https://github.com/perplexityai/bumblebee/archive/refs/tags/<TAG>.tar.gz
@@ -78,7 +79,9 @@ def _fetch(url, timeout_s=FETCH_TIMEOUT_S, max_bytes=MAX_TARBALL_BYTES):
 
     urllib honours the caller's env (incl. proxies); the panel exec scrubs to
     a minimal env anyway. HTTPS is enforced again here so an injected seam
-    can't downgrade the scheme.
+    can't downgrade the scheme — and re-checked on the FINAL url after the
+    default opener follows redirects, so an http:/ftp: redirect target can't
+    silently drop TLS either.
     """
     if not isinstance(url, str) or not url.startswith("https://"):
         raise FetchError("scheme_not_https")
@@ -97,6 +100,16 @@ def _fetch(url, timeout_s=FETCH_TIMEOUT_S, max_bytes=MAX_TARBALL_BYTES):
     except (urllib.error.URLError, OSError) as exc:
         raise FetchError(_err_token(exc)) from None
     try:
+        # urlopen followed any redirects itself — including http:/ftp:
+        # downgrades from a misconfigured or compromised upstream. Re-validate
+        # where we actually landed before trusting a byte: repo+tag+TLS is the
+        # integrity boundary, so a non-https final URL refuses the body
+        # unread. (Fakes without geturl fall back to the input URL, which
+        # already passed the gate above.)
+        final_url = getattr(resp, "geturl", lambda: url)() or url
+        if (not isinstance(final_url, str)
+                or not final_url.startswith("https://")):
+            raise FetchError("redirect_not_https")
         cl = resp.headers.get("Content-Length")
         if cl is not None:
             try:

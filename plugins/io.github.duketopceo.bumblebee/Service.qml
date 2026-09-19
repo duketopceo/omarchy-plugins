@@ -222,9 +222,15 @@ Item {
                     ? data.last_scan_age_s : -1
           if (installed && (age < 0 || age > root.staleAfterS)) {
             // Stale or never scanned — rescan, then diff the fresh result.
+            // (Runs before the error check so a stale failed-scan cache
+            // still triggers a rescan.)
             root.forceScan()
             return
           }
+          // Same guard as scanProc: a cached failed scan must not reach the
+          // watermark diff — its empty id set would persistLastSeen([]) and
+          // clobber the baseline.
+          if (data.error) return
           root.diffNow(data)
         } catch (e) {}
       }

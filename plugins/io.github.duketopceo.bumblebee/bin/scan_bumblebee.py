@@ -23,12 +23,17 @@ only the cache and emits {"installed", "ok", "last_scan_age_s",
 "exposure_count", "exposure_ids", "exposures", "error"} WITHOUT running a
 scan — the service decides whether a --force rescan is due. exposure_ids are
 stable "name|ecosystem|package@version" keys the service watermark-diffs to
-alert only on NEW exposures.
+alert only on NEW exposures. A cached FAILED scan re-emits ok:false + its
+error (exposures stay empty) so the service's hourly diff skips it —
+masking the failure as a clean empty result would let the diff see an empty
+id set and wipe the persisted watermark, re-toasting every known exposure
+as "new" on the next good scan.
 
 Scans are expensive, so the last result is cached at
 ~/.local/state/omarchy/bumblebee/last-scan.json and only re-run once the
 cache is older than SCAN_INTERVAL_S (default 6h; BUMBLEBEE_SCAN_INTERVAL_S
-overrides, in seconds; `--force` argv bypasses freshness entirely). Every
+overrides, in seconds — CLI runs only, since the panel and service exec the
+helper with a scrubbed env; `--force` argv bypasses freshness entirely). Every
 scan attempt also appends to a rolling log at scan-log.json next to the
 cache — newest first, capped at 20 entries, same descriptor-relative +
 atomic 0600 publish as the cache — and the payload re-emits it as "log".
@@ -675,7 +680,10 @@ def collect_age(now=None, tool=None, home=None):
     Emits {"installed","ok","last_scan_age_s","exposure_count",
     "exposure_ids","exposures","error"}. last_scan_age_s is None when no
     usable cache exists (the service treats that as stale and force-scans).
-    Never execs bumblebee beyond a PATH lookup.
+    A cached failed scan keeps its ok:false + error (exposures stay empty)
+    so the service's watermark diff can skip it — a clean-looking empty
+    result would wipe the baseline. Never execs bumblebee beyond a PATH
+    lookup.
     """
     if now is None:
         now = time.time()
@@ -695,6 +703,17 @@ def collect_age(now=None, tool=None, home=None):
     if cached is None or mtime is None:
         return payload
     payload["last_scan_age_s"] = max(0, int(now - mtime))
+    # Propagate the cached scan's own outcome before re-emitting anything: a
+    # failed scan caches ok:false + error with exposures:[], and republishing
+    # that as a clean ok:true empty result lets the service's hourly
+    # watermark diff see an empty id set and persistLastSeen([]) — wiping the
+    # baseline so the next good scan re-toasts every known exposure as new.
+    cached_error = cached.get("error")
+    if cached_error or cached.get("ok") is False:
+        payload["ok"] = False
+        payload["error"] = (_clean(cached_error, 120)
+                            if cached_error else "scan_failed")
+        return payload
     count = cached.get("exposure_count")
     if isinstance(count, int) and count > 0:
         payload["exposure_count"] = count
