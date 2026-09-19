@@ -8,9 +8,11 @@ an IP geolocation service is used as a fallback.
 """
 
 import json
+import math
 import os
 import signal
 import stat
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +26,8 @@ LOC_FILE = HOME / ".local/state/omarchy/settings/weather.json"
 CACHE_FILE = HOME / ".cache/omarchy/standby-weather.json"
 LOC_MAX_BYTES = 16 * 1024
 CACHE_MAX_BYTES = 64 * 1024
+CACHE_TTL_S = 30 * 60  # stale cache stops standing in for live data
+CACHE_CLOCK_SKEW_S = 60  # tolerate a fetched_at slightly in the future
 
 
 def _open_dir(path):
@@ -103,6 +107,22 @@ def iso_to_hm(iso: str) -> str:
         return ""
 
 
+def _num(value):
+    """Finite real number or None — strings/dicts/bools/inf/nan degrade."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    if not math.isfinite(value) or abs(value) > 1e6:
+        return None
+    return value
+
+
+def _first(value):
+    """First element of a non-empty list/tuple; None for anything else."""
+    if isinstance(value, (list, tuple)) and value:
+        return value[0]
+    return None
+
+
 def load_weather_location():
     try:
         dirfd = _open_dir(LOC_FILE.parent)
@@ -116,14 +136,18 @@ def load_weather_location():
         return None, None, ""
     try:
         data = json.loads(raw)
+        if not isinstance(data, dict):
+            return None, None, ""
         lat = data.get("latitude")
         lon = data.get("longitude")
-        name = str(data.get("name", ""))[:60]
+        name = str(data.get("name") or "")[:60]
         if lat is not None and lon is not None:
             return float(lat), float(lon), name
         if name:
             return None, None, name
-    except (OSError, ValueError):
+    except (OSError, ValueError, TypeError, OverflowError):
+        # float() raises TypeError on dict/list members and OverflowError on
+        # huge ints — malformed settings must degrade, not crash.
         pass
     return None, None, ""
 
@@ -181,14 +205,22 @@ def write_cache(payload):
     except (OSError, PermissionError):
         return
     try:
-        _publish(dirfd, CACHE_FILE.name, json.dumps(payload))
+        _publish(dirfd, CACHE_FILE.name,
+                 json.dumps({"fetched_at": time.time(), "data": payload}))
     except OSError:
         pass
     finally:
         os.close(dirfd)
 
 
-def read_cache():
+def read_cache(now=None):
+    """Re-emit a fresh, well-formed cached payload; None otherwise.
+
+    The cache is an envelope {"fetched_at": epoch, "data": {...}} — it must
+    actually parse (a truncated file starting with "{" is not valid), carry a
+    sane timestamp, and be younger than CACHE_TTL_S so a persistent outage
+    surfaces an error instead of arbitrarily stale weather.
+    """
     try:
         dirfd = _open_dir(CACHE_FILE.parent)
     except (OSError, PermissionError):
@@ -200,13 +232,21 @@ def read_cache():
     if raw is None:
         return None
     try:
-        cached = raw.decode()
-    except UnicodeDecodeError:
+        obj = json.loads(raw)
+    except (UnicodeDecodeError, ValueError):
         return None
-    # Only re-emit plausible JSON payloads within a sane size bound.
-    if cached.lstrip().startswith("{"):
-        return cached
-    return None
+    if not isinstance(obj, dict):
+        return None
+    fetched_at = obj.get("fetched_at")
+    data = obj.get("data")
+    if not isinstance(fetched_at, (int, float)) or isinstance(fetched_at, bool):
+        return None
+    if not isinstance(data, dict):
+        return None
+    age = (time.time() if now is None else now) - fetched_at
+    if age < -CACHE_CLOCK_SKEW_S or age > CACHE_TTL_S:
+        return None
+    return json.dumps(data)
 
 
 def main():
@@ -244,40 +284,68 @@ def main():
         print(json.dumps({"error": f"weather fetch failed: {exc}"}))
         return
 
-    current = data.get("current", {})
-    daily = data.get("daily", {})
-    units = data.get("current_units", {})
-    temp_unit = units.get("temperature_2m", "°C")
-    wind_unit = units.get("wind_speed_10m", "km/h")
+    try:
+        result = build_result(data, name)
+    except Exception:
+        # Remote returned a valid-JSON body in an unexpected shape — fall back
+        # to cache rather than crash on AttributeError/KeyError/TypeError.
+        cached = read_cache()
+        if cached:
+            print(cached)
+            return
+        print(json.dumps({"error": "malformed weather payload"}))
+        return
+
+    write_cache(result)
+    print(json.dumps(result))
+
+
+def build_result(data, name):
+    """Shape-validate the Open-Meteo response and build the panel payload."""
+    if not isinstance(data, dict):
+        raise TypeError("weather payload is not an object")
+    current = data.get("current") or {}
+    daily = data.get("daily") or {}
+    units = data.get("current_units") or {}
+    if not (isinstance(current, dict) and isinstance(daily, dict)
+            and isinstance(units, dict)):
+        raise TypeError("weather payload sections are not objects")
+    temp_unit = units.get("temperature_2m")
+    wind_unit = units.get("wind_speed_10m")
+    if not isinstance(temp_unit, str):
+        temp_unit = "°C"
+    if not isinstance(wind_unit, str):
+        wind_unit = "km/h"
 
     code = current.get("weather_code")
-    description = WMO_DESCRIPTIONS.get(code, "Unknown")
+    description = (
+        WMO_DESCRIPTIONS.get(code, "Unknown")
+        if isinstance(code, (int, float)) and not isinstance(code, bool)
+        else "Unknown"
+    )
 
-    temp = current.get("temperature_2m")
-    feels = current.get("apparent_temperature")
-    hum = current.get("relative_humidity_2m")
-    wind = current.get("wind_speed_10m")
+    temp = _num(current.get("temperature_2m"))
+    feels = _num(current.get("apparent_temperature"))
+    hum = _num(current.get("relative_humidity_2m"))
+    wind = _num(current.get("wind_speed_10m"))
 
     def fmt_temp(value):
         if value is None:
             return ""
         return f"{round(value)}{temp_unit}"
 
-    result = {
+    return {
         "location": name or "Local",
         "description": description,
         "temperature": fmt_temp(temp),
         "feelsLike": fmt_temp(feels),
         "humidity": f"{hum}%" if hum is not None else "",
         "wind": f"{round(wind)} {wind_unit}" if wind is not None else "",
-        "sunrise": iso_to_hm(daily.get("sunrise", [None])[0]),
-        "sunset": iso_to_hm(daily.get("sunset", [None])[0]),
-        "high": fmt_temp(daily.get("temperature_2m_max", [None])[0]),
-        "low": fmt_temp(daily.get("temperature_2m_min", [None])[0]),
+        "sunrise": iso_to_hm(_first(daily.get("sunrise"))),
+        "sunset": iso_to_hm(_first(daily.get("sunset"))),
+        "high": fmt_temp(_num(_first(daily.get("temperature_2m_max")))),
+        "low": fmt_temp(_num(_first(daily.get("temperature_2m_min")))),
     }
-
-    write_cache(result)
-    print(json.dumps(result))
 
 
 if __name__ == "__main__":

@@ -40,6 +40,10 @@ Item {
   }
 
   function refreshWeather() {
+    // Kill any in-flight fetch first — toggling running on a live proc can be
+    // a no-op and leave the old collector holding the result.
+    if (weatherProc.running)
+      weatherProc.signal(9);
     weatherProc.running = false;
     weatherProc.running = true;
     weatherDeadline.restart();
@@ -104,9 +108,11 @@ Item {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/indicators/stay-awake"
     watchChanges: true
     printErrors: false
-    onLoaded: root.caffeine = text().length > 0
+    // toggleCaffeine only touch()es a 0-byte marker: file EXISTENCE is the
+    // signal, not content. watchChanges reloads on create/delete, so loaded →
+    // exists → on, loadFailed → missing → off (idle inhibit released).
+    onLoaded: root.caffeine = true
     onLoadFailed: root.caffeine = false
-    onFileChanged: root.caffeine = text().length > 0
   }
 
   Process {
@@ -128,11 +134,23 @@ Item {
           return;
         }
         try {
-          root.weatherData = JSON.parse(raw);
-          root.weatherError = "";
+          var parsed = JSON.parse(raw);
+          // Guard non-object JSON (null/number) so bindings never deref null.
+          root.weatherData = parsed && typeof parsed === "object" ? parsed : ({});
+          // The helper reports failures as {"error": "..."} — surface them in
+          // the weather row instead of hiding the column silently.
+          root.weatherError = parsed && parsed.error ? String(parsed.error).substring(0, 120) : "";
         } catch (e) {
           root.weatherError = "weather parse error";
         }
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim();
+        if (err)
+          console.warn("standby-data stderr: " + err.substring(0, 500));
       }
     }
     onExited: weatherDeadline.stop()
