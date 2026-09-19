@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.bumblebee",
   "name": "Bumblebee",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "duketopceo",
   "license": "MIT",
   "description": "Supply-chain exposure radar: scans installed packages and dev tools against a known-compromise catalog (wraps Perplexity's bumblebee)",

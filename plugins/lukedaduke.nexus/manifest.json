@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "lukedaduke.nexus",
   "name": "Hardware Nexus",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "lukedaduke",
   "license": "MIT",
   "description": "Live hardware topology radar: USB bus, Bluetooth mesh, Network/VPNs, NVMe/Storage, and Internal Silicon.",
