@@ -27,6 +27,19 @@ omarchy plugin enable lukedaduke.ticker
 
 The default list is hardcoded in `bin/market_stats.py`. Edit that file or add a config option in `manifest.json` to customize.
 
+## Requirements
+
+- `python3` (the helper is stdlib-only; the panel execs `/usr/bin/python3`)
+- `xdg-open` — opens the selected symbol on TradingView
+- Network access to `query1.finance.yahoo.com` over HTTPS (quotes refresh every 60s)
+
+## Removal
+
+```bash
+omarchy plugin disable lukedaduke.ticker
+omarchy plugin remove lukedaduke.ticker
+```
+
 ## License
 
 MIT

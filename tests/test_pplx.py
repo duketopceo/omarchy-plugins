@@ -644,6 +644,89 @@ def test_delete_via_main_verb(capsys, tmp_path) -> None:
     assert data["ok"] is False and data["error"]
 
 
+def test_delete_with_matching_tags_uses_rendered_index(tmp_path) -> None:
+    entries = _seed_history(tmp_path, 3)
+    res = pplx_status.delete_history(
+        1, state_dir=tmp_path, at=entries[1]["at"], query=entries[1]["query"])
+    assert res["ok"] is True
+    hist = json.loads((tmp_path / pplx_status.HISTORY_NAME).read_text())
+    assert [e["query"] for e in hist] == ["q0", "q2"]
+
+
+def test_delete_tags_heal_a_shifted_index(tmp_path) -> None:
+    # TOCTOU: the panel rendered [q0,q1,q2] and the user clicked q1 at
+    # index 1 — but a search prepended qNew before the delete landed, so
+    # index 1 now holds q0. The tags must retarget the delete to q1.
+    entries = _seed_history(tmp_path, 3)
+    target = entries[1]
+    res = pplx_status.delete_history(
+        1, state_dir=tmp_path, at=target["at"], query="q1")
+    # sanity: plain index delete of the same position would remove q0's
+    # slot contents — the tag proves identity wins.
+    assert res["ok"] is True
+    hist = json.loads((tmp_path / pplx_status.HISTORY_NAME).read_text())
+    assert [e["query"] for e in hist] == ["q0", "q2"]
+
+    # Now simulate the actual race: prepend a row, delete by the stale
+    # index + tags — the new row survives and q1 still dies.
+    entries = _seed_history(tmp_path, 3)
+    state = tmp_path / pplx_status.HISTORY_NAME
+    rows = json.loads(state.read_text())
+    rows.insert(0, {"query": "qNew", "hits_count": 1, "elapsed_ms": 1,
+                    "at": "2026-09-17T00:00:00+00:00"})
+    state.write_text(json.dumps(rows))
+    res = pplx_status.delete_history(
+        1, state_dir=tmp_path, at=entries[1]["at"], query="q1")
+    assert res["ok"] is True
+    hist = json.loads(state.read_text())
+    assert [e["query"] for e in hist] == ["qNew", "q0", "q2"]
+
+
+def test_delete_tags_no_match_is_noop(tmp_path) -> None:
+    _seed_history(tmp_path, 3)
+    before = (tmp_path / pplx_status.HISTORY_NAME).read_text()
+    res = pplx_status.delete_history(
+        1, state_dir=tmp_path, at="1999-01-01T00:00:00+00:00",
+        query="no such row")
+    assert res["ok"] is False
+    assert res["error"] == "history entry not found"
+    assert [e["query"] for e in res["history"]] == ["q0", "q1", "q2"]
+    assert (tmp_path / pplx_status.HISTORY_NAME).read_text() == before
+
+
+def test_delete_tags_out_of_range_index_still_scans(tmp_path) -> None:
+    # The list shrank between render and click — index 9 is gone, but the
+    # tagged entry is still present and gets found by identity.
+    entries = _seed_history(tmp_path, 2)
+    res = pplx_status.delete_history(
+        9, state_dir=tmp_path, at=entries[1]["at"], query="q1")
+    assert res["ok"] is True
+    hist = json.loads((tmp_path / pplx_status.HISTORY_NAME).read_text())
+    assert [e["query"] for e in hist] == ["q0"]
+
+
+def test_delete_tags_via_main_verb(capsys, tmp_path) -> None:
+    state_dir = tmp_path / ".local/state/omarchy/pplx"
+    state_dir.mkdir(parents=True)
+    (state_dir / pplx_status.HISTORY_NAME).write_text(json.dumps([
+        {"query": "a", "hits_count": 1, "elapsed_ms": 1, "at": "ta"},
+        {"query": "b", "hits_count": 1, "elapsed_ms": 1, "at": "tb"}]))
+    rc = pplx_status.main(
+        ["pplx_status.py", "--delete", "0", "--at", "tb", "--query", "b"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["ok"] is True
+    # index 0 tagged as b's identity -> scan finds b at index 1, a survives
+    assert [e["query"] for e in data["history"]] == ["a"]
+    # A flag-shaped query value is consumed verbatim as the tag, never
+    # parsed as another flag.
+    rc = pplx_status.main(
+        ["pplx_status.py", "--delete", "0", "--at", "ta", "--query", "--at"])
+    data = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert data["ok"] is False and data["error"]
+
+
 def test_copy_available_flag(tmp_path) -> None:
     fake = tmp_path / "wl-copy"
     res = pplx_status.status(environ={}, run=make_run({})[0],
@@ -671,13 +754,16 @@ PANEL = ROOT / "plugins/io.github.duketopceo.pplx/Panel.qml"
 
 def test_panel_copy_gate_https_only() -> None:
     # copyHit() shares openHit's scheme gate and execs the fixed wl-copy
-    # path detached with the URL as the sole argv element — non-http(s)
+    # path detached with the URL as the sole argv element — non-https
     # can never reach the clipboard tool.
     panel = PANEL.read_text()
-    gate = panel.index("function copyHit")
-    seg = panel[gate:gate + 700]
-    assert "/^https?:\\/\\//" in seg
+    for fn in ("function openHit", "function copyHit"):
+        gate = panel.index(fn)
+        seg = panel[gate:gate + 700]
+        assert "/^https:\\/\\//" in seg, fn
     assert 'execDetached(["/usr/bin/wl-copy", url])' in seg
+    # http:// is deliberately not admitted anywhere in either gate.
+    assert "/^https?:\\/\\//" not in panel
 
 
 def test_panel_chips_and_delete_wiring() -> None:
@@ -687,7 +773,21 @@ def test_panel_chips_and_delete_wiring() -> None:
     assert 'cmd.push("--context", root.context)' in panel
     assert 'cmd.push("--", q)' in panel
     # history ✕ runs the status helper's delete verb with the row index
+    # plus the entry's at/query tags so a racing insert can't retarget it
     assert '"--delete", String(index)' in panel
+    assert '"--at", String(row.at || "")' in panel
+    assert '"--query", String(row.query || "")' in panel
     # no hardcoded colors anywhere (repo rule)
     import re as _re
     assert _re.search(r"#[0-9a-fA-F]{3,8}\b", panel) is None
+
+
+def test_panel_cancel_and_status_wiring() -> None:
+    panel = PANEL.read_text()
+    # A user kill is flagged so the empty-stdout path can't banner it.
+    assert "searchCancelled = true" in panel
+    assert "root.searchCancelled = false" in panel
+    # A dead status helper still resolves the pill — no CHECKING forever.
+    assert 'if (!text || text.trim().length === 0) { root.statusKnown = true; return }' in panel
+    # every helper exec collects stderr (cross-plugin sweep contract)
+    assert panel.count("stderr: StdioCollector") >= 3

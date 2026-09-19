@@ -211,6 +211,16 @@ Panel {
         } catch (e) {}
       }
     }
+    // Helper tracebacks land here — collect so a scan crash is visible
+    // in the journal instead of looking like a silent no-data state.
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("scan_bumblebee stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: {
       statusDeadline.stop()
       root.isRefreshing = false
@@ -271,6 +281,14 @@ Panel {
                                        ? data.error : "refresh_failed"
           }
         } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("refresh_catalog stderr: " + err.substring(0, 500))
       }
     }
     onExited: {

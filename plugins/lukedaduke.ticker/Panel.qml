@@ -16,6 +16,10 @@ Panel {
   property bool isFetching: false
   property string fetchError: ""
   property int selectedIndex: 0
+  // Last stderr chunk from the quotes helper — appended to fetchError when
+  // the process exits non-zero so a crash carries diagnostics, not just
+  // "exited 1".
+  property string statsStderr: ""
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color urgent: Color.urgent
@@ -51,7 +55,7 @@ Panel {
 
   function launchTradingView(tvSym) {
     var target = tvSym || "OANDA:XAUUSD"
-    Quickshell.execDetached([root.xdgOpen, "https://www.tradingview.com/chart/?symbol=" + target])
+    Quickshell.execDetached([root.xdgOpen, "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent(target)])
     root.close()
   }
 
@@ -106,11 +110,25 @@ Panel {
         }
       }
     }
+    // A python crash writes its traceback to stderr — collect it so a dead
+    // helper surfaces real diagnostics instead of a bare "exited 1".
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        root.statsStderr = err.substring(0, 200)
+        if (err)
+          console.warn("market_stats stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: function (code) {
       statsDeadline.stop()
       root.isFetching = false
       if (code !== 0 && root.fetchError.length === 0)
-        root.fetchError = "quotes helper exited " + code
+        root.fetchError = root.statsStderr.length > 0
+          ? "quotes helper failed: " + root.statsStderr
+          : "quotes helper exited " + code
+      root.statsStderr = ""
     }
   }
 
@@ -164,7 +182,8 @@ Panel {
     contentHeight: panel.fittedContentHeight(mainCol.implicitHeight)
     Keys.onPressed: function (event) {
       if (event.key === Qt.Key_J) {
-        root.selectedIndex = Math.min(root.marketItems.length - 1, root.selectedIndex + 1)
+        // Clamp low too: on an empty list Math.min(-1, 1) would select -1.
+        root.selectedIndex = Math.max(0, Math.min(root.marketItems.length - 1, root.selectedIndex + 1))
         event.accepted = true
       } else if (event.key === Qt.Key_K) {
         root.selectedIndex = Math.max(0, root.selectedIndex - 1)
@@ -285,11 +304,13 @@ Panel {
                 height: Style.space(18)
                 width: Style.space(58)
                 radius: Style.space(3)
-                color: root.chipFill(modelData.positive)
+                // A failed quote ("--") reads neutral, not as a green chip.
+                color: modelData.ok === false ? Qt.rgba(root.muted.r, root.muted.g, root.muted.b, 0.22)
+                                              : root.chipFill(modelData.positive)
                 Text {
                   anchors.centerIn: parent
                   text: modelData.change
-                  color: root.chipText(modelData.positive)
+                  color: modelData.ok === false ? root.muted : root.chipText(modelData.positive)
                   font.bold: true
                   font.pixelSize: Style.font.bodySmall
                   textFormat: Text.PlainText

@@ -35,6 +35,9 @@ Panel {
   property var fanCurve: []
   property bool isRefreshing: false
   property string fetchError: ""
+  // Last stderr chunk from the stats helper — appended to fetchError when
+  // the process exits non-zero so a crash carries diagnostics.
+  property string statsStderr: ""
   property bool fanControl: false
   property bool daemonRunning: false
   property int selectedProc: 0
@@ -257,9 +260,25 @@ Panel {
         }
       }
     }
-    onExited: {
+    // A collector crash writes its traceback to stderr — collect it so a
+    // dead helper surfaces real diagnostics instead of a bare exit code.
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        root.statsStderr = err.substring(0, 200)
+        if (err)
+          console.warn("system_monitor_stats stderr: " + err.substring(0, 500))
+      }
+    }
+    onExited: function (code) {
       statusDeadline.stop()
       root.isRefreshing = false
+      if (code !== 0 && root.fetchError.length === 0)
+        root.fetchError = root.statsStderr.length > 0
+          ? "stats helper failed: " + root.statsStderr
+          : "stats helper exited " + code
+      root.statsStderr = ""
     }
   }
 

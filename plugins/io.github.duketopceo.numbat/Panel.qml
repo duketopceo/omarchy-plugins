@@ -154,6 +154,16 @@ Panel {
         } catch (e) {}
       }
     }
+    // Helper tracebacks land here — collect so a probe crash is visible
+    // in the journal instead of looking like a dead widget.
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("probe_numbat stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: {
       statusDeadline.stop()
       root.isRefreshing = false

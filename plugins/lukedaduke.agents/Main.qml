@@ -31,6 +31,15 @@ Item {
       waitForEnd: true
       onStreamFinished: root.applyAgentListing(text)
     }
+
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("agents", "usage-dir find stderr: " + err.substring(0, 500))
+      }
+    }
   }
 
   // Every exec gets a watchdog: a hung child is killed and reaped instead of
@@ -159,6 +168,15 @@ Item {
       if (present && wasMissing) {
         root.rescanAgents()
         root.runUpdate("normal")
+      }
+    }
+
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("agents", "helper check stderr: " + err.substring(0, 500))
       }
     }
   }
@@ -451,6 +469,15 @@ Item {
         return
       }
       root.writeSyncSnapshot()
+    }
+
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("agents/sync", "mkdir stderr: " + err.substring(0, 500))
+      }
     }
   }
 

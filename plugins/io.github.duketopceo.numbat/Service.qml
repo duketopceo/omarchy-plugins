@@ -274,6 +274,14 @@ Item {
         root.onTail(text)
       }
     }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("probe_numbat tail stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: tailDeadline.stop()
   }
 
@@ -302,6 +310,14 @@ Item {
       onStreamFinished: {
         probeDeadline.stop()
         root.onProbe(text)
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("probe_numbat stderr: " + err.substring(0, 500))
       }
     }
     onExited: {

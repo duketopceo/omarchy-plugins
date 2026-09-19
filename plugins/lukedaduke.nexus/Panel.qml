@@ -86,6 +86,16 @@ Panel {
         } catch (e) {}
       }
     }
+    // Helper tracebacks land here — collect so a probe crash is visible
+    // in the journal instead of looking like an empty topology.
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("probe_nexus stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: {
       statusDeadline.stop()
       root.isRefreshing = false

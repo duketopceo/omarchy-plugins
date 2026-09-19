@@ -235,6 +235,14 @@ Item {
         } catch (e) {}
       }
     }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("scan_bumblebee age stderr: " + err.substring(0, 500))
+      }
+    }
     onExited: ageDeadline.stop()
   }
 
@@ -269,6 +277,14 @@ Item {
           if (data.error) return  // a failed scan must not advance the watermark
           root.diffNow(data)
         } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("scan_bumblebee --force stderr: " + err.substring(0, 500))
       }
     }
     onExited: scanDeadline.stop()

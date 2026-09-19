@@ -70,7 +70,12 @@ def format_price(sym: str, price: float) -> str:
 def parse_chart(sym: str, payload: dict[str, Any]) -> tuple[float, float]:
     result = payload["chart"]["result"][0]
     meta = result["meta"]
-    price = float(meta.get("regularMarketPrice") or 0)
+    # A missing price is no data, not $0.00: `or 0` would render a fake
+    # quote at -100% instead of letting the row degrade to unavailable.
+    raw_price = meta.get("regularMarketPrice")
+    if raw_price is None:
+        raise ValueError("no quote")
+    price = float(raw_price)
     prev = float(meta.get("chartPreviousClose") or price)
     return price, prev
 
@@ -91,9 +96,11 @@ def fetch_yahoo_chart(sym: str, timeout: float = 3.0,
         cl = resp.headers.get("Content-Length")
         if cl is not None and int(cl) > MAX_RESPONSE_BYTES:
             raise ValueError(f"Content-Length {cl} exceeds {MAX_RESPONSE_BYTES} byte budget")
+        # JSON type required whether or not the header is present — an
+        # absent Content-Type must not slip a non-JSON body to the parser.
         content_type = resp.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-        if content_type and content_type not in {"application/json", "application/x-json", "text/json"}:
-            raise ValueError(f"unexpected response type {content_type}")
+        if content_type not in {"application/json", "application/x-json", "text/json"}:
+            raise ValueError(f"unexpected response type {content_type or 'absent'}")
         data = resp.read(MAX_RESPONSE_BYTES + 1)
         if len(data) > MAX_RESPONSE_BYTES:
             raise ValueError("response body exceeded byte budget")
