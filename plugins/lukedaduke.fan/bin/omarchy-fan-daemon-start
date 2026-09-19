@@ -56,7 +56,7 @@ USER_HOME="${USER_HOME:-$HOME}"
 
 if [ -f "$SERVICE_SRC" ]; then
     sed -e "s|%h|$USER_HOME|g" \
-        -e "s|--uid [0-9]*|--uid $TARGET_UID|g" \
+        -e "s|ExecStart=.*|ExecStart=$PLUGIN_DIR/bin/omarchy-fan-daemon --uid $TARGET_UID|" \
         -e "s|OMARCHY_FAN_UID=[0-9]*|OMARCHY_FAN_UID=$TARGET_UID|g" \
         "$SERVICE_SRC" > "$SERVICE_DST"
     # Ensure uid arg and env are present

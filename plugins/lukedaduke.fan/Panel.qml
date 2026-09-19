@@ -56,10 +56,15 @@ Panel {
   // Absolute interpreter: a PATH-preceding shadow "python3" must never run
   // inside this long-lived shell process.
   readonly property string py: "/usr/bin/python3"
+  // XDG_RUNTIME_DIR must survive the scrub: the collector resolves
+  // $XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode — the same path
+  // omarchy-fan-set writes (full env) and the daemon reads. Scrubbing it
+  // makes the helper fall back to ~/.local/run, so fan_mode reads "auto"
+  // forever and the badge/presets/right-click cycling go dead.
   readonly property var procEnv: ({
     "PATH": "/usr/bin:/bin",
     "HOME": null,
-    "XDG_RUNTIME_DIR": null,
+    "XDG_RUNTIME_DIR": Quickshell.env("XDG_RUNTIME_DIR"),
     "LANG": null,
     "LC_ALL": "C"
   })

@@ -673,6 +673,36 @@ def read_fan_curve() -> list[list[int]]:
     return []
 
 
+def _has_controllable_fan(devices: dict[str, Path] | None = None) -> bool:
+    """True when hwmon exposes fan-control nodes the daemon can drive.
+
+    The daemon only speaks macsmc (fan*_target) and dell_smm (pwm*);
+    any other sensor means mode writes are dead drops.
+    """
+    if devices is None:
+        devices = hwmon_paths()
+    macsmc = devices.get("macsmc_hwmon")
+    if macsmc and macsmc.is_dir() and any(macsmc.glob("fan*_target")):
+        return True
+    dell = devices.get("dell_smm")
+    if dell and dell.is_dir() and any(dell.glob("pwm[0-9]*")):
+        return True
+    return False
+
+
+def fan_control_available(devices: dict[str, Path] | None = None) -> bool:
+    """Honest fan-control capability for the panel.
+
+    The mode file is only ever consumed by the daemon, so control is real
+    when the daemon is already running, or when fan hwmon the daemon can
+    drive exists (a pkexec daemon-start will then take effect). Merely
+    shipping omarchy-fan-set is not capability.
+    """
+    if not (Path(__file__).parent / "omarchy-fan-set").is_file():
+        return False
+    return is_daemon_running() or _has_controllable_fan(devices)
+
+
 def _clip(value: Any, limit: int = MAX_STR) -> str:
     return str(value)[:limit]
 
@@ -709,7 +739,7 @@ def collect(sample_seconds: float = SAMPLE_SECONDS) -> dict[str, Any]:
         "fan2_rpm": fan2_rpm,
         "fan_mode": read_fan_mode(),
         "fan_curve": read_fan_curve(),
-        "fan_control": (Path(__file__).parent / "omarchy-fan-set").is_file(),
+        "fan_control": fan_control_available(devices),
         "daemon_running": is_daemon_running(),
         "top_mem": top_mem()[:MAX_LIST],
         "top_cpu": top_cpu()[:MAX_LIST],
