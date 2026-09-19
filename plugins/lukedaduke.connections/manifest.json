@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "lukedaduke.connections",
   "name": "Connections",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "lukedaduke",
   "license": "MIT",
   "description": "Unified Bluetooth and Wi-Fi connection widget with dual icons and toggle controls",
