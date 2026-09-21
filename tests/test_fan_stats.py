@@ -151,6 +151,52 @@ def test_fan_control_gated_on_capability(tmp_path: Path, monkeypatch) -> None:
     assert stats.fan_control_available({}) is True
 
 
+def test_soc_power_w_heatpipe(tmp_path: Path) -> None:
+    stats = load(STATS, "system_monitor_stats")
+    macsmc = tmp_path / "hwmon_macsmc"
+    macsmc.mkdir()
+    (macsmc / "power4_input").write_text("15973271")
+    (macsmc / "power4_label").write_text("Heatpipe Power")
+    (macsmc / "power2_input").write_text("86718147")
+    (macsmc / "power2_label").write_text("AC Input Power")
+    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) == 16.0
+
+
+def test_soc_power_w_absent(tmp_path: Path) -> None:
+    stats = load(STATS, "system_monitor_stats")
+    macsmc = tmp_path / "hwmon_macsmc"
+    macsmc.mkdir()
+    (macsmc / "power1_input").write_text("1000000")
+    (macsmc / "power1_label").write_text("Total System Power")
+    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) is None
+    assert stats.soc_power_w({}) is None
+
+
+def test_gpu_clients_shape() -> None:
+    stats = load(STATS, "system_monitor_stats")
+    clients = stats.gpu_clients()
+    assert isinstance(clients, list)
+    for c in clients:
+        assert isinstance(c["pid"], int)
+        assert isinstance(c["name"], str) and c["name"]
+
+
+def test_asahi_gpu_load_graceful() -> None:
+    """fdinfo counters absent (current asahi kernels) -> None, not a crash."""
+    stats = load(STATS, "system_monitor_stats")
+    gpu_load = stats._asahi_gpu_load(sample_seconds=0)
+    assert gpu_load is None or (isinstance(gpu_load, int) and 0 <= gpu_load <= 100)
+
+
+def test_collect_gpu_fields() -> None:
+    stats = load(STATS, "system_monitor_stats")
+    data = stats.collect(sample_seconds=0)
+    assert isinstance(data["gpu_load"], int)  # -1 sentinel when unavailable
+    assert data["gpu_power_w"] is None or isinstance(data["gpu_power_w"], float)
+    assert isinstance(data["gpu_clients"], list)
+    json.dumps(data)
+
+
 def test_panel_retains_xdg_runtime_dir() -> None:
     """The collector env must pass XDG_RUNTIME_DIR through, not scrub it."""
     panel = PANEL.read_text()
