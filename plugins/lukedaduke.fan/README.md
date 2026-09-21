@@ -12,6 +12,7 @@ omarchy plugin enable lukedaduke.fan
 ## Features
 
 - Real-time RAM and CPU load
+- GPU section: utilization % where the driver exposes it (NVIDIA, AMD `gpu_busy_percent`, DRM fdinfo when the kernel supports it), plus package/heatpipe power and a live list of GPU client processes on Apple Silicon
 - CPU, GPU, and NVMe temperatures via `hwmon`
 - Laptop fan RPM readout
 - Top memory/CPU processes with `j`/`k` selection and kill support
@@ -39,6 +40,23 @@ curve/preset. On hardware with no daemon-driveable fan (no
 `macsmc_hwmon`/`dell_smm` fan targets) and no running daemon, the widget
 degrades to read-only honestly: stats and fan RPM still render, the mode
 badge shows `READ`, and the preset buttons are disabled.
+
+### GPU telemetry on Apple Silicon (Asahi)
+
+The Asahi `apple-agx`/`asahi` DRM driver exposes no `gpu_busy_percent`,
+devfreq device, or GPU hwmon sensor, and current kernels do not emit
+`drm-*` fdinfo counters — so a true GPU busy% is not available
+unprivileged today. The panel therefore shows what does exist:
+
+- **Package power** — the `macsmc_hwmon` "Heatpipe Power" rail, a
+  SoC-wide proxy (not GPU-isolated).
+- **GPU clients** — processes holding `/dev/dri/*` handles, i.e. what's
+  actually on the GPU right now.
+- **Temperature** — the shared die temp (unified SoC; CPU temp doubles
+  as GPU temp).
+
+If a future kernel wires up asahi fdinfo, `gpu_load` starts reporting
+automatically — the probe is already in place.
 
 ## Usage
 

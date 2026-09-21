@@ -27,6 +27,8 @@ Panel {
   property string gpuName: "GPU"
   property int gpuLoad: -1
   property string gpuTemp: "--"
+  property real gpuPowerW: -1
+  property var gpuClients: []
   property string nvmeTemp: "--"
   property int fan1Rpm: 0
   property int fan2Rpm: 0
@@ -233,6 +235,12 @@ Panel {
           }
           if (data.gpu_temp)
             root.gpuTemp = clipStr(data.gpu_temp, 16)
+          root.gpuPowerW = (typeof data.gpu_power_w === "number") ? data.gpu_power_w : -1
+          if (Array.isArray(data.gpu_clients))
+            root.gpuClients = data.gpu_clients.slice(0, 24).map(function(c) {
+              c.name = clipStr(c.name, 32)
+              return c
+            })
           if (data.nvme_temp)
             root.nvmeTemp = clipStr(data.nvme_temp, 16)
           if (data.fan1_rpm !== undefined)
@@ -313,7 +321,7 @@ Panel {
     fontSize: Style.font.bodySmall
     active: root.memPct >= 80 || root.currentMode === "high" || (root.currentMode === "auto" && parseInt(root.cpuTemp) >= 60)
     activeColor: root.memPct >= 85 || parseInt(root.cpuTemp) >= 65 ? root.urgent : (root.bar ? root.bar.barForeground : Color.foreground)
-    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
+    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + (root.gpuPowerW >= 0 ? " " + root.gpuPowerW.toFixed(0) + "W" : "") + (root.gpuClients.length > 0 ? " (" + root.gpuClients.length + " procs)" : "") + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
     horizontalMargin: 4.0
     onPressed: function (buttonCode) {
       if (buttonCode === Qt.RightButton)
@@ -582,6 +590,22 @@ Panel {
             radius: 3.5
             color: root.levelColor(root.gpuLoad, 70, 90)
           }
+        }
+        Text {
+          visible: root.gpuPowerW >= 0 || root.gpuClients.length > 0
+          width: parent.width
+          text: (root.gpuPowerW >= 0 ? "pkg " + root.gpuPowerW.toFixed(1) + " W" : "")
+                + (root.gpuPowerW >= 0 && root.gpuClients.length > 0 ? " · " : "")
+                + (root.gpuClients.length > 0
+                   ? root.gpuClients.length + " gpu proc" + (root.gpuClients.length > 1 ? "s" : "")
+                     + ": " + root.gpuClients.slice(0, 4).map(function(c) { return c.name }).join(", ")
+                     + (root.gpuClients.length > 4 ? "…" : "")
+                   : "")
+          textFormat: Text.PlainText
+          color: root.muted
+          font.pixelSize: Style.font.bodySmall
+          elide: Text.ElideRight
+          wrapMode: Text.NoWrap
         }
       }
 
