@@ -24,14 +24,18 @@ python scripts/validate-manifests.py
 # live install (hot-reload from this tree)
 ./scripts/install.sh --link
 
+# release-style copy with generated artifacts excluded and validated
+./scripts/install.sh --copy
+
 # read-only live inventory (JSON by default; markdown with --format markdown)
 python3 scripts/audit-live-plugins.py --no-git
 ```
 
 The inventory distinguishes configured, direct-bar, tray-hosted, disabled, and
 runtime-observed states without writing shell configuration or exposing secret
-values. Use `--fixture-root` for a host-independent audit. No `.env` required.
-See `.env.example`.
+values. Use `--fixture-root` for a host-independent audit. Legacy installer
+backups move outside the discovery root and remain available for rollback. No
+`.env` required. See `.env.example`.
 
 ## Plugins
 
