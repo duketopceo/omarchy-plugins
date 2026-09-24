@@ -116,6 +116,12 @@ Keep ownership and update paths independent. A local checkout, a disabled
 clone, and a hosted tray widget are different states; do not infer that an
 absent direct bar entry means the surface is unused.
 
+Before applying the sanitized bar layout, run the read-only migration plan:
+
+```sh
+python3 scripts/plan-surface-migration.py --format markdown
+```
+
 Apply the sanitized bar layout from `machine/bar-layout.json` and the enabled
 plugin list from `machine/plugins.json`, then ask the host to rescan:
 
