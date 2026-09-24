@@ -44,3 +44,6 @@ def test_plugin_map_has_no_user_checkout_paths() -> None:
     assert "Documents/github" not in serialized
     assert "io.github.duketopceo.dim" in serialized
     assert "io.github.duketopceo.dayflow" in serialized
+    assert plugin_map["voice_policy"]["default"] == "hancore.voxtype-enhance"
+    assert plugin_map["voice_policy"]["alternate"] == "io.github.duketopceo.dim"
+    assert plugin_map["voice_policy"]["simultaneous_allowed"] is False

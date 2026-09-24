@@ -4,6 +4,11 @@
     "source": "sanitized live registry and ownership inventory",
     "note": "Repository paths, credentials, and runtime state are intentionally omitted."
   },
+  "voice_policy": {
+    "default": "hancore.voxtype-enhance",
+    "alternate": "io.github.duketopceo.dim",
+    "simultaneous_allowed": false
+  },
   "first_party_from_this_repo": [
     "lukedaduke.fan",
     "lukedaduke.ticker",

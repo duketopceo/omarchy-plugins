@@ -31,5 +31,8 @@ jobs:
       - name: Check plugin contract
         run: python scripts/check-plugin-contract.py
 
+      - name: Check data lifecycle policy
+        run: python scripts/check-data-lifecycle.py
+
       - name: Run tests
         run: python -m pytest tests/ -q

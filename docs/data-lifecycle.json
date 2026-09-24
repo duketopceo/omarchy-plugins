@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "secret_surface": {
+    "canonical": "OmaSeal",
+    "handoff": "Secret Service API or inherited file descriptor/stdin",
+    "forbidden_channels": [
+      "argv",
+      "environment",
+      "logs",
+      "QML state",
+      "process metadata"
+    ],
+    "locked_state": "setup required; never fall back to plaintext"
+  },
+  "voice": {
+    "default": "hancore.voxtype-enhance",
+    "alternate": "io.github.duketopceo.dim",
+    "simultaneous_allowed": false,
+    "activation": "explicit operator selection"
+  },
+  "surfaces": [
+    {
+      "id": "screen_capture",
+      "owner": "io.github.duketopceo.dayflow",
+      "purpose": "time journal and optional visual summaries",
+      "egress": "sampled frames only when summarization is enabled; provider is explicit",
+      "retention": "14 days or 2 GiB frames; 90 days or 1 GiB journal; 7 daily backups",
+      "pause": true,
+      "delete": "operator-confirmed purge of frames, database, exports, and backups",
+      "export": "redacted journal export"
+    },
+    {
+      "id": "voice",
+      "owner": "hancore.voxtype-enhance",
+      "purpose": "local dictation and transcription",
+      "egress": "local model by default; model download only on explicit selection",
+      "retention": "session audio is not retained by this plugin; model files persist until clear",
+      "pause": true,
+      "delete": "operator-confirmed model and plugin-managed settings cleanup",
+      "export": "transcription text remains in the user-selected output surface"
+    },
+    {
+      "id": "clipboard",
+      "owner": "omarchy.clipboard",
+      "purpose": "clipboard history and paste workflow",
+      "egress": "none unless a user action invokes an external consumer",
+      "retention": "7 days or 1000 entries, subject to host policy",
+      "pause": true,
+      "delete": "host-supported history deletion; preserve unrelated settings",
+      "export": "host-supported export only"
+    },
+    {
+      "id": "messages",
+      "owner": "nixfred.blip",
+      "purpose": "read and send messages through the user-authorized Mac gateway",
+      "egress": "SSH/Tailscale to the configured Mac gateway; no Linux message database",
+      "retention": "attachments opened in a thread may be cached; 7 days by default",
+      "pause": true,
+      "delete": "operator-confirmed attachment cache cleanup",
+      "export": "conversation export is not enabled by default"
+    },
+    {
+      "id": "calendar",
+      "owner": "tmn73.calendar",
+      "purpose": "calendar events and reminders",
+      "egress": "configured calendar provider only",
+      "retention": "7 days for stale-event cache",
+      "pause": true,
+      "delete": "provider-side event deletion; local cache cleanup is separate",
+      "export": "provider-supported export"
+    },
+    {
+      "id": "finance",
+      "owner": "mohamedmansour.finance",
+      "purpose": "watchlist quotes and market values",
+      "egress": "configured market-data provider",
+      "retention": "24 hours for display cache",
+      "pause": true,
+      "delete": "local cache cleanup; no portfolio data is persisted by this policy",
+      "export": "display values only"
+    },
+    {
+      "id": "weather",
+      "owner": "omarchy.weather",
+      "purpose": "current conditions and forecast",
+      "egress": "configured weather provider",
+      "retention": "1 hour for stale-weather cache",
+      "pause": true,
+      "delete": "local cache cleanup",
+      "export": "not applicable"
+    }
+  ]
+}
