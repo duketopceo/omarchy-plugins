@@ -25,11 +25,16 @@ def test_restore_playbook_has_no_stale_x86_assumptions() -> None:
 
 def test_bar_layout_is_sanitized_and_keeps_hosted_widgets() -> None:
     layout = json.loads((MACHINE / "bar-layout.json").read_text())
-    assert "lastSeen" not in json.dumps(layout)
+    serialized = json.dumps(layout)
+    assert "lastSeen" not in serialized
     right = layout["bar"]["layout"]["right"]
     tray = next(item for item in right if item.get("id") == "io.github.tyrichards.tray")
     widget_ids = {widget["entry"]["id"] for widget in tray["widgets"]}
     assert widget_ids == {"jankeesvw.herdr", "lukedaduke.nexus"}
+    assert "hancore.voxtype-enhance" in serialized
+    assert "omarchy.active-window" in serialized
+    assert "lukekimball.active-window" not in serialized
+    assert "io.github.duketopceo.dim" not in serialized
 
 
 def test_plugin_map_has_no_user_checkout_paths() -> None:

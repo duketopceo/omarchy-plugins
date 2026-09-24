@@ -80,8 +80,10 @@ after login:
 - desktop portals and Hyprland session services
 - EasyEffects when the operator wants the DSP layer
 - Hyprmoncfg for managed display layouts
-- Dayflow, Dim, or Voxtype only after the operator selects the corresponding
-  capture/voice owner and data-retention policy
+- Voxtype is the default voice owner; enable `voxtype.service` and its bar
+  control only after the operator confirms the capture/privacy policy.
+- Dim remains an opt-in alternative and must not run at the same time as
+  Voxtype while both claim the microphone.
 
 A failed optional service is a degraded state; it must not cause restore to
 invent credentials or enable a second data collector.

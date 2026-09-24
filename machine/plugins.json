@@ -103,6 +103,7 @@
     "omarchy.tray",
     "omarchy.monitor",
     "omarchy.keyboard-layout",
-    "omarchy.audio"
+    "omarchy.audio",
+    "lukekimball.active-window"
   ]
 }

@@ -43,9 +43,6 @@
           "unit": "imperial"
         },
         {
-          "id": "io.github.duketopceo.dim"
-        },
-        {
           "id": "omarchy.system-update"
         }
       ],
@@ -63,7 +60,7 @@
           "id": "io.github.twiking.omasettings"
         },
         {
-          "id": "lukekimball.active-window"
+          "id": "omarchy.active-window"
         }
       ],
       "right": [
@@ -90,6 +87,9 @@
               "listed": true
             }
           ]
+        },
+        {
+          "id": "hancore.voxtype-enhance"
         },
         {
           "id": "nixfred.blip"

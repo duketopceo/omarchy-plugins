@@ -627,6 +627,18 @@ def render_markdown(inventory: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Current decisions",
+            "",
+            "- Voxtype is the default voice owner; Dim is opt-in and must not claim the microphone simultaneously.",
+            "- The custom tray remains enabled because it hosts Herdr and Hardware Nexus; stock-tray fallback is a tested migration option.",
+            "- The stock active-window widget is the restore target; the custom clone remains available for reversible rollback until the layout smoke test passes.",
+            "",
+            "## Privileged fan handoff",
+            "",
+            "- The plugin owns telemetry and an explicit launcher; a separately owned system/polkit helper owns root writes and service installation.",
+            "- Authorization uses `/usr/bin/pkexec`; no stored sudo password or `sudo -S` path is permitted.",
+            "- Rollback is to stop/disable the unit, remove the unit file, and remove the plugin without deleting user data.",
+            "",
             "## Contract follow-up",
             "",
             "External findings and owner handoffs are summarized in `docs/reviews/active-plugin-contract.md`.",

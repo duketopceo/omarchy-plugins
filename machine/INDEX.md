@@ -78,8 +78,8 @@ The following user-service families are part of the current desktop contract:
 - `easyeffects.service` (optional DSP layer; failure is degraded, not fatal)
 - `hyprmoncfgd.service` for monitor management
 - `dayflow-capture.service` and `dimd.service` for explicitly configured
-  capture/voice surfaces
-- `voxtype.service` when the alternate voice stack is selected
+  capture/voice surfaces; Dim is opt-in
+- `voxtype.service` as the default voice owner
 - `omarchy-sleep-lock.service`, desktop portals, and Hyprland session services
 
 The inventory is descriptive. The live audit records which services are
