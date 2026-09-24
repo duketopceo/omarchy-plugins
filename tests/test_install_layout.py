@@ -76,6 +76,18 @@ def test_duplicate_non_backup_manifests_fail_without_moving_state(tmp_path: Path
     assert not backup_root.exists()
 
 
+def test_hidden_legacy_backups_leave_the_discovery_root(tmp_path: Path) -> None:
+    destination = tmp_path / "plugins"
+    backup_root = tmp_path / "state" / "backups"
+    manifest(destination / ".lukedaduke.fan.bak.1", "lukedaduke.fan")
+
+    result = run_installer(destination, backup_root)
+
+    assert result.returncode == 0, result.stderr
+    assert not (destination / ".lukedaduke.fan.bak.1").exists()
+    assert (backup_root / ".lukedaduke.fan.bak.1" / "manifest.json").is_file()
+
+
 def test_repeated_link_install_is_idempotent(tmp_path: Path) -> None:
     destination = tmp_path / "plugins"
     backup_root = tmp_path / "state" / "backups"

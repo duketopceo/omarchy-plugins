@@ -9,7 +9,7 @@
 - Direct bar entries: **29**
 - Enabled non-bar entries: **20**
 - Tray-hosted widgets: **2**
-- Duplicate manifest IDs: **2**
+- Duplicate manifest IDs: **0**
 
 ## Host profile
 
@@ -29,17 +29,17 @@
 | ID | Version | Source | Owner | Surface | Status | Health | Dependency | Architecture | Disposition |
 |---|---|---|---|---|---|---|---|---|---|
 | `akitaonrails.ai-usagebar` | 1.11.0 | directory | AkitaOnRails | direct-bar | placed | unknown | bar-surface | unknown | observe |
-| `crmne.hyprmoncfg` | 2.4.0-rc.1 | directory | Carmine Paolino | direct-bar | placed | unknown | service | unknown | observe |
+| `crmne.hyprmoncfg` | 2.4.0-rc.1 | directory | Carmine Paolino | direct-bar | healthy | healthy | service | unknown | observe |
 | `gemini-bar` | 1.0.0 | directory | lukedaduke | disabled | disabled | unknown | bar-surface | unknown | observe |
-| `hancore.voxtype-enhance` | 0.1.3 | directory | HANCORE | direct-bar | placed | unknown | bar-surface | unknown | observe |
+| `hancore.voxtype-enhance` | 0.1.3 | directory | HANCORE | direct-bar | healthy | healthy | bar-surface | unknown | observe |
 | `io.github.duketopceo.bumblebee` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | service | unknown | observe |
-| `io.github.duketopceo.dayflow` | 1.1.0 | directory | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
+| `io.github.duketopceo.dayflow` | 1.1.0 | directory | lukedaduke | direct-bar | healthy | healthy | bar-surface | unknown | observe |
 | `io.github.duketopceo.dim` | 0.2.0 | directory | duketopceo | disabled | disabled | unknown | service | unknown | observe |
 | `io.github.duketopceo.numbat` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | service | unknown | observe |
 | `io.github.duketopceo.omaseal` | 0.2.2 | directory | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `io.github.duketopceo.pplx` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `io.github.idr4n.clipboard-plus` | 1.0.0 | directory | Ivan Duran | implicit | configured | unknown | overlay | unknown | observe |
-| `io.github.ncr.omaphones` | 1.3.9 | directory | Jacek Becela | direct-bar | placed | unknown | service | unknown | observe |
+| `io.github.ncr.omaphones` | 1.3.9 | directory | Jacek Becela | direct-bar | healthy | healthy | service | unknown | observe |
 | `io.github.sirjul1337.lock-explorer` | 1.7.7 | directory | SirJul1337 | implicit | configured | unknown | service | unknown | observe |
 | `io.github.twiking.omasettings` | 1.3.0 | directory | Tobias Wiking | direct-bar | placed | unknown | service | unknown | observe |
 | `io.github.tyrichards.tray` | 1.9.3 | directory | Ty Richards | direct-bar | placed | unknown | bar-surface | unknown | observe |
@@ -48,7 +48,7 @@
 | `localdev.secrets` | 1.0.0 | directory | Omarchy | implicit | configured | unknown | panel | unknown | observe |
 | `lukedaduke.agents` | 1.1.1 | link | lukedaduke | disabled | disabled | unknown | bar-surface | unknown | observe |
 | `lukedaduke.connections` | 1.0.1 | link | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
-| `lukedaduke.fan` | 2.1.5 | link | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
+| `lukedaduke.fan` | 2.1.5 | link | lukedaduke | direct-bar | healthy | healthy | bar-surface | unknown | observe |
 | `lukedaduke.nexus` | 1.0.3 | link | lukedaduke | hosted | hosted | unknown | bar-surface | unknown | observe |
 | `lukedaduke.power` | 1.1.3 | link | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `lukedaduke.standby` | 1.0.4 | link | lukedaduke | implicit | configured | unknown | overlay | unknown | observe |
@@ -96,7 +96,7 @@
 | `omarchy.wifiqr` | None | host | omarchy | implicit | configured | unknown | panel | unknown | observe |
 | `omarchy.workspaces` | None | host | omarchy | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `robzolkos.github` | 0.3.0 | directory | Rob Zolkos | direct-bar | placed | unknown | bar-surface | unknown | observe |
-| `ssupt.audio-control` | 0.8.1 | directory | ssupt | direct-bar | placed | unknown | bar-surface | unknown | observe |
+| `ssupt.audio-control` | 0.8.1 | directory | ssupt | direct-bar | healthy | healthy | bar-surface | unknown | observe |
 | `tmn73.calendar` | 0.2.1 | directory | tmn73 | direct-bar | placed | unknown | bar-surface | unknown | observe |
 
 ## Current decisions
@@ -117,5 +117,4 @@ External findings and owner handoffs are summarized in `docs/reviews/active-plug
 
 ## Warnings
 
-- duplicate manifest id: lukedaduke.connections
-- duplicate manifest id: lukedaduke.power
+- None

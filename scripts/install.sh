@@ -60,7 +60,7 @@ python3 "$VALIDATE" --install-root "$DEST" --allow-symlink --ignore-legacy-backu
 migrate_legacy_backups() {
   shopt -s nullglob
   local legacy backup_name backup_target
-  for legacy in "$DEST"/*.bak.*; do
+  for legacy in "$DEST"/*.bak.* "$DEST"/.*.bak.*; do
     [[ -d "$legacy" && -f "$legacy/manifest.json" ]] || continue
     mkdir -p "$BACKUP_ROOT"
     backup_name="$(basename "$legacy")"

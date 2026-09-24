@@ -2,7 +2,8 @@
 """Produce a sanitized inventory of Omarchy plugin state.
 
 The default command reads the local plugin registry and shell layout without
-modifying either.  Tests and operators can pass a fixture root containing
+modifying either, then probes a fixed allowlist of user/system service units for
+runtime evidence. Tests and operators can pass a fixture root containing
 ``plugins/``, ``shell.json``, ``registry.ndjson``, ``services.json``, and
 ``dispositions.json`` to exercise the same code path without touching the host.
 """
@@ -462,6 +463,17 @@ def _load_optional_json(path: Path, default: Any) -> Any:
     return read_json(path)
 
 
+SERVICE_PROBES = {
+    "dayflow-capture.service": ("io.github.duketopceo.dayflow", "user"),
+    "dimd.service": ("io.github.duketopceo.dim", "user"),
+    "voxtype.service": ("hancore.voxtype-enhance", "user"),
+    "bt-agent.service": ("io.github.ncr.omaphones", "user"),
+    "hyprmoncfgd.service": ("crmne.hyprmoncfg", "user"),
+    "omarchy-fan-daemon.service": ("lukedaduke.fan", "system"),
+    "easyeffects.service": ("ssupt.audio-control", "user"),
+}
+
+
 def _probe_environment() -> dict[str, str]:
     allowed = {
         "PATH",
@@ -475,6 +487,48 @@ def _probe_environment() -> dict[str, str]:
         "OMARCHY_PATH",
     }
     return {key: value for key, value in os.environ.items() if key in allowed and value}
+
+
+def _probe_service_state(unit: str, scope: str) -> str:
+    argv = ["/usr/bin/systemctl"]
+    if scope == "user":
+        argv.append("--user")
+    argv.extend(["is-active", unit])
+    try:
+        result = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+            check=False,
+            env=_probe_environment(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    state = result.stdout.strip() if isinstance(result.stdout, str) else "unknown"
+    known_states = {"active", "activating", "inactive", "failed", "degraded", "unknown"}
+    return state if state in known_states else "unknown"
+
+
+def _collect_live_services() -> dict[str, dict[str, Any]]:
+    states: dict[str, dict[str, Any]] = {}
+    for unit, (plugin_id, scope) in SERVICE_PROBES.items():
+        state = _probe_service_state(unit, scope)
+        states[plugin_id] = {
+            "unit": unit,
+            "scope": scope,
+            "state": state,
+            "loaded": state in {"active", "activating"},
+            "running": state == "active",
+            "health": (
+                "healthy"
+                if state == "active"
+                else "degraded"
+                if state in {"failed", "degraded"}
+                else "unknown"
+            ),
+        }
+    return states
 
 
 def _run_live_registry() -> list[dict[str, Any]]:
@@ -668,7 +722,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plugin-root", type=Path)
     parser.add_argument("--shell-config", type=Path)
     parser.add_argument("--registry-file", type=Path, help="NDJSON registry fixture; omit to query omarchy-shell")
-    parser.add_argument("--services-file", type=Path, help="JSON service-state fixture")
+    parser.add_argument(
+        "--services-file",
+        type=Path,
+        help="JSON service-state fixture; omit to probe fixed live units",
+    )
     parser.add_argument("--dispositions-file", type=Path, help="JSON disposition map")
     parser.add_argument("--fixture-root", type=Path, help="fixture directory; no live host access")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
@@ -692,7 +750,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             shell = read_json(shell_path) if shell_path.exists() else {}
             registry = read_ndjson(args.registry_file) if args.registry_file else _run_live_registry()
-            services = read_json(args.services_file) if args.services_file else {}
+            services = read_json(args.services_file) if args.services_file else _collect_live_services()
             dispositions = read_json(args.dispositions_file) if args.dispositions_file else {}
         except InventoryError as exc:
             print(str(exc), file=sys.stderr)

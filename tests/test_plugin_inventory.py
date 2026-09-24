@@ -270,3 +270,32 @@ def test_invalid_utf8_registry_is_reported_as_an_inventory_error(tmp_path: Path)
 
     with pytest.raises(module.InventoryError):
         module.read_ndjson(registry)
+
+
+def test_live_service_probe_distinguishes_user_and_system_units(monkeypatch) -> None:
+    module = load_module()
+    calls: list[list[str]] = []
+
+    class Result:
+        stderr = ""
+
+        def __init__(self, stdout: str, returncode: int) -> None:
+            self.stdout = stdout
+            self.returncode = returncode
+
+    def run(argv, **_kwargs):
+        calls.append(argv)
+        if "dimd.service" in argv:
+            return Result("inactive\n", 3)
+        if "dayflow-capture.service" in argv:
+            return Result("failed\n", 3)
+        return Result("active\n", 0)
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+    states = module._collect_live_services()
+
+    assert states["lukedaduke.fan"]["state"] == "active"
+    assert states["io.github.duketopceo.dayflow"]["health"] == "degraded"
+    assert states["io.github.duketopceo.dim"]["state"] == "inactive"
+    assert any("--user" in call for call in calls if "dimd.service" in call)
+    assert all("--user" not in call for call in calls if "omarchy-fan-daemon.service" in call)

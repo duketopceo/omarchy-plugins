@@ -2,17 +2,18 @@
 
 Snapshot date: 2026-09-23.
 
-The shared checker was run read-only against the enabled external checkout set.
-This is a handoff summary, not a claim that third-party source is owned here.
+The shared checker was run read-only against the non-backup plugin checkout set
+(enabled and disabled). This broad pass keeps stale local copies visible; it is
+still a handoff summary, not a claim that third-party source is owned here.
 Raw findings are intentionally not committed because they can contain local
 paths or user-specific values.
 
 ## Summary
 
-- Enabled external/local surfaces scanned: **17**
-- Contract findings: **654**
-- Errors: **586**
-- Warnings: **68**
+- Non-backup plugin checkouts scanned: **23**
+- Contract findings: **706**
+- Errors: **630**
+- Warnings: **76**
 - Owned umbrella plugins are clean of contract errors; see
   `docs/PLUGIN_CONTRACT.md`.
 
@@ -20,8 +21,8 @@ paths or user-specific values.
 
 | Rule | Count | Owner action |
 |---|---:|---|
-| PlainText coverage | 567 | Patch the owning QML checkout; prioritize remote/device/LLM text. |
-| Timer budget review | 67 | Document one-shot/UI lifetime or reduce permanent polling. |
+| PlainText coverage | 611 | Patch the owning QML checkout; prioritize remote/device/LLM text. |
+| Timer budget review | 75 | Document one-shot/UI lifetime or reduce permanent polling. |
 | Fixed executable path | 18 | Replace ambient interpreter/shell invocation in the owning helper. |
 | Minimal environment | 1 | Remove inherited secret-bearing environment from the helper. |
 | HTTPS-only network code | 1 | Replace the executable-code URL or document a safe boundary. |
@@ -35,10 +36,13 @@ paths or user-specific values.
 | `io.github.duketopceo.dayflow` | 86 | Privacy/retention owner review before enabling capture changes. |
 | `io.github.twiking.omasettings` | 49 | Separate configuration editing from plugin lifecycle ownership. |
 | `tmn73.calendar` | 30 | Add stale-auth/network state and PlainText coverage upstream. |
+| `lukedaduke.tailscale` | 27 | Remove the unused clone from restore guidance or clean its release tree. |
 | `mohamedmansour.finance` | 24 | Validate remote values and document egress. |
+| `hancore.voxtype-enhance` | 19 | Keep the default voice path explicit; patch the owning checkout upstream. |
 | `io.github.duketopceo.omaseal` | 19 | Confirm canonical keyring handoff and package metadata. |
 | `robzolkos.github` | 19 | Bound API/rate-limit/error states upstream. |
 | `nixfred.blip` | 18 | Make gateway/stale/privacy states explicit. |
+| `omaplug` | 18 | Separate plugin lifecycle ownership and clean the release tree. |
 
 The complete scan is reproducible with:
 

@@ -33,9 +33,10 @@ python3 scripts/audit-live-plugins.py --no-git
 
 The inventory distinguishes configured, direct-bar, tray-hosted, disabled, and
 runtime-observed states without writing shell configuration or exposing secret
-values. Use `--fixture-root` for a host-independent audit. Legacy installer
-backups move outside the discovery root and remain available for rollback. No
-`.env` required. See `.env.example`.
+values. Live runs probe a fixed allowlist of user and system service units; use
+`--fixture-root` for a host-independent audit. Legacy installer backups move
+outside the discovery root and remain available for rollback. No `.env`
+required. See `.env.example`.
 
 ## Plugins
 
@@ -81,6 +82,7 @@ See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
 - Plugin trust/reliability rules: [`docs/PLUGIN_CONTRACT.md`](docs/PLUGIN_CONTRACT.md)
 - Active inventory review: [`docs/reviews/active-plugin-estate.md`](docs/reviews/active-plugin-estate.md)
+- Deep runtime/source audit: [`docs/reviews/active-plugin-deep-audit.md`](docs/reviews/active-plugin-deep-audit.md)
 - Host integration health: [`docs/HOST_INTEGRATION.md`](docs/HOST_INTEGRATION.md)
 - Secret/data lifecycle: [`docs/DATA_LIFECYCLE.md`](docs/DATA_LIFECYCLE.md)
 - Surface migration dry-run: [`docs/SURFACE-MIGRATION.md`](docs/SURFACE-MIGRATION.md)
