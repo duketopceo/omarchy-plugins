@@ -179,6 +179,7 @@ Panel {
             radius: 8
             color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.2)
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: "󱐋"
               color: root.accent
@@ -190,6 +191,7 @@ Panel {
             Layout.fillWidth: true
             spacing: 2
             Text {
+              textFormat: Text.PlainText
               text: "SYSTEM TOPOLOGY MAP"
               color: root.fg
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -197,6 +199,7 @@ Panel {
               font.bold: true
             }
             Text {
+              textFormat: Text.PlainText
               text: "All physical, wireless, and network interconnects"
               color: root.muted
               font.pixelSize: 10
@@ -220,6 +223,7 @@ Panel {
                 opacity: root.animPulse
               }
               Text {
+                textFormat: Text.PlainText
                 text: "ONLINE"
                 color: root.accent
                 font.pixelSize: 9
@@ -290,6 +294,7 @@ Panel {
             visible: root.selectedTab === "overview" || root.selectedTab === "net"
 
             Text {
+              textFormat: Text.PlainText
               text: "NETWORK & ENCRYPTED TUNNELS"
               color: root.muted
               font.pixelSize: 10
@@ -363,6 +368,7 @@ Panel {
             visible: root.selectedTab === "overview" || root.selectedTab === "bt"
 
             Text {
+              textFormat: Text.PlainText
               text: "PAIRED WIRELESS PERIPHERALS"
               color: root.muted
               font.pixelSize: 10
@@ -429,6 +435,7 @@ Panel {
             visible: root.selectedTab === "overview" || root.selectedTab === "usb"
 
             Text {
+              textFormat: Text.PlainText
               text: "USB TREE & DOCK INTERCONNECTS"
               color: root.muted
               font.pixelSize: 10
@@ -510,6 +517,7 @@ Panel {
             visible: root.selectedTab === "overview" || root.selectedTab === "storage"
 
             Text {
+              textFormat: Text.PlainText
               text: "STORAGE SILICON & VOLUMES"
               color: root.muted
               font.pixelSize: 10

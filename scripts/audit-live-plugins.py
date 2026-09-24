@@ -624,7 +624,17 @@ def render_markdown(inventory: Mapping[str, Any]) -> str:
                 _escape_cell(entry.get("disposition")),
             )
         )
-    lines.extend(["", "## Warnings", ""])
+    lines.extend(
+        [
+            "",
+            "## Contract follow-up",
+            "",
+            "External findings and owner handoffs are summarized in `docs/reviews/active-plugin-contract.md`.",
+            "",
+            "## Warnings",
+            "",
+        ]
+    )
     warnings = inventory.get("warnings", [])
     if warnings:
         lines.extend(f"- {_escape_cell(warning)}" for warning in warnings)

@@ -367,6 +367,7 @@ Panel {
       RowLayout {
         width: parent.width
         Text {
+          textFormat: Text.PlainText
           text: "Resource & Fan"
           color: root.fg
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -424,6 +425,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "CPU " + root.cpuLoad + "%"
             color: root.levelColor(root.cpuLoad, 70, 90)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -495,6 +497,7 @@ Panel {
                 width: parent.width * Math.max(0, Math.min(1, modelData.percent / 100.0))
               }
               Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: "C" + modelData.core
                 color: root.fg
@@ -515,6 +518,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "Memory"
             color: root.fg
             font.bold: true
@@ -545,6 +549,7 @@ Panel {
           }
         }
         Text {
+          textFormat: Text.PlainText
           text: "avail " + root.memAvail + "G · swap " + root.swapUsed + "/" + root.swapTotal + "G" + (root.ramInfo ? " · " + root.ramInfo : "")
           color: root.muted
           font.pixelSize: Style.font.bodySmall
@@ -619,6 +624,7 @@ Panel {
         visible: root.disks.length > 0
         spacing: Style.space(6)
         Text {
+          textFormat: Text.PlainText
           text: "Storage"
           color: root.fg
           font.bold: true
@@ -680,6 +686,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             Layout.fillWidth: true
             text: "Fans " + root.fan1Rpm + " / " + root.fan2Rpm + " RPM"
             color: root.fg
@@ -695,6 +702,7 @@ Panel {
             border.width: 1
             opacity: root.daemonRunning ? 0.7 : 1.0
             Text {
+              textFormat: Text.PlainText
               id: daemonBtnText
               anchors.centerIn: parent
               text: root.daemonRunning ? "● Daemon Active" : "⚡ Start Daemon"
@@ -840,6 +848,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "TOP MEMORY  ·  j/k  x kill"
             color: root.muted
             font.pixelSize: Style.font.bodySmall
@@ -849,6 +858,7 @@ Panel {
             Layout.fillWidth: true
           }
           Text {
+            textFormat: Text.PlainText
             text: "b btop"
             color: root.muted
             font.pixelSize: Style.font.caption
@@ -882,6 +892,7 @@ Panel {
                 elide: Text.ElideRight
               }
               Text {
+                textFormat: Text.PlainText
                 text: "PID " + (modelData.pid || "")
                 color: root.muted
                 font.pixelSize: Style.font.bodySmall
@@ -901,6 +912,7 @@ Panel {
                 radius: 4
                 color: root.urgent
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: "x"
                   color: Color.background

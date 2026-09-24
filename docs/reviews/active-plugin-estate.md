@@ -99,6 +99,10 @@
 | `ssupt.audio-control` | 0.8.1 | directory | ssupt | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `tmn73.calendar` | 0.2.1 | directory | tmn73 | direct-bar | placed | unknown | bar-surface | unknown | observe |
 
+## Contract follow-up
+
+External findings and owner handoffs are summarized in `docs/reviews/active-plugin-contract.md`.
+
 ## Warnings
 
 - duplicate manifest id: lukedaduke.connections
