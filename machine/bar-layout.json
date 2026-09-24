@@ -1,24 +1,29 @@
 {
   "_meta": {
-    "updated": "2026-09-16T02:04:22-06:00",
-    "source": "live ~/.config/omarchy/shell.json",
-    "note": "Sanitized bar+idle only. Full state: dotfiles/m1-restore/omarchy-host-snapshot.json"
+    "updated": "2026-09-23",
+    "source": "sanitized live shell state",
+    "note": "Runtime counters, credentials, and host paths are intentionally omitted."
   },
   "idle": {
     "lock": 600,
-    "screensaver": 300
+    "screensaver": 480
   },
   "disabledPlugins": [
     "omarchy.lock",
     "omarchy.clock",
     "omarchy.tray",
     "omarchy.monitor",
-    "omarchy.keyboard-layout"
+    "omarchy.keyboard-layout",
+    "omarchy.audio"
   ],
   "bar": {
     "centerAnchor": "tmn73.calendar",
     "layout": {
       "center": [
+        {
+          "id": "omarchy.media",
+          "maxLabelWidth": 140
+        },
         {
           "id": "omarchy.indicators"
         },
@@ -28,14 +33,17 @@
           "showLastUpdated": true
         },
         {
-          "id": "tmn73.calendar",
           "format": "dddd h:mm AP",
           "formatAlt": "d MMMM 'W'ww yyyy",
-          "verticalFormat": "h\n\u2014\nmm\nAP"
+          "id": "tmn73.calendar",
+          "verticalFormat": "h\n—\nmm\nAP"
         },
         {
           "id": "omarchy.weather",
           "unit": "imperial"
+        },
+        {
+          "id": "io.github.duketopceo.dim"
         },
         {
           "id": "omarchy.system-update"
@@ -55,16 +63,19 @@
           "id": "io.github.twiking.omasettings"
         },
         {
-          "id": "omarchy.active-window"
-        },
-        {
-          "id": "omarchy.media",
-          "maxLabelWidth": 140
+          "id": "lukekimball.active-window"
         }
       ],
       "right": [
         {
           "id": "io.github.tyrichards.tray",
+          "order": [
+            "1Password_status_icon_1",
+            "fastpotify",
+            "jankeesvw.herdr",
+            "lukedaduke.nexus",
+            "NordVPN"
+          ],
           "widgets": [
             {
               "entry": {
@@ -78,23 +89,10 @@
               },
               "listed": true
             }
-          ],
-          "order": [
-            "1Password_status_icon_1",
-            "fastpotify",
-            "jankeesvw.herdr",
-            "lukedaduke.nexus",
-            "NordVPN"
           ]
         },
         {
           "id": "nixfred.blip"
-        },
-        {
-          "id": "akitaonrails.ai-usagebar",
-          "lastSelectedEntryId": "cursor",
-          "showProvider": false,
-          "showValue": false
         },
         {
           "id": "omarchy.tailscale"
@@ -103,10 +101,11 @@
           "id": "lukedaduke.connections"
         },
         {
-          "id": "soup.airpods"
+          "id": "akitaonrails.ai-usagebar"
         },
         {
-          "id": "omarchy.audio"
+          "captureNotifications": false,
+          "id": "ssupt.audio-control"
         },
         {
           "id": "crmne.hyprmoncfg"
@@ -117,8 +116,8 @@
         },
         {
           "id": "io.github.ncr.omaphones",
-          "useModeControl": false,
-          "useFastPair": false
+          "useFastPair": false,
+          "useModeControl": false
         },
         {
           "id": "lukedaduke.fan"
@@ -127,15 +126,24 @@
           "id": "io.github.duketopceo.dayflow"
         },
         {
-          "id": "robzolkos.github",
           "iconAlwaysUnlit": true,
+          "id": "robzolkos.github",
           "linkBehavior": "Browser tab"
         },
         {
-          "id": "gemini-bar"
+          "id": "io.github.duketopceo.omaseal"
         },
         {
-          "id": "io.github.duketopceo.omaseal"
+          "id": "io.github.duketopceo.bumblebee"
+        },
+        {
+          "id": "io.github.duketopceo.numbat"
+        },
+        {
+          "id": "io.github.duketopceo.pplx"
+        },
+        {
+          "id": "omarchy.microphone"
         }
       ]
     },
@@ -160,6 +168,9 @@
     },
     {
       "id": "lukedaduke.nexus"
+    },
+    {
+      "id": "io.github.idr4n.clipboard-plus"
     }
   ]
 }

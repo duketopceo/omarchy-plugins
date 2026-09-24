@@ -15,6 +15,7 @@ Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardw
 - `plugins/<id>/Panel.qml` — bar widget + dropdown
 - `plugins/<id>/bin/` — helpers the panel execs
 - `scripts/install.sh` — `--link` or `--copy` into Omarchy plugin dir
+- `scripts/audit-live-plugins.py` — read-only, sanitized live/fixture inventory
 - `scripts/validate-manifests.py` — schema check
 - `catalog.json` — machine-readable plugin list
 - `machine/` — laptop inventory and restore playbook (no secrets)
