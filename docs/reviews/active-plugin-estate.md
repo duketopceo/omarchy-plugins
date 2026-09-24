@@ -31,10 +31,10 @@
 | `akitaonrails.ai-usagebar` | 1.11.0 | directory | AkitaOnRails | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `crmne.hyprmoncfg` | 2.4.0-rc.1 | directory | Carmine Paolino | direct-bar | placed | unknown | service | unknown | observe |
 | `gemini-bar` | 1.0.0 | directory | lukedaduke | disabled | disabled | unknown | bar-surface | unknown | observe |
-| `hancore.voxtype-enhance` | 0.1.3 | directory | HANCORE | disabled | disabled | unknown | bar-surface | unknown | observe |
+| `hancore.voxtype-enhance` | 0.1.3 | directory | HANCORE | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `io.github.duketopceo.bumblebee` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | service | unknown | observe |
 | `io.github.duketopceo.dayflow` | 1.1.0 | directory | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
-| `io.github.duketopceo.dim` | 0.2.0 | directory | duketopceo | direct-bar | placed | unknown | service | unknown | observe |
+| `io.github.duketopceo.dim` | 0.2.0 | directory | duketopceo | disabled | disabled | unknown | service | unknown | observe |
 | `io.github.duketopceo.numbat` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | service | unknown | observe |
 | `io.github.duketopceo.omaseal` | 0.2.2 | directory | lukedaduke | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `io.github.duketopceo.pplx` | 0.2.1 | link | duketopceo | direct-bar | placed | unknown | bar-surface | unknown | observe |
@@ -54,11 +54,11 @@
 | `lukedaduke.standby` | 1.0.4 | link | lukedaduke | implicit | configured | unknown | overlay | unknown | observe |
 | `lukedaduke.tailscale` | 1.0.0 | directory | Omarchy | disabled | disabled | unknown | bar-surface | unknown | observe |
 | `lukedaduke.ticker` | 2.1.5 | link | lukedaduke | disabled | disabled | unknown | bar-surface | unknown | observe |
-| `lukekimball.active-window` | 1.0.0 | directory | Omarchy | direct-bar | placed | unknown | bar-surface | unknown | observe |
+| `lukekimball.active-window` | 1.0.0 | directory | Omarchy | disabled | disabled | unknown | bar-surface | unknown | observe |
 | `mohamedmansour.finance` | 1.1.0 | directory | mohamedmansour | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `nixfred.blip` | 2.6.1 | directory | Larry & Fred | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `omaplug` | 1.6.5 | directory | Fross | direct-bar | placed | unknown | bar-surface | unknown | observe |
-| `omarchy.active-window` | None | host | omarchy | disabled | disabled | unknown | bar-surface | unknown | observe |
+| `omarchy.active-window` | None | host | omarchy | direct-bar | placed | unknown | bar-surface | unknown | observe |
 | `omarchy.agents` | None | host | omarchy | disabled | disabled | unknown | bar-surface | unknown | observe |
 | `omarchy.audio` | None | host | omarchy | disabled | disabled | unknown | bar-surface | unknown | observe |
 | `omarchy.background` | None | host | omarchy | implicit | configured | unknown | service | unknown | observe |
