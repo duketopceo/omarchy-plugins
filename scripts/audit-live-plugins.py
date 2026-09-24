@@ -36,16 +36,6 @@ SECRET_VALUE_RES = (
     re.compile(r"(?i)([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@/\s]+@"),
 )
 
-SERVICE_ALIASES = {
-    "bt-agent.service": "io.github.ncr.omaphones",
-    "dayflow.service": "io.github.duketopceo.dayflow",
-    "dimd.service": "io.github.duketopceo.dim",
-    "hyprmoncfgd.service": "crmne.hyprmoncfg",
-    "omarchy-fan-daemon.service": "lukedaduke.fan",
-    "voxtype.service": "hancore.voxtype-enhance",
-}
-
-
 class InventoryError(ValueError):
     """Raised when an input file cannot be safely interpreted."""
 
@@ -95,8 +85,12 @@ def read_ndjson(path: Path) -> list[dict[str, Any]]:
         raise InventoryError(f"cannot read {path.name}: {exc}") from exc
     if len(raw) > MAX_INPUT_BYTES:
         raise InventoryError(f"input exceeds {MAX_INPUT_BYTES} bytes: {path.name}")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise InventoryError(f"invalid UTF-8 in {path.name}: {exc}") from exc
     entries: list[dict[str, Any]] = []
-    for line_number, line in enumerate(raw.decode("utf-8").splitlines(), 1):
+    for line_number, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
         try:

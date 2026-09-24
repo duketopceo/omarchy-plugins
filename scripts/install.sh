@@ -89,7 +89,7 @@ move_to_backup() {
 }
 
 copy_plugin() {
-  local src="$1" id="$2" target="$3" staging
+  local id="$1" target="$2" staging
   mkdir -p "$BACKUP_ROOT"
   staging="$(mktemp -d "$BACKUP_ROOT/.release-$id-XXXXXX")"
   tar \
@@ -130,7 +130,7 @@ install_one() {
     ln -s "$src" "$target"
     echo "linked $id"
   else
-    copy_plugin "$src" "$id" "$target"
+    copy_plugin "$id" "$target"
     echo "copied $id"
   fi
 }

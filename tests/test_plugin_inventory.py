@@ -261,3 +261,12 @@ def test_probe_environment_excludes_ambient_secret_variables(monkeypatch) -> Non
     assert "SOME_AUTH_TOKEN" not in environment
     assert environment["OMARCHY_PATH"] == "/opt/omarchy"
     assert "PATH" in environment
+
+
+def test_invalid_utf8_registry_is_reported_as_an_inventory_error(tmp_path: Path) -> None:
+    module = load_module()
+    registry = tmp_path / "registry.ndjson"
+    registry.write_bytes(b"\xff")
+
+    with pytest.raises(module.InventoryError):
+        module.read_ndjson(registry)
