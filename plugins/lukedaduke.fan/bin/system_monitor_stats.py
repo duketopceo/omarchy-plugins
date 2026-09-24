@@ -806,14 +806,14 @@ def _has_controllable_fan(devices: dict[str, Path] | None = None) -> bool:
 def fan_control_available(devices: dict[str, Path] | None = None) -> bool:
     """Honest fan-control capability for the panel.
 
-    The mode file is only ever consumed by the daemon, so control is real
-    when the daemon is already running, or when fan hwmon the daemon can
-    drive exists (a pkexec daemon-start will then take effect). Merely
-    shipping omarchy-fan-set is not capability.
+    A daemon heartbeat proves that a helper is alive, not that a writable fan
+    target exists. Control is enabled only when the daemon's supported hwmon
+    interface exposes a real target node; a missing or read-only target keeps
+    the panel telemetry-only.
     """
     if not (Path(__file__).parent / "omarchy-fan-set").is_file():
         return False
-    return is_daemon_running() or _has_controllable_fan(devices)
+    return _has_controllable_fan(devices)
 
 
 def _clip(value: Any, limit: int = MAX_STR) -> str:

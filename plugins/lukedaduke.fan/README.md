@@ -41,10 +41,10 @@ To install it by hand instead:
 
 The daemon polls `$XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode`
 (written by `bin/omarchy-fan-set`) every 2 s and applies the matching
-curve/preset. On hardware with no daemon-driveable fan (no
-`macsmc_hwmon`/`dell_smm` fan targets) and no running daemon, the widget
-degrades to read-only honestly: stats and fan RPM still render, the mode
-badge shows `READ`, and the preset buttons are disabled.
+curve/preset. On hardware with no daemon-driveable fan target, the widget
+remains telemetry-only even if a daemon heartbeat exists: stats and fan RPM
+still render, the mode badge shows `READ`, and the preset buttons are
+disabled.
 
 To remove fan control, stop and disable `omarchy-fan-daemon.service`, remove
 its unit file, and remove the plugin. Removing the plugin does not delete

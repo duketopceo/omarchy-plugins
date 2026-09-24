@@ -146,9 +146,9 @@ def test_fan_control_gated_on_capability(tmp_path: Path, monkeypatch) -> None:
     (dell / "pwm1").write_text("128")
     assert stats.fan_control_available({"dell_smm": dell}) is True
 
-    # A running daemon consumes the mode file even without fan hwmon
+    # A running daemon without a writable fan target is still read-only.
     monkeypatch.setattr(stats, "is_daemon_running", lambda: True)
-    assert stats.fan_control_available({}) is True
+    assert stats.fan_control_available({}) is False
 
 
 def test_soc_power_w_heatpipe(tmp_path: Path) -> None:

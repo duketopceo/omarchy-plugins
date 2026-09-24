@@ -385,7 +385,13 @@ def audit_inventory(
             "owner": "omarchy" if registry.get("firstParty") else (author or "external"),
             "license": license_name,
             "source": source,
-            "source_names": sorted({str(item.get("source_names", [plugin_id])[0]) for item in candidates}),
+            "source_names": sorted(
+                {
+                    str(source_name)
+                    for item in candidates
+                    for source_name in item.get("source_names", [plugin_id])
+                }
+            ),
             "source_status": git_status.get(plugin_id, "unknown"),
             "manifest_valid": manifest_valid,
             "manifest_occurrences": len(candidates),
