@@ -83,7 +83,9 @@ The following user-service families are part of the current desktop contract:
 - `omarchy-sleep-lock.service`, desktop portals, and Hyprland session services
 
 The inventory is descriptive. The live audit records which services are
-running and healthy without copying journal contents or credentials.
+running and healthy without copying journal contents or credentials. Run
+`python3 scripts/check-host-integration.py --format markdown` for the current
+audio, Bluetooth, display, and input capability report.
 
 ## Plugin policy
 

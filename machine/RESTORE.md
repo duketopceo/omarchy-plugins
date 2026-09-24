@@ -145,6 +145,7 @@ uname -m
 hyprctl monitors
 omarchy-shell shell listPlugins
 python3 scripts/audit-live-plugins.py --format json
+python3 scripts/check-host-integration.py --format markdown
 python3 scripts/validate-manifests.py
 ```
 

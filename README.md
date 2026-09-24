@@ -81,6 +81,7 @@ See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
 - Plugin trust/reliability rules: [`docs/PLUGIN_CONTRACT.md`](docs/PLUGIN_CONTRACT.md)
 - Active inventory review: [`docs/reviews/active-plugin-estate.md`](docs/reviews/active-plugin-estate.md)
+- Host integration health: [`docs/HOST_INTEGRATION.md`](docs/HOST_INTEGRATION.md)
 - See `AGENTS.md` for agent context.
 - Plan: `docs/plans/2026-09-02-001-feat-omarchy-plugins-marketplace-plan.md`
 - New laptop restore: [`machine/INDEX.md`](machine/INDEX.md) and [`machine/RESTORE.md`](machine/RESTORE.md) (no secrets; private configs live in `duketopceo/dotfiles`)
