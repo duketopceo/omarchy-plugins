@@ -89,6 +89,18 @@ def test_repeated_link_install_is_idempotent(tmp_path: Path) -> None:
     assert (destination / "lukedaduke.fan").is_symlink()
 
 
+def test_copy_install_is_validated_and_excludes_generated_artifacts(tmp_path: Path) -> None:
+    destination = tmp_path / "plugins"
+    backup_root = tmp_path / "state" / "backups"
+
+    result = run_installer(destination, backup_root, "--copy")
+
+    assert result.returncode == 0, result.stderr
+    assert not list(destination.rglob("__pycache__"))
+    assert not list(destination.rglob("*.pyc"))
+    assert (destination / "lukedaduke.fan" / "manifest.json").is_file()
+
+
 def test_release_validation_rejects_symlinked_plugin_copy(tmp_path: Path) -> None:
     spec = importlib.util.spec_from_file_location("validate_manifests", VALIDATE)
     assert spec is not None and spec.loader is not None

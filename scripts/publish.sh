@@ -4,6 +4,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+RELEASE_CHECK="$PWD/scripts/check-release-readiness.py"
 
 # Keyed by full plugin id — the directory name under plugins/.
 declare -A REPO=(
@@ -24,6 +25,7 @@ ship() {
   [[ -d "plugins/$id" ]] || { echo "no such plugin: $id"; return 1; }
   local remote="${REPO[$id]}"
   echo "== $id -> $remote"
+  python3 "$RELEASE_CHECK" --plugin-id "$id" --format text
 
   local split
   split=$(git subtree split --prefix="plugins/$id" HEAD 2>/dev/null | tail -n1)

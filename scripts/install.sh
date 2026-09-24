@@ -90,9 +90,8 @@ move_to_backup() {
 
 copy_plugin() {
   local src="$1" id="$2" target="$3" staging
-  staging="$BACKUP_ROOT/.release-$id-$$"
-  rm -rf "$staging"
-  mkdir -p "$staging"
+  mkdir -p "$BACKUP_ROOT"
+  staging="$(mktemp -d "$BACKUP_ROOT/.release-$id-XXXXXX")"
   tar \
     --exclude='*/__pycache__' \
     --exclude='*.pyc' \

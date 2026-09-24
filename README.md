@@ -84,6 +84,7 @@ See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 - Host integration health: [`docs/HOST_INTEGRATION.md`](docs/HOST_INTEGRATION.md)
 - Secret/data lifecycle: [`docs/DATA_LIFECYCLE.md`](docs/DATA_LIFECYCLE.md)
 - Surface migration dry-run: [`docs/SURFACE-MIGRATION.md`](docs/SURFACE-MIGRATION.md)
+- Release/publish workflow: [`docs/UPSTREAM.md`](docs/UPSTREAM.md)
 - See `AGENTS.md` for agent context.
 - Plan: `docs/plans/2026-09-02-001-feat-omarchy-plugins-marketplace-plan.md`
 - New laptop restore: [`machine/INDEX.md`](machine/INDEX.md) and [`machine/RESTORE.md`](machine/RESTORE.md) (no secrets; private configs live in `duketopceo/dotfiles`)
