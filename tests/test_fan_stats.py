@@ -192,6 +192,7 @@ def test_collect_gpu_fields() -> None:
     stats = load(STATS, "system_monitor_stats")
     data = stats.collect(sample_seconds=0)
     assert isinstance(data["gpu_load"], int)  # -1 sentinel when unavailable
+    assert isinstance(data["gpu_load_reason"], str)
     assert data["gpu_power_w"] is None or isinstance(data["gpu_power_w"], float)
     assert isinstance(data["gpu_clients"], list)
     json.dumps(data)
@@ -202,4 +203,35 @@ def test_panel_retains_xdg_runtime_dir() -> None:
     panel = PANEL.read_text()
     assert 'Quickshell.env("XDG_RUNTIME_DIR")' in panel
     assert '"XDG_RUNTIME_DIR": null' not in panel
+
+
+def test_daemon_start_has_no_password_elevation_or_host_path() -> None:
+    starter = FAN_DIR / "bin" / "omarchy-fan-daemon-start"
+    source = starter.read_text()
+    assert "omaseal" not in source.lower()
+    assert "sudo -s" not in source.lower()
+    assert "get_omaseal_password" not in source
+    assert "/home/lukekimball" not in source
+    assert "pkexec" in source
+    assert "--caller-uid" in source
+    assert "SUDO_UID" not in source
+
+
+def test_daemon_does_not_invent_a_target_user(monkeypatch) -> None:
+    from importlib.machinery import SourceFileLoader
+
+    daemon_path = ROOT / "plugins/lukedaduke.fan/bin/omarchy-fan-daemon"
+    daemon = SourceFileLoader("omarchy_fan_daemon_unknown_uid", str(daemon_path)).load_module()
+    monkeypatch.delenv("OMARCHY_FAN_UID", raising=False)
+    monkeypatch.delenv("SUDO_UID", raising=False)
+    monkeypatch.setattr(daemon.os, "getuid", lambda: 0)
+    monkeypatch.setattr(daemon, "_active_run_user", lambda: None)
+
+    assert daemon.target_uid() == -1
+
+
+def test_daemon_start_resolves_service_from_plugin_directory() -> None:
+    starter = (FAN_DIR / "bin" / "omarchy-fan-daemon-start").read_text()
+    assert 'SERVICE_SRC="$PLUGIN_DIR/omarchy-fan-daemon.service"' in starter
+    assert 'SERVICE_DST="/etc/systemd/system/omarchy-fan-daemon.service"' in starter
 

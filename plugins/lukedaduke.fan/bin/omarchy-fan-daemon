@@ -33,6 +33,18 @@ AUTO_CURVE = [
 ]
 
 
+def _active_run_user() -> int | None:
+    try:
+        run_users = [
+            int(path.name)
+            for path in Path("/run/user").glob("[0-9]*")
+            if path.is_dir() and int(path.name) >= 1000
+        ]
+    except (OSError, ValueError):
+        return None
+    return sorted(run_users)[0] if run_users else None
+
+
 def target_uid() -> int:
     """Explicit target UID: via --uid arg, OMARCHY_FAN_UID env, SUDO_UID env, or current UID."""
     for i, arg in enumerate(sys.argv[:-1]):
@@ -50,14 +62,8 @@ def target_uid() -> int:
     uid = os.getuid()
     if uid != 0:
         return uid
-    # When running as root, detect active user session from /run/user
-    try:
-        run_users = [int(p.name) for p in Path("/run/user").glob("[0-9]*") if p.is_dir() and int(p.name) >= 1000]
-        if run_users:
-            return sorted(run_users)[0]
-    except (OSError, ValueError):
-        pass
-    return 1001
+    # Root must receive an explicit desktop user; never invent a UID.
+    return _active_run_user() or -1
 
 
 def get_hwmon() -> tuple[str, Path | None]:
@@ -304,6 +310,8 @@ def curve_pwm(temp: int, curve: list[list[int]]) -> int:
 def main() -> None:
     hw_type, hwmon = get_hwmon()
     uid = target_uid()
+    if uid < 0:
+        raise SystemExit("fan daemon requires an explicit desktop user")
     while True:
         mode = get_requested_mode(uid)
         temp = get_max_temp()

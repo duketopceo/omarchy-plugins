@@ -22,16 +22,21 @@ omarchy plugin enable lukedaduke.fan
 ## Fan daemon setup
 
 Fan control is applied by `bin/omarchy-fan-daemon`, which must run as
-root to write `/sys/class/hwmon/*/fan*_target` / `pwm*`. The widget wires
-it for you: click **⚡ Start Daemon** in the panel (or just pick a fan
-mode — the first change auto-starts it). That runs
-`bin/omarchy-fan-daemon-start` via `pkexec`, which installs the shipped
-`omarchy-fan-daemon.service` into `/etc/systemd/system/` and starts it.
+root to write `/sys/class/hwmon/*/fan*_target` / `pwm*`. The panel is
+**telemetry-only until the operator explicitly chooses a fan mode**. A mode
+change requests the system authorization helper (`/usr/bin/pkexec`); it never
+reads a stored sudo password or pipes a password to `sudo`. The authorized
+helper installs the shipped `omarchy-fan-daemon.service` and starts it.
+
+If the authorization helper is unavailable, the panel remains read-only and
+shows the setup failure instead of attempting an implicit elevation. The
+umbrella repository does not install a system service as a side effect of
+opening the panel.
 
 To install it by hand instead:
 
 ```bash
-pkexec ~/.config/omarchy/plugins/lukedaduke.fan/bin/omarchy-fan-daemon-start
+/usr/bin/pkexec ~/.config/omarchy/plugins/lukedaduke.fan/bin/omarchy-fan-daemon-start
 ```
 
 The daemon polls `$XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode`
@@ -40,6 +45,16 @@ curve/preset. On hardware with no daemon-driveable fan (no
 `macsmc_hwmon`/`dell_smm` fan targets) and no running daemon, the widget
 degrades to read-only honestly: stats and fan RPM still render, the mode
 badge shows `READ`, and the preset buttons are disabled.
+
+To remove fan control, stop and disable `omarchy-fan-daemon.service`, remove
+its unit file, and remove the plugin. Removing the plugin does not delete
+user fan history or unrelated system services.
+
+## Data and privacy
+
+The plugin reads local hardware telemetry and writes only the local fan-mode
+request/curve state. It sends no telemetry, account data, or credentials to a
+network service. Authorization is local to the system policy agent.
 
 ### GPU telemetry on Apple Silicon (Asahi)
 

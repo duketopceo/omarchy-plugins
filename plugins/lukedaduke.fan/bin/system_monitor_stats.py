@@ -825,6 +825,13 @@ def collect(sample_seconds: float = SAMPLE_SECONDS) -> dict[str, Any]:
     devices = hwmon_paths()
     cpu_temp, fan1_rpm, fan2_rpm = cpu_temp_and_fans(devices)
     gpu_name, gpu_load, gpu_temp = gpu_info()
+    gpu_load_reason = ""
+    if gpu_load is None:
+        gpu_load_reason = (
+            "Asahi DRM utilization counter unavailable"
+            if _is_asahi_gpu()
+            else "GPU utilization counter unavailable"
+        )
 
     cpu_load, cpu_cores = _read_cpu_stats(sample_seconds=sample_seconds)
 
@@ -837,6 +844,7 @@ def collect(sample_seconds: float = SAMPLE_SECONDS) -> dict[str, Any]:
         "cpu_temp": _clip(cpu_temp, 16),
         "gpu_name": _clip(gpu_name),
         "gpu_load": gpu_load if gpu_load is not None else -1,
+        "gpu_load_reason": _clip(gpu_load_reason, 80),
         "gpu_temp": _clip(gpu_temp, 16),
         "gpu_power_w": soc_power_w(devices),
         "gpu_clients": gpu_clients(),

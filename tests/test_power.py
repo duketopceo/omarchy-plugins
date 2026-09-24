@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -169,6 +170,31 @@ def test_update_history_state_dir_denied_returns_empty(
 
     monkeypatch.setattr(helper, "_open_state_dir", _deny)
     assert helper.update_history(50, "Discharging") == []
+
+
+def test_missing_battery_is_reported_without_synthetic_history(
+    helper, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helper.os.path, "exists", lambda _path: False)
+    capacity, status = helper.get_current_battery()
+    assert capacity is None
+    assert status == "Battery unavailable"
+    assert helper.update_history(capacity, status) == []
+    assert not (helper.STATE_DIR / HISTORY_NAME).exists()
+
+
+def test_history_update_serializes_concurrent_writers(helper) -> None:
+    original = helper.time.time
+    try:
+        helper.time.time = lambda: 1000
+        capacities = [40, 41, 42, 43, 44]
+        with ThreadPoolExecutor(max_workers=len(capacities)) as pool:
+            list(pool.map(lambda capacity: helper.update_history(capacity, "Discharging"), capacities))
+    finally:
+        helper.time.time = original
+
+    history = _read(helper)
+    assert len(history) == len({point["cap"] for point in history}) == 5
 
 
 # ---------- make_ascii_graph ----------

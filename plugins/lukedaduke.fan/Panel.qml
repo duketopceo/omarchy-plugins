@@ -26,6 +26,7 @@ Panel {
   property string cpuTemp: "--"
   property string gpuName: "GPU"
   property int gpuLoad: -1
+  property string gpuLoadReason: ""
   property string gpuTemp: "--"
   property real gpuPowerW: -1
   property var gpuClients: []
@@ -75,7 +76,7 @@ Panel {
   })
 
   function triggerDaemon() {
-    Quickshell.execDetached(["pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
+    Quickshell.execDetached(["/usr/bin/pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
     refreshTimer.restart()
   }
 
@@ -233,6 +234,8 @@ Panel {
             var gl = parseInt(data.gpu_load)
             root.gpuLoad = isNaN(gl) ? -1 : Math.max(0, Math.min(100, gl))
           }
+          if (data.gpu_load_reason !== undefined)
+            root.gpuLoadReason = clipStr(data.gpu_load_reason, 80)
           if (data.gpu_temp)
             root.gpuTemp = clipStr(data.gpu_temp, 16)
           root.gpuPowerW = (typeof data.gpu_power_w === "number") ? data.gpu_power_w : -1
@@ -560,7 +563,7 @@ Panel {
 
       Column {
         width: parent.width
-        visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--"
+        visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--" || root.gpuLoadReason !== ""
         spacing: Style.space(6)
         RowLayout {
           width: parent.width
@@ -581,6 +584,15 @@ Panel {
             font.bold: true
             font.pixelSize: Style.font.bodySmall
           }
+        }
+        Text {
+          visible: root.gpuLoad < 0 && root.gpuLoadReason !== ""
+          width: parent.width
+          text: root.gpuLoadReason
+          textFormat: Text.PlainText
+          color: root.muted
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
         }
         Rectangle {
           visible: root.gpuLoad >= 0

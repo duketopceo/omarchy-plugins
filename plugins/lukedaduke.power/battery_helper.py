@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import fcntl
 import json
 import os
 import shutil
@@ -77,68 +78,82 @@ def _write_history(dirfd, history):
         os.close(fd)
     os.rename(tmp, HISTORY_NAME, src_dir_fd=dirfd, dst_dir_fd=dirfd)
 
+def _open_history_lock(dirfd: int) -> int:
+    lock_name = f"{HISTORY_NAME}.lock"
+    fd = os.open(lock_name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=dirfd)
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid():
+        os.close(fd)
+        raise PermissionError("history lock is not a user-owned regular file")
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def _close_history_lock(fd: int) -> None:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
 def get_current_battery():
-    cap = 50
-    status = "Discharging"
-    import glob
-    # Asahi/macSMC exposes macsmc-battery; generic ACPI uses BAT*/BATT*
+    # Asahi/macSMC exposes macsmc-battery; generic ACPI uses BAT*/BATT*.
     sys_name = None
     for cand in ("macsmc-battery", "BAT0", "BAT1", "BATT"):
         if os.path.exists(f"/sys/class/power_supply/{cand}/capacity"):
             sys_name = cand
             break
-    if sys_name:
-        try:
-            with open(f"/sys/class/power_supply/{sys_name}/capacity") as f:
-                cap = int(f.read().strip())
-        except Exception:
-            pass
-        try:
-            with open(f"/sys/class/power_supply/{sys_name}/status") as f:
-                status = f.read().strip()
-        except Exception:
-            pass
+    if not sys_name:
+        return None, "Battery unavailable"
+    try:
+        with open(f"/sys/class/power_supply/{sys_name}/capacity") as f:
+            cap = int(f.read().strip())
+    except (OSError, ValueError):
+        return None, "Battery capacity unavailable"
+    try:
+        with open(f"/sys/class/power_supply/{sys_name}/status") as f:
+            status = f.read().strip()
+    except OSError:
+        status = "Status unavailable"
     # macsmc-ac online=1 means plugged in; at the 80% charge limit the SMC
     # reports "Not charging" — surface that as plugged-in instead.
     try:
         ac_online = int(open("/sys/class/power_supply/macsmc-ac/online").read().strip())
         if ac_online and status == "Not charging":
             status = "Plugged in (charge limit reached)"
-    except Exception:
+    except (OSError, ValueError):
         pass
     return cap, status
 
 def update_history(current_cap, status):
+    if not isinstance(current_cap, int) or not 0 <= current_cap <= 100:
+        return []
     history = []
     now = int(time.time())
     try:
         dirfd = _open_state_dir()
     except PermissionError:
         return history
+    lockfd = None
     try:
+        lockfd = _open_history_lock(dirfd)
         history = _read_history(dirfd)
         if not isinstance(history, list):
             history = []
-    finally:
-        os.close(dirfd)
 
-    # Only append if last point is at least 60s ago or empty
-    if not history or (now - history[-1].get("time", 0)) >= 60 or history[-1].get("cap") != current_cap:
-        history.append({"time": now, "cap": current_cap, "status": status})
+        # Only append if last point is at least 60s ago or empty.
+        if not history or (now - history[-1].get("time", 0)) >= 60 or history[-1].get("cap") != current_cap:
+            history.append({"time": now, "cap": current_cap, "status": status})
 
-    # Keep ~4h at one point per minute.
-    if len(history) > 240:
-        history = history[-240:]
-
-    try:
-        dirfd = _open_state_dir()
-    except PermissionError:
-        return history
-    try:
+        # Keep ~4h at one point per minute.
+        if len(history) > 240:
+            history = history[-240:]
         _write_history(dirfd, history)
-    except Exception:
-        pass
+    except (OSError, ValueError, TypeError):
+        return history
     finally:
+        if lockfd is not None:
+            _close_history_lock(lockfd)
         os.close(dirfd)
     return history
 
@@ -284,16 +299,23 @@ def main():
     # so history accrues while the panel is closed too.
     if "--sample" in os.sys.argv[1:]:
         return
-    ascii_graph, spark = make_ascii_graph(history, cap)
-    top_consumers = get_top_consumers()
-    
-    out = {
-        "capacity": cap,
-        "status": status,
-        "spark": spark,
-        "ascii_graph": ascii_graph,
-        "top_consumers": top_consumers
-    }
+    if cap is None:
+        out = {
+            "capacity": None,
+            "status": status,
+            "spark": "",
+            "ascii_graph": "",
+            "top_consumers": [],
+        }
+    else:
+        ascii_graph, spark = make_ascii_graph(history, cap)
+        out = {
+            "capacity": cap,
+            "status": status,
+            "spark": spark,
+            "ascii_graph": ascii_graph,
+            "top_consumers": get_top_consumers(),
+        }
     print(json.dumps(out))
 
 if __name__ == "__main__":
