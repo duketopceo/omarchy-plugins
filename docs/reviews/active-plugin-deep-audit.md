@@ -29,6 +29,39 @@ user data.
   warnings**. A broad non-backup external/local scan has **706 findings**; those
   remain owner handoffs, not changes to make in this repository.
 
+## Reload verification
+
+Reload verification: 2026-09-23 22:59 local time.
+
+- `omarchy-shell shell rescanPlugins` completed successfully.
+- The post-rescan inventory is unchanged: 70 discovered, 49 enabled, 29 direct
+  bar entries, 20 enabled non-bar entries, 2 hosted widgets, 0 duplicates, and
+  0 warnings.
+- The host integration check remains healthy; six mapped service owners are
+  active and Dim remains inactive.
+- No Quickshell restart or user/system service restart was performed, matching
+  the requested reload scope.
+- No additional owned-plugin defect appeared during the refresh. The remaining
+  work is external-owner remediation, release provenance, or an explicit
+  reversible migration decision for the unused local clones.
+
+## Additional service candidates
+
+The host exposes several relevant units that are not yet assigned to one plugin
+ID in the fixed inventory map. They are not treated as failures: some are
+host-owned or shared by more than one surface.
+
+- `omarchy-asahi-mic.service` — host microphone support.
+- `omarchy-sleep-lock.service` — shared host lock/idle ownership.
+- `omarchy-calendar-sync-all.service` — calendar synchronization outside this
+  repository's ownership boundary.
+- `dayflow-backup.service`, `dayflow-export.service`, and
+  `dayflow-summarize.service` — auxiliary Dayflow data-lifecycle jobs; capture
+  health alone does not prove retention, export, or summarization health.
+
+Add a future mapping only after each unit's owner and surface relationship are
+confirmed; do not infer ownership from a similarly named plugin directory.
+
 ## Runtime ownership
 
 `active` below means `systemctl is-active` returned `active`; it does not imply
