@@ -21,16 +21,50 @@ DEFAULT_CURVE = [
     [75, 255],
 ]
 
-# God-to-great auto curve: aggressively keeps temperatures in low 50s and below
+# Auto curve tuned for Asahi/M1 Max: silent under ~40C, then a long smooth
+# ramp. Between the EMA below and the slew limit, one hot sensor cannot make
+# the fans bounce.
 AUTO_CURVE = [
     [0, 0],
-    [36, 40],    # ~1500-1900 RPM whisper baseline
-    [40, 75],    # ~2200-2400 RPM gentle proactive cooling
-    [44, 120],   # ~2800-3000 RPM active thermal rejection
-    [48, 175],   # ~3400-3700 RPM aggressive ramp before 50°C
-    [51, 220],   # ~3900-4300 RPM high power to cap temperatures
-    [54, 255],   # 100% full blast to crush heat spikes
+    [40, 0],     # silent: fans off in the normal idle band
+    [44, 35],    # ~1600-1900 RPM, barely audible
+    [48, 70],    # ~2200-2500 RPM gentle cooling
+    [52, 115],   # ~2800-3100 RPM
+    [57, 165],   # ~3400-3600 RPM
+    [62, 215],   # ~3900-4300 RPM
+    [68, 255],   # 100% full blast
 ]
+
+# Anti-bounce: the loop samples every 2s and fans were re-targeted instantly,
+# so a max-temp reading flickering across a curve step boundary made RPM
+# oscillate. Smooth the temperature (EMA ~10s time constant) and rate-limit
+# PWM changes: fast on the way up (heat spikes still get cooled), slow on the
+# way down so the fan settles instead of hunting.
+TEMP_EMA_ALPHA = 0.30
+PWM_RISE_STEP = 12   # per 2s tick -> ~42s to full speed
+PWM_FALL_STEP = 4    # per 2s tick -> ~2min to fully settle
+PWM_DEADBAND = 2     # ignore target changes smaller than this
+
+
+class FanSmoother:
+    def __init__(self) -> None:
+        self.temp_ema: float | None = None
+        self.pwm: int = 0
+
+    def smooth_temp(self, temp: int) -> float:
+        if self.temp_ema is None:
+            self.temp_ema = float(temp)
+        else:
+            self.temp_ema += TEMP_EMA_ALPHA * (temp - self.temp_ema)
+        return self.temp_ema
+
+    def slew_pwm(self, target: int) -> int:
+        delta = target - self.pwm
+        if abs(delta) < PWM_DEADBAND:
+            return self.pwm
+        step = PWM_RISE_STEP if delta > 0 else PWM_FALL_STEP
+        self.pwm += max(-step, min(step, delta))
+        return self.pwm
 
 
 def _active_run_user() -> int | None:
@@ -312,14 +346,15 @@ def main() -> None:
     uid = target_uid()
     if uid < 0:
         raise SystemExit("fan daemon requires an explicit desktop user")
+    smoother = FanSmoother()
     while True:
         mode = get_requested_mode(uid)
-        temp = get_max_temp()
+        raw_temp = get_max_temp()
+        temp = smoother.smooth_temp(raw_temp)
         on_ac = is_on_ac()
 
         if mode == "auto":
-            # God-to-great auto curve: proactively cools to maintain low 50s and below
-            pwm = curve_pwm(temp, AUTO_CURVE)
+            pwm = smoother.slew_pwm(curve_pwm(temp, AUTO_CURVE))
             if temp >= 52:
                 set_platform_profile("cool")
             elif temp >= 45:
@@ -342,7 +377,7 @@ def main() -> None:
 
         elif mode == "custom" or mode.startswith("custom-"):
             curve = load_curve(uid)
-            pwm = curve_pwm(temp, curve)
+            pwm = smoother.slew_pwm(curve_pwm(temp, curve))
             if temp >= 65:
                 set_platform_profile("cool")
             elif temp >= 55:

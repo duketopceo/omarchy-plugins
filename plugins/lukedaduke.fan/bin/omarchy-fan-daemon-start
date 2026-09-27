@@ -58,4 +58,7 @@ sed \
     "$SERVICE_SRC" >"$TMP_SERVICE"
 /usr/bin/install -o root -g root -m 0644 "$TMP_SERVICE" "$SERVICE_DST"
 "$SYSTEMCTL" daemon-reload
+if ! "$SYSTEMCTL" is-enabled -q omarchy-fan-daemon.service 2>/dev/null; then
+    "$SYSTEMCTL" enable omarchy-fan-daemon.service
+fi
 "$SYSTEMCTL" restart omarchy-fan-daemon.service
