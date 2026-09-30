@@ -19,11 +19,13 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+
+  // Precise kernel readings from battery_helper.py, separate from batteryInfo
+  // (which is omarchy's coarse display string) so the panel can show the
+  // underlying numbers rather than re-parsing formatted text.
+  readonly property var tele: (root.powerData && root.powerData.telemetry) || ({})
+  readonly property bool haveTele: root.tele && root.tele.energy_wh !== undefined
   readonly property bool showPercentage: setting("showPercentage", false) === true
-  // With the percentage shown the button paints a text block wider than an
-  // icon, so the open-panel mark takes the painted width instead of the
-  // icon-sized fraction of the slot the fallback assumes.
-  readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -55,6 +57,71 @@ Panel {
   function modeLabel() {
     var device = UPower.displayDevice
     return Model.modeLabel(device, root.discharging, upowerStates())
+  }
+
+  // ---- precise readouts -------------------------------------------------
+  // Each prefers the kernel's own number and falls back to omarchy's coarse
+  // string, so the panel degrades to what it showed before rather than blank.
+
+  // 0..1 for the health bar; a brand-new pack reads 1.0.
+  readonly property real healthFraction: {
+    var n = Number(root.tele.health_pct)
+    if (!isFinite(n) || n <= 0) return 0
+    return Math.max(0, Math.min(1, n / 100))
+  }
+
+  readonly property bool healthDegraded: {
+    var n = Number(root.tele.health_pct)
+    return isFinite(n) && n > 0 && n < 80
+  }
+
+  // Big number only — the verdict and the cycles live in the caption.
+  readonly property string healthHeadline: {
+    var n = Number(root.tele.health_pct)
+    return isFinite(n) && n > 0 ? n.toFixed(1) + "%" : Model.DASH
+  }
+
+  readonly property string healthCaption: {
+    var bits = []
+    if (root.tele.health) bits.push(root.tele.health)
+    var cycles = root.tele.cycle_count
+    if (typeof cycles === "number") bits.push(cycles + " cycles")
+    return bits.length > 0 ? bits.join(" · ") : Model.DASH
+  }
+
+  // The rare-but-real numbers, on one dim line instead of three label rows.
+  readonly property string packFooter: {
+    var bits = []
+    var limit = Model.fmtLimit(root.tele.charge_limit_pct, root.tele.charge_resume_pct)
+    if (limit !== Model.DASH) bits.push(limit)
+    var made = Model.fmtAge(root.tele.manufactured)
+    if (made !== Model.DASH) bits.push("made " + made)
+    if (root.tele.model) bits.push(root.tele.model)
+    var ah = root.tele.charge_throughput_ah
+    // "lifetime" is implied by sitting under a cycle count; spelling it out
+    // pushed this line past the panel width and cost us the value.
+    if (typeof ah === "number") bits.push(ah.toFixed(1) + " Ah")
+    return bits.join(" · ")
+  }
+
+  function energyText() {
+    return Model.fmtEnergy(root.tele.energy_wh, root.tele.energy_full_wh)
+  }
+
+  function timeText() {
+    // tte/ttf are kernel seconds and move every tick; omarchy's string is the
+    // fallback when the helper has not reported yet.
+    var secs = root.discharging ? root.tele.time_to_empty_s : root.tele.time_to_full_s
+    if (typeof secs === "number" && secs > 0) return Model.fmtRuntime(secs)
+    return root.batteryInfo.time || Model.DASH
+  }
+
+  function powerText() {
+    return Model.fmtPower(root.tele.power_w, root.tele.flow)
+  }
+
+  function tempText() {
+    return Model.fmtTemp(root.tele.temp_c)
   }
 
   function profileIcon(name) {
@@ -156,11 +223,24 @@ Panel {
   })
 
   function refresh() {
+    refreshTelemetry()
+    refreshProfiles()
+  }
+
+  // Volatile readings: charge, power, drain. Every panel tick used to respawn
+  // all three helpers, but the active profile changes on a human timescale —
+  // polling it alongside the battery just burned a process spawn per tick.
+  function refreshTelemetry() {
     if (!batteryPresent) return
 
     if (!batteryProc.running) { batteryProc.running = true; batteryDeadline.restart() }
-    if (!profilesProc.running) { profilesProc.running = true; profilesDeadline.restart() }
     if (!powerDataProc.running) { powerDataProc.running = true; powerDataDeadline.restart() }
+  }
+
+  function refreshProfiles() {
+    if (!batteryPresent) return
+
+    if (!profilesProc.running) { profilesProc.running = true; profilesDeadline.restart() }
   }
 
   function updateKeyValue(raw) {
@@ -356,7 +436,13 @@ Panel {
     onTriggered: if (!samplerProc.running) { samplerProc.running = true; samplerDeadline.restart() }
   }
 
-  Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+  // Telemetry every 10s: the fuel gauge's own numbers move far slower than the
+  // 5s cadence, and each tick costs a Python interpreter start.
+  Timer { interval: 10000; running: root.opened; repeat: true; onTriggered: root.refreshTelemetry() }
+
+  // Profiles on their own slow tick so the picker still notices a change made
+  // outside the panel.
+  Timer { interval: 30000; running: root.opened; repeat: true; onTriggered: root.refreshProfiles() }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a
@@ -548,12 +634,17 @@ Panel {
           }
         }
 
-        // ---------- Stats ----------
+        // ---------- Battery ----------
         // Visibility is intentionally only gated by "we've ever loaded data" so
         // the section never collapses mid-transition. fullyCharged is *not* part
         // of the condition: UPower briefly reports FullyCharged on plug-in when
         // the battery sits above the charge-control start threshold, and we
         // refuse to flicker the whole panel for that ~1s window.
+        //
+        // Only the four numbers worth acting on get a row. Voltage, current and
+        // the coulomb counters are all in the helper's JSON for anyone who
+        // wants them, but they're redundant here (V x A = W) and a third label
+        // row would turn a glanceable panel into a spreadsheet.
         Row {
           visible: root.batteryInfo.percentage !== undefined
           width: parent.width
@@ -562,22 +653,54 @@ Panel {
           Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
-            InfoPair { label: "Battery size"; value: root.batteryInfo.size || "" }
-            InfoPair { label: "Charge cycles"; value: root.batteryInfo.cycles || "—" }
+            InfoPair {
+              label: root.discharging ? "Time left" : "Time to full"
+              value: root.batteryFlowIdle && !root.haveTele ? "-" : root.timeText()
+            }
+            InfoPair { label: "Energy"; value: root.energyText() }
           }
 
           Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
-            InfoPair {
-              label: root.chargeThresholdActive ? "Charge limit" : (root.discharging ? "Time left" : "Time to full")
-              value: root.chargeThresholdActive ? (root.batteryInfo.threshold || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
-            }
-            InfoPair {
-              label: root.chargeThresholdActive ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
-              value: root.chargeThresholdActive ? "Holding" : (root.batteryFull ? "-" : (root.batteryInfo.rate || ""))
-            }
+            InfoPair { label: "Power"; value: root.powerText() }
+            InfoPair { label: "Temperature"; value: root.tempText() }
           }
+        }
+
+        // ---------- Battery health ----------
+        // The one number a battery widget should lead with after charge level:
+        // how much of the pack is left for good. It gets a bar rather than a
+        // label row because it's a slowly-moving quantity you want to feel,
+        // not read. Colour stays neutral until it actually degrades.
+        HealthGauge {
+          visible: root.haveTele
+          fraction: root.healthFraction
+          headline: root.healthHeadline
+          caption: root.healthCaption
+          degraded: root.healthDegraded
+        }
+
+        // Everything else is real but rarely actionable, so it collapses to one
+        // quiet line instead of three more label rows.
+        Text {
+          width: parent.width
+          visible: root.haveTele
+          textFormat: Text.PlainText
+          // packFooter is a readonly property, not a function — calling it
+          // here silently yields an empty string and the line vanishes.
+          text: root.packFooter
+          color: root.bar.foreground
+          opacity: 0.45
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          // Wrap rather than elide: a long gauge model must push the line to a
+          // second row, not silently amputate the last value.
+          wrapMode: Text.WordWrap
+          // Left-aligned with everything else above it. Centred, this line was
+          // the only ragged-left row in the panel, so the eye landed on the
+          // quietest line on the screen — backwards for a footnote.
+          horizontalAlignment: Text.AlignLeft
         }
 
         // ---------- Historical ASCII battery charge graph ----------
@@ -615,6 +738,8 @@ Panel {
               lineHeight: 1.15
             }
           }
+          // The caption under the sparkline already carries the least-squares
+          // drain slope, so a separate "Drain rate" row would only repeat it.
         }
 
         // ---------- Top power & resource consumers ----------
@@ -733,6 +858,82 @@ Panel {
           }
         }
       }
+    }
+  }
+
+  // Long-term capacity as a quiet bar. Neutral until the pack is genuinely
+  // worn, so a healthy battery adds no colour noise to the bar at all.
+  component HealthGauge: Column {
+    id: gauge
+    property real fraction: 0
+    property string headline: ""
+    property string caption: ""
+    property bool degraded: false
+
+    width: gauge.parent ? gauge.parent.width : 0
+    spacing: Style.space(5)
+
+    Item {
+      width: parent.width
+      implicitHeight: gaugeText.implicitHeight
+
+      Text {
+        id: gaugeLabel
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: "BATTERY HEALTH"
+        color: root.bar.foreground
+        opacity: 0.6
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
+      }
+
+      Text {
+        id: gaugeText
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: gauge.headline
+        color: gauge.degraded ? Color.urgent : root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
+
+        Behavior on color { ColorAnimation { duration: 260 } }
+      }
+    }
+
+    Rectangle {
+      width: parent.width
+      height: Style.space(3)
+      radius: height / 2
+      color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+
+      Rectangle {
+        id: gaugeFill
+        height: parent.height
+        radius: parent.radius
+        color: gauge.degraded ? Color.urgent : root.bar.foreground
+        opacity: 0.85
+        width: Math.max(0, Math.min(1, gauge.fraction)) * parent.width
+
+        Behavior on width { NumberAnimation { duration: 480; easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: 260 } }
+      }
+    }
+
+    Text {
+      width: parent.width
+      textFormat: Text.PlainText
+      text: gauge.caption
+      color: root.bar.foreground
+      opacity: 0.45
+      font.family: root.bar.fontFamily
+      font.pixelSize: Style.font.caption
+      elide: Text.ElideRight
     }
   }
 
