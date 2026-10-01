@@ -44,14 +44,19 @@ omarchy plugin enable io.github.duketopceo.numbat
 - Dropdown: findings feed (rule, agent, relative time) + per-agent last-activity
 - **Findings toasts**: a persistent shell service stats the record files every
   5s; when they grow it diffs findings against a persisted watermark and raises
-  a severity-tinted popup (max 3, ~8s each, click to dismiss) — even with the
-  dropdown closed. First launch baselines silently; no popup storms
+  a severity-tinted popup (max 3, ~8s each, click to open the panel) — even with
+  the dropdown closed. First launch baselines silently; no popup storms
+- **Jev agent review**: the Jev tab (or `bin/jev_review.py`) sends recent
+  numbat events to [TypeSafe Jev](https://openrouter.ai/typesafe/jev-1.13)
+  via OpenRouter's decisions API and surfaces useless tool calls, wrong
+  thinking, and issue type — read-only, opt-in, needs `OPENROUTER_API_KEY`
 - Live event stream: `~/.numbat/records.ndjson` (`--emit all` hooks) is tailed
   every poll and takes precedence over the scan-cached feed — the Log tab marks
-  the source STREAMED or SCANNED
+  the source STREAMED or SCANNED, and shows the record file's size, growth
+  rate, and a rotation hint once it passes 512MiB (numbat has no rotation yet)
 - Graceful setup pane when numbat or its hooks aren't installed yet — no dead calls
 - Reads `~/.numbat/findings.ndjson` and `~/.numbat/records.ndjson` live via
-  bounded 256KiB tails, and runs `numbat scan --emit all` on a 10-min
+  bounded 1MiB tails, and runs `numbat scan --emit all` on a 10-min
   stale-cache cycle for the events backfill
   (summary cached at 0600 under `~/.local/state/omarchy/numbat/`)
 
@@ -74,7 +79,11 @@ omarchy plugin enable io.github.duketopceo.numbat
   `O_NOFOLLOW`, owner + regular-file checks, control-char normalization
 - Monitor-only by contract — shipped upstream rules are observe-only and this
   plugin cannot flip enforce mode
-- No telemetry, no network calls from the plugin itself
+- No telemetry and no network calls from the plugin itself — the one
+  exception is the Jev review tab: it is opt-in and user-triggered, and
+  sends the recent numbat events you choose to OpenRouter's decisions API.
+  The QML side never sees `OPENROUTER_API_KEY`; the Python helper resolves
+  it from the runtime environment only.
 
 ## External dependencies
 

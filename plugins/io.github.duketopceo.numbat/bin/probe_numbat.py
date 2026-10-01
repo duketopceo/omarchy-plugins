@@ -41,7 +41,14 @@ SCAN_INTERVAL_S = int(os.environ.get("NUMBAT_SCAN_INTERVAL_S", "600"))
 HOOKS_TIMEOUT_S = 3.0
 MAX_OUT_BYTES = 262144
 SCAN_MAX_BYTES = 32 * 1024 * 1024
-TAIL_BYTES = 256 * 1024
+# Live-tail read window for the record sinks. At a busy ~10MB/day write rate
+# 256KiB covered ~40min of stream; 1MiB stretches that to ~2.5h while staying
+# a bounded read. Findings older than the window still surface via the
+# 10-min scan cache — this only widens the live feed.
+TAIL_BYTES = 1024 * 1024
+# records.ndjson is append-only with no upstream rotation; hint the user to
+# rotate by hand once it passes half a gigabyte.
+ROT_HINT_BYTES = 512 * 1024 * 1024
 WINDOW_S = 24 * 3600
 FUTURE_SKEW_S = 300
 MAX_STR = 64
@@ -281,28 +288,32 @@ def _iter_records(data, seeked):
 def _load_record_tails(numbat_home):
     """Tail both record sinks in one descriptor-relative pass.
 
-    -> (findings_recs|None, records_recs|None, records_present, status)
+    -> (findings_recs|None, records_recs|None, records_present, status,
+        findings_stat, records_stat)
     where status is ok | absent | untrusted. A missing/unreadable sink
     yields None for its list; records_present marks that records.ndjson
     itself exists as an owned regular file (the --emit all hook sink) —
-    an empty file still counts as present.
+    an empty file still counts as present. *_stat are (bytes, mtime)
+    from _stat_file, or None.
     """
     try:
         dirfd = _open_dir(numbat_home)
     except PermissionError:
-        return None, None, False, "untrusted"
+        return None, None, False, "untrusted", None, None
     except OSError:
-        return None, None, False, "absent"
+        return None, None, False, "absent", None, None
     try:
         findings_res = _read_tail(dirfd, FINDINGS_NAME, TAIL_BYTES)
         records_res = _read_tail(dirfd, RECORDS_NAME, TAIL_BYTES)
+        f_stat = _stat_file(dirfd, FINDINGS_NAME)
+        r_stat = _stat_file(dirfd, RECORDS_NAME)
     finally:
         os.close(dirfd)
     findings = (list(_iter_records(*findings_res))
                 if findings_res is not None else None)
     records = (list(_iter_records(*records_res))
                if records_res is not None else None)
-    return findings, records, records_res is not None, "ok"
+    return findings, records, records_res is not None, "ok", f_stat, r_stat
 
 
 def _stat_file(dirfd, name):
@@ -550,11 +561,14 @@ def _hooked_agents(binary, run):
         line = line.strip().lower()
         if not line or line.startswith("agent"):
             continue
-        # status rows look like: "codex    installed ..." or "x  not installed"
-        if "install" in line and "not" not in line.split()[1:3]:
-            name = line.split()[0]
-            if name and name not in hooked:
-                hooked.append(name)
+        # Table rows are "<name>  <status-word>  <description...>" where
+        # status is the second whitespace-separated column. Parse that
+        # column instead of scanning the whole line — description text may
+        # itself contain words like "installed".
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == "installed":
+            if parts[0] not in hooked:
+                hooked.append(parts[0])
     return hooked
 
 
@@ -606,6 +620,20 @@ def _write_scan_cache(state_dir, payload):
         pass
     finally:
         os.close(dirfd)
+
+
+def _rate_bpd(sample, cur_stat, now_ts):
+    """Bytes/day growth rate between a cached {bytes, at} size sample and
+    the current (bytes, mtime) stat. None when not computable."""
+    if not isinstance(sample, dict) or not isinstance(cur_stat, tuple):
+        return None
+    p_b, p_t = sample.get("bytes"), sample.get("at")
+    if not isinstance(p_b, (int, float)) or not isinstance(p_t, (int, float)):
+        return None
+    dt = now_ts - p_t
+    if dt <= 0:
+        return None
+    return max(0.0, (cur_stat[0] - p_b) / dt * 86400)
 
 
 def _fresh_enough(cache, now_ts):
@@ -679,6 +707,12 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         "scan_error": None,
         "records_path": FINDINGS_PATH_DISPLAY,
         "live_records_path": None,
+        "records_bytes": 0,
+        "records_mtime": None,
+        "records_rate_bpd": None,
+        "records_rot_hint": False,
+        "findings_bytes": 0,
+        "findings_mtime": None,
         "error": None,
     }
 
@@ -687,15 +721,23 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         return result
     result["installed"] = True
 
-    f_tail, r_tail, live_present, tail_status = _load_record_tails(home)
+    f_tail, r_tail, live_present, tail_status, f_stat, r_stat = \
+        _load_record_tails(home)
     if tail_status == "untrusted":
         result["error"] = "untrusted ~/.numbat directory"
         return result
     if live_present:
         result["live_records_path"] = RECORDS_PATH_DISPLAY
+    if isinstance(r_stat, tuple):
+        result["records_bytes"], result["records_mtime"] = r_stat
+        result["records_rot_hint"] = r_stat[0] >= ROT_HINT_BYTES
+    if isinstance(f_stat, tuple):
+        result["findings_bytes"], result["findings_mtime"] = f_stat
 
     # --- scan + hook-status on a stale-cache cycle ---
     cache = _load_scan_cache(state)
+    prev_sample = (cache.get("records_size_sample")
+                   if isinstance(cache, dict) else None)
     if cache is None or not _fresh_enough(cache, time.time()):
         records = _scan_records(binary, run)
         hooked = _hooked_agents(binary, run)
@@ -704,6 +746,10 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
                 "scanned_at": _iso_z(now),
                 "summary": _summarize_records(records, now),
                 "hooked_agents": hooked if isinstance(hooked, list) else [],
+                "records_size_sample": {
+                    "bytes": r_stat[0] if isinstance(r_stat, tuple) else 0,
+                    "at": time.time(),
+                },
             }
             _write_scan_cache(state, payload)
             cache = dict(payload)
@@ -716,6 +762,8 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
             result["scan_error"] = "numbat scan failed"
     else:
         result["scanned_at"] = cache.get("scanned_at")
+
+    result["records_rate_bpd"] = _rate_bpd(prev_sample, r_stat, time.time())
 
     summary = (cache.get("summary") or {}) if isinstance(cache, dict) else {}
     hooked = cache.get("hooked_agents", []) if isinstance(cache, dict) else []
