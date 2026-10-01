@@ -973,3 +973,33 @@ def test_refresh_never_prints_advisory_bodies(tmp_path):
     payload = mod.refresh(fetch=fake_fetch(blob), home=tmp_path, now=NOW)
     assert "SECRET-ADVISORY-NAME" not in json.dumps(payload)
     assert "advisory 1" not in json.dumps(payload)
+
+
+def test_age_verb_reports_catalog_staleness(tmp_path, monkeypatch):
+    """catalog_age_s rides the stat-only age probe for the service's
+    auto-refresh — None when upstream.json is absent."""
+    import os
+    import time as _t
+    mod = load()
+    home = tmp_path
+    # no catalog.d at all -> unknown age
+    payload = mod.collect_age(now=NOW, home=home, tool="/usr/bin/bumblebee")
+    assert payload["catalog_age_s"] is None
+    assert payload["catalog_refreshed_at"] is None
+    json.dumps(payload)
+
+    # upstream.json landed 8 days ago -> stale per the service's 7d gate
+    catdir = home / ".config/omarchy/plugins-data/bumblebee/catalog.d"
+    catdir.mkdir(parents=True)
+    merged = catdir / "upstream.json"
+    merged.write_text('{"entries": []}')
+    old = NOW - 8 * 86400
+    os.utime(merged, (old, old))
+    payload = mod.collect_age(now=NOW, home=home, tool="/usr/bin/bumblebee")
+    assert payload["catalog_age_s"] >= 8 * 86400 - 1
+    assert payload["catalog_refreshed_at"] is not None
+
+    # fresh upstream.json -> under the 7d gate
+    os.utime(merged, (NOW, NOW))
+    payload = mod.collect_age(now=NOW, home=home, tool="/usr/bin/bumblebee")
+    assert payload["catalog_age_s"] <= 1
