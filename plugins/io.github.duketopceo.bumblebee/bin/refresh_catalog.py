@@ -3,9 +3,10 @@
 
 Perplexity's bumblebee ships advisories as threat_intel/*.json inside each
 release's source tree; the CLI itself has no update path, so the plugin owns
-refresh. This helper runs ONLY when invoked (panel button or CLI) — never on
-a timer, never during status polls. Offline-by-default: nothing here runs
-unless the user asks.
+refresh. This helper runs when invoked — panel button, CLI, or the service's
+staleness auto-refresh (fires at most once an hour, only when catalog.d/
+upstream.json is older than 7 days; opt out with "autoCatalogRefresh": false
+on the plugin's shell.json entry). It never self-schedules.
 
 Integrity story: the fetch is pinned — fixed repo, fixed RELEASE_TAG (the
 release whose threat_intel was seeded into catalog.d), HTTPS only (re-checked
