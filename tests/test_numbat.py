@@ -4,6 +4,8 @@ import importlib.util
 import json
 import os
 import re
+
+import pytest
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,6 +28,12 @@ EXPECTED_KEYS = [
     "scan_error",
     "records_path",
     "live_records_path",
+    "records_bytes",
+    "records_mtime",
+    "records_rate_bpd",
+    "records_rot_hint",
+    "findings_bytes",
+    "findings_mtime",
     "error",
 ]
 
@@ -225,16 +233,16 @@ def test_findings_tail_is_live_and_bounded(tmp_path: Path) -> None:
               "timestamp": "2026-09-16T11:00:00Z"}
     tail_new = {"record_type": "finding", "rule_id": "marker-new",
                 "timestamp": "2026-09-16T11:59:30Z"}
-    lines = [json.dumps(head)] + [json.dumps(filler)] * 5000 + [json.dumps(tail_new)]
+    lines = ([json.dumps(head)] + [json.dumps(filler)] * 20000
+             + [json.dumps(tail_new)])
     home.mkdir()
     path = home / "findings.ndjson"
     path.write_text("\n".join(lines) + "\n")
-    assert path.stat().st_size > 256 * 1024
+    assert path.stat().st_size > mod.TAIL_BYTES
     data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
     rules = [f["rule"] for f in data["findings"]]
     assert "head-only" not in rules
     assert rules[0] == "marker-new"
-    assert data["hooks_seen"] is True
 
 
 def test_garbage_and_unknown_records_skipped(tmp_path: Path) -> None:
@@ -577,7 +585,7 @@ def test_symlinked_records_file_not_followed(tmp_path: Path) -> None:
 
 
 def test_records_tail_is_bounded(tmp_path: Path) -> None:
-    """records.ndjson >256KiB: tail keeps the newest records only."""
+    """records.ndjson >TAIL_BYTES: tail keeps the newest records only."""
     mod = load()
     home = tmp_path / ".numbat"
     head = {"record_type": "event", "source_agent": "a0",
@@ -589,11 +597,12 @@ def test_records_tail_is_bounded(tmp_path: Path) -> None:
     tail_new = {"record_type": "event", "source_agent": "a0",
                 "event_type": "marker-new",
                 "timestamp": "2026-09-16T11:59:00Z"}
-    lines = [json.dumps(head)] + [json.dumps(filler)] * 5000 + [json.dumps(tail_new)]
+    lines = ([json.dumps(head)] + [json.dumps(filler)] * 20000
+             + [json.dumps(tail_new)])
     home.mkdir()
     path = home / "records.ndjson"
     path.write_text("\n".join(lines) + "\n")
-    assert path.stat().st_size > 256 * 1024
+    assert path.stat().st_size > mod.TAIL_BYTES
     data = _probe(mod, tmp_path, run=_fake_run(scan_records=[]), home=home)
     kinds = [e["kind"] for e in data["events"]]
     assert "head-only" not in kinds
@@ -798,3 +807,110 @@ def test_live_events_merge_with_cached_agents(tmp_path: Path) -> None:
         {"name": "dormant", "last_event": "2026-09-10T00:00:00Z"},
         {"name": "ancient", "last_event": "2026-08-01T00:00:00Z"},
     ]
+
+
+# ---- A2: widened live tail + sink stats (A3) + structural hook parse (A5) ----
+
+
+def test_tail_window_is_one_mib(tmp_path: Path) -> None:
+    """A finding in the first bytes of a >256KiB records.ndjson is still
+    visible — the old 256KiB tail would have cut it."""
+    mod = load()
+    assert mod.TAIL_BYTES == 1024 * 1024
+    home = tmp_path / ".numbat"
+    home.mkdir(parents=True)
+    old = json.dumps({"record_type": "finding", "rule_id": "early.hit",
+                      "timestamp": "2026-09-16T11:00:00Z",
+                      "source_agent": "codex"}) + "\n"
+    pad = json.dumps({"record_type": "diagnostic",
+                      "timestamp": "2026-09-16T11:30:00Z",
+                      "blob": "x" * 1000}) + "\n"
+    (home / "records.ndjson").write_text(old + pad * 350)
+    data = _probe(mod, tmp_path, run=_fake_run(), home=home)
+    assert "early.hit" in [f["rule"] for f in data["findings"]]
+
+
+def test_probe_reports_sink_sizes_and_rotation_hint(tmp_path: Path) -> None:
+    mod = load()
+    mod.ROT_HINT_BYTES = 16
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "codex",
+         "event_type": "tool_call", "timestamp": "2026-09-16T11:59:00Z",
+         "content_preview": "pad-pad-pad"},
+    ])
+    _write_findings(home, [
+        {"record_type": "finding", "rule_id": "r",
+         "timestamp": "2026-09-16T11:58:00Z", "source_agent": "codex"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(), home=home)
+    assert data["records_bytes"] == (home / "records.ndjson").stat().st_size
+    assert data["records_bytes"] > 16
+    assert data["records_rot_hint"] is True
+    assert data["findings_bytes"] == (home / "findings.ndjson").stat().st_size
+    assert data["records_mtime"] is not None
+
+
+def test_rotation_hint_stays_off_below_threshold(tmp_path: Path) -> None:
+    mod = load()
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "codex",
+         "event_type": "e", "timestamp": "2026-09-16T11:59:00Z"},
+    ])
+    data = _probe(mod, tmp_path, run=_fake_run(), home=home)
+    assert data["records_bytes"] > 0
+    assert data["records_rot_hint"] is False
+
+
+def test_growth_rate_from_cached_size_sample(tmp_path: Path) -> None:
+    """The scan-cache size sample turns into a bytes/day rate."""
+    import time as _t
+    mod = load()
+    state = tmp_path / "state"
+    state.mkdir(parents=True)
+    home = tmp_path / ".numbat"
+    _write_records(home, [
+        {"record_type": "event", "source_agent": "a0",
+         "event_type": "e", "timestamp": "2026-09-16T11:59:00Z"},
+    ])
+    cur_size = (home / "records.ndjson").stat().st_size
+    cache = {
+        "scanned_at": "2026-09-16T11:00:00Z",
+        "hooked_agents": [],
+        "summary": {"findings": [], "findings_24h": 0, "events": [],
+                    "active_agents": []},
+        # sample from exactly one day ago at size 0 -> rate == cur_size/day
+        "records_size_sample": {"bytes": 0, "at": _t.time() - 86400},
+    }
+    (state / "scan-cache.json").write_text(json.dumps(cache))
+    data = _probe(mod, tmp_path, run=_no_run, home=home)
+    assert data["records_rate_bpd"] == pytest.approx(cur_size, rel=0.01)
+
+    # no sample -> no rate (first run after upgrade)
+    cache.pop("records_size_sample")
+    (state / "scan-cache.json").write_text(json.dumps(cache))
+    data = _probe(mod, tmp_path, run=_no_run, home=home)
+    assert data["records_rate_bpd"] is None
+
+    # a refresh stamps a fresh sample into the cache payload
+    (state / "scan-cache.json").unlink()
+    data = _probe(mod, tmp_path, run=_fake_run())
+    written = json.loads((state / "scan-cache.json").read_text())
+    assert written["records_size_sample"]["bytes"] == cur_size
+
+
+def test_hooked_agents_parses_status_column(tmp_path: Path) -> None:
+    """'installed' inside a description must not count; only column 2 does."""
+    mod = load()
+    data = _probe(
+        mod, tmp_path,
+        run=_fake_run(hook_status=(
+            "AGENT       STATUS          NOTES\n"
+            "codex       installed       numbat hooks installed\n"
+            "claude      not installed   run: numbat hook install claude\n"
+            "gemini      pending install queued\n"
+            "weird       n/a             says installed but is not\n"
+        )),
+    )
+    assert data["hooked_agents"] == ["codex"]

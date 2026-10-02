@@ -68,7 +68,7 @@
     {
       "id": "io.github.duketopceo.bumblebee",
       "path": "plugins/io.github.duketopceo.bumblebee",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "kinds": [
         "service",
         "bar-widget"
@@ -78,7 +78,7 @@
     {
       "id": "io.github.duketopceo.numbat",
       "path": "plugins/io.github.duketopceo.numbat",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "kinds": [
         "service",
         "bar-widget"
@@ -93,6 +93,15 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-pplx"
+    },
+    {
+      "id": "io.github.duketopceo.neo",
+      "path": "plugins/io.github.duketopceo.neo",
+      "version": "0.1.0",
+      "kinds": [
+        "bar-widget"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-neo"
     }
   ]
 }

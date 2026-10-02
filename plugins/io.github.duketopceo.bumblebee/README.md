@@ -50,10 +50,11 @@ catalog. This plugin ships a small starter set at `catalog/exposures.json`
 
 Drop additional advisories as `*.json` files in
 `~/.config/omarchy/plugins-data/bumblebee/catalog.d/` — they are merged at scan
-time. Catalog updates to the shipped set ride plugin updates; nothing is fetched
-at runtime unless you ask for it.
+time. Catalog updates to the shipped set ride plugin updates; the runtime
+fetch is only the upstream merge described below (manual, or auto when the
+merged catalog goes a week stale).
 
-### Advisory refresh (opt-in)
+### Advisory refresh
 
 Upstream releases ship a `threat_intel/` directory of advisories (~1000
 entries). The **Refresh** button in the panel's Catalog tab — or
@@ -61,10 +62,14 @@ entries). The **Refresh** button in the panel's Catalog tab — or
 (`perplexityai/bumblebee` tag `v0.1.2`, HTTPS only, ~64MiB cap), extracts
 only `threat_intel/*.json` (path-traversal/symlink/non-regular members
 rejected), validates each entry against the 0.1.0 catalog schema, and merges
-them atomically to `catalog.d/upstream.json` (0600). It runs only when
-invoked — never on a timer, never during status polls — and any failure
-leaves `catalog.d` untouched. The Catalog tab shows "upstream refreshed Xd
-ago" so staleness is visible instead of silent.
+them atomically to `catalog.d/upstream.json` (0600).
+
+The service also auto-refreshes when `catalog.d/upstream.json` is missing or
+older than 7 days — checked on the hourly stat poll, throttled to one attempt
+per poll, opt-out via `"autoCatalogRefresh": false` on the plugin's
+`shell.json` entry. Any failure leaves `catalog.d` untouched. The Catalog tab
+shows the per-source entry counts and "upstream refreshed Xd ago" so
+staleness is visible instead of silent.
 
 ## Privacy & security posture
 
@@ -72,8 +77,10 @@ ago" so staleness is visible instead of silent.
   source files; MCP `env` values (which can hold secrets) are not emitted.
 - The helper runs with a scrubbed environment, fixed tool paths, bounded output,
   and hard deadlines; cache files are owner-verified, descriptor-relative, 0600.
-- No telemetry. The only network call is the opt-in catalog refresh (pinned
-  repo+tag, HTTPS); everything else is local.
+- No telemetry. The only network call is the catalog refresh (pinned
+  repo+tag, HTTPS) — manual via the Refresh button, or automatic only when
+  the catalog is >7d stale (opt-out: `"autoCatalogRefresh": false`).
+  Everything else is local.
 
 ## External dependencies
 

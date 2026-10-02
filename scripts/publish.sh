@@ -18,6 +18,7 @@ declare -A REPO=(
   [io.github.duketopceo.bumblebee]="git@github.com:duketopceo/omarchy-bumblebee.git"
   [io.github.duketopceo.numbat]="git@github.com:duketopceo/omarchy-numbat.git"
   [io.github.duketopceo.pplx]="git@github.com:duketopceo/omarchy-pplx.git"
+  [io.github.duketopceo.neo]="git@github.com:duketopceo/omarchy-neo.git"
 )
 
 ship() {

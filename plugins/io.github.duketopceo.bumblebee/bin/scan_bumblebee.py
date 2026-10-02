@@ -691,6 +691,10 @@ def collect_age(now=None, tool=None, home=None):
     if tool is None:
         tool = _tool("bumblebee")
     cached, mtime = _read_cache(home / CACHE_DIR_REL)
+    # upstream.json's mtime is the "catalog last refreshed" clock the
+    # service uses for its staleness auto-refresh — stat-only, like the
+    # rest of this probe.
+    merged_mtime = _file_mtime(home / USER_CATALOG_REL / MERGED_CATALOG_NAME)
     payload = {
         "installed": bool(tool),
         "ok": True,
@@ -698,6 +702,10 @@ def collect_age(now=None, tool=None, home=None):
         "exposure_count": 0,
         "exposure_ids": [],
         "exposures": [],
+        "catalog_age_s": (max(0, int(now - merged_mtime))
+                        if merged_mtime is not None else None),
+        "catalog_refreshed_at": (_iso(merged_mtime)
+                                 if merged_mtime is not None else None),
         "error": None,
     }
     if cached is None or mtime is None:
@@ -743,7 +751,8 @@ def main():
         if "age" in args:
             payload = {"installed": False, "ok": False, "last_scan_age_s": None,
                        "exposure_count": 0, "exposure_ids": [],
-                       "exposures": []}
+                       "exposures": [], "catalog_age_s": None,
+                       "catalog_refreshed_at": None}
         else:
             payload = _base_payload(False, 0)
         payload["error"] = "internal: " + _clean(exc, 120)

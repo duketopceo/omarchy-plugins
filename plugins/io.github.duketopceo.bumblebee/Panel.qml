@@ -16,6 +16,7 @@ Panel {
   property var exposures: []
   property int catalogEntries: 0
   property var catalogNames: []
+  property var catalogSources: ({})
   property string catalogRefreshedAt: ""
   property var scanLog: []
   property bool partial: false
@@ -205,6 +206,10 @@ Panel {
           root.catalogNames = (Array.isArray(data.catalog_names) ? data.catalog_names : []).slice(0, 12)
           root.catalogRefreshedAt = typeof data.catalog_refreshed_at === "string"
                                     ? data.catalog_refreshed_at : ""
+          root.catalogSources = (data.catalog_sources
+                                 && typeof data.catalog_sources === "object"
+                                 && !Array.isArray(data.catalog_sources))
+                                ? data.catalog_sources : ({})
           root.scanLog = (Array.isArray(data.log) ? data.log : []).slice(0, 20)
           root.partial = data.partial === true
           root.lastError = typeof data.error === "string" ? data.error : ""
@@ -724,6 +729,17 @@ Panel {
             }
             Text {
               width: parent.width
+              text: "bundled " + String(root.catalogSources.bundled || 0)
+                    + " · yours " + String(root.catalogSources.catalog_d || 0)
+                    + " · upstream " + String(root.catalogSources.upstream || 0)
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+            }
+            Text {
+              width: parent.width
               text: "add advisories in ~/.config/omarchy/plugins-data/bumblebee/catalog.d/"
               textFormat: Text.PlainText
               color: root.dim
@@ -733,8 +749,9 @@ Panel {
             }
           }
 
-          // Opt-in fetch of the pinned upstream threat_intel release.
-          // Offline by default — nothing fetches until this is pressed.
+          // Manual fetch of the pinned upstream threat_intel release. The
+          // service also auto-refreshes once catalog.d/upstream.json is >7d
+          // stale (autoCatalogRefresh:false opts out).
           Rectangle {
             id: catRefreshBtn
             height: Style.space(24)

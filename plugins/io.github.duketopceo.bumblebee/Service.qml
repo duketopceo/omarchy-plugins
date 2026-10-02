@@ -53,8 +53,18 @@ Item {
 
   readonly property int staleAfterS: 6 * 3600   // helper's default interval
   readonly property int pollMs: 60 * 60 * 1000  // 1 stat per hour
+  readonly property int catalogStaleAfterS: 7 * 24 * 3600  // auto-refresh past a week
   readonly property int toastMs: 10000
   readonly property int maxToasts: 3
+
+  // Session-only throttle so a failed refresh retries next poll, not every
+  // poll — the upstream tarball is a ~64MiB fetch.
+  property double lastCatalogRefreshMs: 0
+
+  // A refresh that lands while a scan is in flight queues one rescan on the
+  // new catalog — otherwise the merged upstream.json sits unread until the
+  // next stale tick (~6h).
+  property bool _rescanAfterRefresh: false
 
   readonly property color urgent: Color.urgent
   readonly property color popupBg: Color.notifications.background
@@ -191,6 +201,21 @@ Item {
     scanDeadline.restart()
   }
 
+  // Catalog staleness rides the hourly `age` probe (pure stat — the helper
+  // emits upstream.json's age with no exec). Older than a week, or never
+  // fetched: refresh once per poll cycle at most. Opt out by setting
+  // "autoCatalogRefresh": false on this plugin's shell.json entry.
+  function maybeRefreshCatalog(catAgeS) {
+    if (ls.loaded && ls.entry && ls.entry.autoCatalogRefresh === false) return
+    if (catalogRefreshProc.running) return
+    if (catAgeS >= 0 && catAgeS <= catalogStaleAfterS) return
+    var now = Date.now()
+    if (now - lastCatalogRefreshMs < pollMs) return
+    lastCatalogRefreshMs = now
+    catalogRefreshProc.running = true
+    refreshDeadline.restart()
+  }
+
   // ------------------------------------------------------------- watcher
 
   Timer {
@@ -217,6 +242,10 @@ Item {
           var data = JSON.parse(text)
           if (!data || typeof data !== "object") return
           var installed = data.installed === true
+          var catAge = (typeof data.catalog_age_s === "number"
+                        && isFinite(data.catalog_age_s))
+                       ? data.catalog_age_s : -1
+          root.maybeRefreshCatalog(catAge)
           var age = (typeof data.last_scan_age_s === "number"
                      && isFinite(data.last_scan_age_s))
                     ? data.last_scan_age_s : -1
@@ -287,7 +316,13 @@ Item {
           console.warn("scan_bumblebee --force stderr: " + err.substring(0, 500))
       }
     }
-    onExited: scanDeadline.stop()
+    onExited: {
+      scanDeadline.stop()
+      if (root._rescanAfterRefresh) {
+        root._rescanAfterRefresh = false
+        root.forceScan()
+      }
+    }
   }
 
   // Cold scans walk the whole package inventory — allow real time. The
@@ -301,6 +336,60 @@ Item {
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         scanProc.signal(9)
+      }
+    }
+  }
+
+  // Auto-refresh of the pinned upstream threat_intel catalog — user-opt-out
+  // via autoCatalogRefresh:false; the helper's own JOB_DEADLINE_S is 25s and
+  // this deadline group-kills just past it.
+  Process {
+    id: catalogRefreshProc
+    command: [root.py, root.pluginRoot + "/bin/refresh_catalog.py"]
+    clearEnvironment: true
+    environment: root.procEnv
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        refreshDeadline.stop()
+        try {
+          if (!text || text.trim().length === 0) return
+          var data = JSON.parse(text)
+          if (!data || typeof data !== "object") return
+          if (data.error) {
+            console.warn("bumblebee: catalog auto-refresh failed: "
+                         + String(data.error).substring(0, 120))
+            return
+          }
+          if (data.ok === true) {
+            // New catalog on disk — re-scan on it. If a scan is running it
+            // may have read the old catalog; queue the rescan at its exit.
+            if (scanProc.running) root._rescanAfterRefresh = true
+            else root.forceScan()
+          }
+        } catch (e) {}
+      }
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var err = String(text || "").trim()
+        if (err)
+          console.warn("refresh_catalog stderr: " + err.substring(0, 500))
+      }
+    }
+    onExited: refreshDeadline.stop()
+  }
+
+  Timer {
+    id: refreshDeadline
+    interval: 30000
+    onTriggered: {
+      if (catalogRefreshProc.running) {
+        var pid = catalogRefreshProc.pid
+        if (pid > 0)
+          Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
+        catalogRefreshProc.signal(9)
       }
     }
   }

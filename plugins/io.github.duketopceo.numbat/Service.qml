@@ -531,7 +531,13 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.dropToast(cardSlot.index)
+                // Click dismisses the toast and opens the findings panel via
+                // the panel's IpcHandler (target = manifest id).
+                onClicked: {
+                  root.dropToast(cardSlot.index)
+                  Quickshell.execDetached(["/usr/bin/qs", "ipc", "call",
+                                           "io.github.duketopceo.numbat", "open"])
+                }
               }
             }
           }
