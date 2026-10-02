@@ -36,7 +36,7 @@ MainPID=5678
 
 def test_unit_states_parses_show_output():
     mod = load()
-    mod._run = lambda argv, **kw: SHOW_OUT
+    mod._run = lambda argv, **kw: (0, SHOW_OUT)
     st = mod._unit_states()
     assert st["chromium"] == {"active": True, "sub": "running", "pid": 1234}
     assert st["shim"] == {"active": False, "sub": "dead", "pid": 0}
@@ -45,7 +45,7 @@ def test_unit_states_parses_show_output():
 
 def test_unit_states_survive_systemctl_failure():
     mod = load()
-    mod._run = lambda argv, **kw: None
+    mod._run = lambda argv, **kw: (None, "")
     st = mod._unit_states()
     assert all(v["active"] is False for v in st.values())
     assert set(st) == {"chromium", "shim", "server"}
@@ -96,7 +96,7 @@ def test_control_rejects_bad_verb_and_bounds_calls(monkeypatch):
 
     calls = []
     monkeypatch.setattr(mod, "_run",
-                        lambda argv, **kw: calls.append(list(argv)) or "")
+                        lambda argv, **kw: (0, calls.append(list(argv)) or ""))
     monkeypatch.setattr(mod, "_unit_states",
                         lambda: {k: {"active": True, "sub": "running", "pid": 1}
                                  for k in mod.UNITS})
@@ -108,3 +108,20 @@ def test_control_rejects_bad_verb_and_bounds_calls(monkeypatch):
                       "browserclaw-chromium", "browserclaw-shim",
                       "browserclaw-server"]]
     assert ok["status"]["units"]["server"]["active"] is True
+
+
+def test_control_reports_nonzero_systemctl(monkeypatch):
+    mod = load()
+    monkeypatch.setattr(mod, "_run", lambda argv, **kw: (1, "Failed."))
+    monkeypatch.setattr(mod, "_unit_states",
+                        lambda: {k: {"active": False, "sub": "dead", "pid": 0}
+                                 for k in mod.UNITS})
+    monkeypatch.setattr(mod, "_listening_ports",
+                        lambda: {"9211": False, "49337": False, "49338": False})
+    res = mod._control("restart")
+    assert res["ok"] is False and res["error"] == "systemctl_failed"
+    assert res["action"] == "restart"
+    # exec failure (timeout/missing binary) is also a control failure
+    monkeypatch.setattr(mod, "_run", lambda argv, **kw: (None, ""))
+    res = mod._control("restart")
+    assert res["ok"] is False and res["error"] == "systemctl_failed"

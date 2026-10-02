@@ -20,6 +20,7 @@ Never writes under ~/.numbat — read-only consumer like probe_numbat.py.
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 import urllib.error
@@ -73,6 +74,19 @@ def _clean(value, limit=MAX_STR):
     return s.strip()[:limit]
 
 
+# Scrub credential-shaped strings before anything leaves the machine — the
+# review state is the only payload this helper sends to the network.
+_SECRET_RE = re.compile(
+    r"(Bearer\s+\S+|sk-[A-Za-z0-9_-]{8,}|sk-ant-\S+|ghp_[A-Za-z0-9]{10,}"
+    r"|gho_\S+|github_pat_\S+|AKIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{20,}"
+    r"|xox[baprs]-\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----)"
+)
+
+
+def _redact(value):
+    return _SECRET_RE.sub("[redacted]", _clean(value, 200))
+
+
 def _api_key():
     key = os.environ.get("OPENROUTER_API_KEY", "")
     if key:
@@ -119,8 +133,11 @@ def _event_summary(rec):
     kind = _clean(rec.get("observed_event_type") or rec.get("event_type")
                   or rec.get("kind") or rec.get("record_type") or "event")
     agent = _clean(rec.get("source_agent") or rec.get("agent") or rec.get("agent_name"))
-    summary = _clean(rec.get("summary") or rec.get("detail") or rec.get("message")
-                  or rec.get("content_preview") or rec.get("observed_content_preview"), 200)
+    # content_preview / observed_content_preview are verbatim captured file
+    # or shell content — never sent to OpenRouter. Author-authored summary
+    # fields still get the secret scrubber before they leave.
+    summary = _redact(rec.get("summary") or rec.get("detail")
+                      or rec.get("message"))
     return {"agent": agent, "kind": kind, "summary": summary}
 
 
@@ -172,14 +189,18 @@ def _human_summary(answers: dict) -> str:
     wt = answers.get("wrong_thinking", {})
     it = answers.get("issue_type", {})
     sev = answers.get("severity", {})
-    if isinstance(ut, dict) and ut.get("noul", 0) >= 0.7:
+    def _num(d, key):
+        v = d.get(key)
+        return v if isinstance(v, (int, float)) and not isinstance(v, bool) \
+            else None
+    if isinstance(ut, dict) and (_num(ut, "noul") or 0) >= 0.7:
         parts.append("Useless tool calls detected")
-    if isinstance(wt, dict) and wt.get("noul", 0) >= 0.7:
+    if isinstance(wt, dict) and (_num(wt, "noul") or 0) >= 0.7:
         parts.append("Wrong or circular thinking detected")
     choice = it.get("choice") if isinstance(it, dict) else None
-    if choice and choice != "none":
+    if isinstance(choice, str) and choice and choice != "none":
         parts.append(f"Issue: {choice.replace('_', ' ')}")
-    score = sev.get("score") if isinstance(sev, dict) else None
+    score = _num(sev, "score") if isinstance(sev, dict) else None
     if score is not None and score >= 0.66:
         parts.append("High time waste")
     if not parts:
@@ -219,10 +240,17 @@ def review(agent_filter=None, limit=MAX_EVENTS, model=DEFAULT_MODEL):
     except Exception as exc:
         out["error"] = _clean(str(exc), 160)
         return out
+    if not isinstance(resp, dict):
+        out["error"] = "unexpected Jev response shape"
+        return out
+    answers = resp.get("answers")
+    if answers is not None and not isinstance(answers, dict):
+        out["error"] = "unexpected Jev answers shape"
+        return out
     out["ok"] = True
-    out["answers"] = resp.get("answers")
+    out["answers"] = answers
     out["model"] = resp.get("model")
-    out["summary"] = _human_summary(out["answers"] or {})
+    out["summary"] = _human_summary(answers or {})
     return out
 
 

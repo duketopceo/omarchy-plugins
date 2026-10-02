@@ -61,6 +61,11 @@ Item {
   // poll — the upstream tarball is a ~64MiB fetch.
   property double lastCatalogRefreshMs: 0
 
+  // A refresh that lands while a scan is in flight queues one rescan on the
+  // new catalog — otherwise the merged upstream.json sits unread until the
+  // next stale tick (~6h).
+  property bool _rescanAfterRefresh: false
+
   readonly property color urgent: Color.urgent
   readonly property color popupBg: Color.notifications.background
   readonly property color popupText: Color.notifications.text
@@ -311,7 +316,13 @@ Item {
           console.warn("scan_bumblebee --force stderr: " + err.substring(0, 500))
       }
     }
-    onExited: scanDeadline.stop()
+    onExited: {
+      scanDeadline.stop()
+      if (root._rescanAfterRefresh) {
+        root._rescanAfterRefresh = false
+        root.forceScan()
+      }
+    }
   }
 
   // Cold scans walk the whole package inventory — allow real time. The
@@ -345,9 +356,17 @@ Item {
           if (!text || text.trim().length === 0) return
           var data = JSON.parse(text)
           if (!data || typeof data !== "object") return
-          if (data.error)
+          if (data.error) {
             console.warn("bumblebee: catalog auto-refresh failed: "
                          + String(data.error).substring(0, 120))
+            return
+          }
+          if (data.ok === true) {
+            // New catalog on disk — re-scan on it. If a scan is running it
+            // may have read the old catalog; queue the rescan at its exit.
+            if (scanProc.running) root._rescanAfterRefresh = true
+            else root.forceScan()
+          }
         } catch (e) {}
       }
     }

@@ -66,9 +66,11 @@ def _clean(value, limit=120):
 
 
 def _run(argv, timeout_s=8.0, max_bytes=65536):
-    """Bounded subprocess — absolute binary, fixed PATH, no shell.
-    XDG_RUNTIME_DIR is the minimum systemctl --user needs to find the
-    caller's own user bus (honours DBUS_SESSION_BUS_ADDRESS too when set)."""
+    """Bounded subprocess — absolute binary, fixed PATH, no shell. Returns
+    (returncode, stdout) or (None, "") when exec itself failed (timeout,
+    missing binary, signal). XDG_RUNTIME_DIR is the minimum systemctl --user
+    needs to find the caller's own user bus (honours
+    DBUS_SESSION_BUS_ADDRESS too when set)."""
     env = {"PATH": "/usr/bin:/bin", "LC_ALL": "C",
            "XDG_RUNTIME_DIR": "/run/user/%d" % os.getuid()}
     if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
@@ -78,18 +80,18 @@ def _run(argv, timeout_s=8.0, max_bytes=65536):
             argv, timeout=timeout_s, capture_output=True, env=env,
         )
     except Exception:
-        return None
-    return p.stdout[:max_bytes].decode("utf-8", errors="replace")
+        return None, ""
+    return p.returncode, p.stdout[:max_bytes].decode("utf-8", errors="replace")
 
 
 def _unit_states():
     """One `systemctl show` for all three units -> {key: {active,sub,pid}}."""
-    out = _run([SYSTEMCTL, "--user", "show",
-                "-p", "Id,ActiveState,SubState,MainPID",
-                *[UNITS[k] for k in UNITS]])
+    rc, out = _run([SYSTEMCTL, "--user", "show",
+                    "-p", "Id,ActiveState,SubState,MainPID",
+                    *[UNITS[k] for k in UNITS]])
     states = {k: {"active": False, "sub": "unknown", "pid": 0}
               for k in UNITS}
-    if out is None:
+    if rc is None:
         return states
     by_name = {v: k for k, v in UNITS.items()}
     cur = None
@@ -192,9 +194,9 @@ def _control(verb):
     """systemctl --user <verb> all three units -> {"ok","action","error"}."""
     if verb not in ("start", "stop", "restart"):
         return {"ok": False, "action": verb, "error": "bad_verb"}
-    out = _run([SYSTEMCTL, "--user", verb, *UNITS.values()],
-               timeout_s=SYSTEMCTL_TIMEOUT_S)
-    ok = out is not None
+    rc, _out = _run([SYSTEMCTL, "--user", verb, *UNITS.values()],
+                    timeout_s=SYSTEMCTL_TIMEOUT_S)
+    ok = rc == 0
     payload = {"ok": ok, "action": verb,
                "error": None if ok else "systemctl_failed"}
     # MCP health is checked on the next regular status poll — right after a
