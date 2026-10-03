@@ -125,15 +125,17 @@ def test_update_history_appends_after_60s(helper, tmp_path: Path) -> None:
     assert len(history) == 2
 
 
-def test_update_history_trims_to_240(helper, tmp_path: Path) -> None:
+def test_update_history_trims_to_max_points(helper, tmp_path: Path) -> None:
+    cap_points = helper.HISTORY_MAX_POINTS
+    assert cap_points == 1440, "one day of one-minute samples"
     now = int(time.time())
     seeded = [
-        {"time": now - 60 * (241 - i), "cap": 50 + (i % 10), "status": "Discharging"}
-        for i in range(240)
+        {"time": now - 60 * (cap_points + 1 - i), "cap": 50 + (i % 10), "status": "Discharging"}
+        for i in range(cap_points)
     ]
     _seed(tmp_path, seeded)
     history = helper.update_history(33, "Charging")
-    assert len(history) == 240
+    assert len(history) == cap_points
     assert history[-1]["cap"] == 33
     # Oldest point was dropped to make room.
     assert history[0] == seeded[1]
@@ -527,13 +529,10 @@ def test_graph_caption_omits_drain_when_unknown(helper) -> None:
 
 # ---------- consumers cache ----------
 
-_PS_BODY = b"COMMAND %CPU %MEM\nchromium 30.0 10.0\ndevin 4.0 1.0\n"
-
-
 def test_consumers_are_cached_within_ttl(helper, monkeypatch) -> None:
     scans = []
 
-    def fake_scan():
+    def fake_scan(dirfd, power_w=None):
         scans.append(1)
         return [{"name": "chromium", "cpu": "30.0%", "cpu_num": 30.0, "mem": "10.0%", "bar": "#"}]
 
@@ -544,13 +543,13 @@ def test_consumers_are_cached_within_ttl(helper, monkeypatch) -> None:
     third = helper.get_top_consumers()
 
     assert first == second == third
-    assert len(scans) == 1, "ps must be walked once per TTL, not once per call"
+    assert len(scans) == 1, "/proc must be walked once per TTL, not once per call"
 
 
 def test_consumers_cache_rescans_after_ttl(helper, monkeypatch) -> None:
     scans = []
 
-    def fake_scan():
+    def fake_scan(dirfd, power_w=None):
         scans.append(1)
         return [{"name": "x", "cpu": "1.0%", "cpu_num": 1.0, "mem": "0.0%", "bar": "-"}]
 
@@ -574,7 +573,7 @@ def test_consumers_cache_rescans_after_ttl(helper, monkeypatch) -> None:
 def test_consumers_force_bypasses_cache(helper, monkeypatch) -> None:
     scans = []
 
-    def fake_scan():
+    def fake_scan(dirfd, power_w=None):
         scans.append(1)
         return [{"name": "x", "cpu": "1.0%", "cpu_num": 1.0, "mem": "0.0%", "bar": "-"}]
 
@@ -585,15 +584,50 @@ def test_consumers_force_bypasses_cache(helper, monkeypatch) -> None:
     assert len(scans) == 2
 
 
-def test_consumers_exclude_this_interpreter(helper, monkeypatch) -> None:
-    """The helper must never list its own python process as a top consumer."""
-    body = b"COMMAND %CPU %MEM\npython3 99.0 5.0\nchromium 2.0 1.0\n"
-    monkeypatch.setattr(helper, "_run", lambda argv, **kw: body.decode())
-    names = [row["name"] for row in helper._scan_top_consumers()]
+def _scan_with_snapshots(helper, monkeypatch, snapshots, clock):
+    """Drive two consecutive real scans with fixed /proc snapshots and clock."""
+    feed = iter(snapshots)
+    times = iter(clock)
+    monkeypatch.setattr(helper, "_scan_jiffies", lambda: next(feed))
+    monkeypatch.setattr(helper.time, "time", lambda: next(times))
+    monkeypatch.setattr(helper.os, "sysconf", lambda name: 100)
+    dirfd = helper._open_state_dir()
+    try:
+        helper._scan_top_consumers(dirfd)
+        return helper._scan_top_consumers(dirfd)
+    finally:
+        os.close(dirfd)
+
+
+def test_consumers_rank_by_jiffy_rate_between_scans(helper, monkeypatch) -> None:
+    # chromium burns 500 jiffies in 10 s at 100 Hz = 50% of a core.
+    first = {10: ("chromium", 1000), 11: ("idle-daemon", 50)}
+    second = {10: ("chromium", 1500), 11: ("idle-daemon", 51)}
+    rows = _scan_with_snapshots(helper, monkeypatch, [first, second], [1000.0, 1010.0])
+    assert rows[0]["name"] == "chromium"
+    assert rows[0]["cpu_num"] == 50.0
+    # Under the 2% noise floor.
+    assert "idle-daemon" not in [r["name"] for r in rows]
+
+
+def test_consumers_exclude_processes_new_since_last_scan(helper, monkeypatch) -> None:
+    """A pid with no baseline (e.g. this helper's own short-lived interpreter)
+    has no measurable rate and must not be listed."""
+    first = {10: ("chromium", 1000)}
+    second = {10: ("chromium", 1200), 99: ("python3", 900)}
+    rows = _scan_with_snapshots(helper, monkeypatch, [first, second], [1000.0, 1010.0])
+    names = [row["name"] for row in rows]
     assert "python3" not in names
     assert "chromium" in names
 
 
-def test_consumers_survive_ps_failure(helper, monkeypatch) -> None:
-    monkeypatch.setattr(helper, "_run", lambda argv, **kw: None)
-    assert helper._scan_top_consumers()[0]["name"] == "unavailable"
+def test_consumers_survive_proc_failure(helper, monkeypatch) -> None:
+    def broken():
+        raise OSError("proc unavailable")
+
+    monkeypatch.setattr(helper, "_scan_jiffies", broken)
+    dirfd = helper._open_state_dir()
+    try:
+        assert helper._scan_top_consumers(dirfd)[0]["name"] == "unavailable"
+    finally:
+        os.close(dirfd)
