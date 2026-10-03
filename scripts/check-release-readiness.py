@@ -37,12 +37,12 @@ def _check_shared(plugin_root: Path, shared_root: Path, plugin_id: str | None) -
     for consumer in sync.read_consumers(repo):
         if plugin_id and consumer != plugin_id:
             continue
-        vendored = plugin_root / consumer / sync.VENDOR_DEST
         if not (plugin_root / consumer).is_dir():
             errors.append(f"{consumer}: shared consumer has no plugin directory")
             continue
-        for problem in sync.compare_dir(repo, vendored):
-            errors.append(f"{consumer}: shared library drift: {problem}")
+        for src, dest in sync.active_targets(repo):
+            for problem in sync.compare_dir(repo, plugin_root / consumer / dest, src):
+                errors.append(f"{consumer}: shared library drift: {problem}")
     return errors
 
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Vendor shared/py/_omplug into opted-in plugins, or check for drift.
+"""Vendor shared/py/_omplug and shared/qml into opted-in plugins, or check for drift.
 
-A plugin opts in by listing its id in shared/consumers.txt. Sync copies the
-library plus shared/VERSION into plugins/<id>/bin/_omplug/, staged in a
-sibling directory and renamed into place, so a half-synced copy never exists.
+A plugin opts in by listing its id in shared/consumers.txt. Sync copies each
+library plus shared/VERSION into plugins/<id>/bin/_omplug/ (Python) and
+plugins/<id>/lib/ (QML, imported as `import "lib"`), staged in a sibling
+directory and renamed into place, so a half-synced copy never exists.
 
   scripts/sync-shared.py             sync every consumer
   scripts/sync-shared.py --check     exit 1 on any drift or missing copy
@@ -26,6 +27,11 @@ LIB_SRC = Path("shared/py/_omplug")
 VERSION_SRC = Path("shared/VERSION")
 CONSUMERS = Path("shared/consumers.txt")
 VENDOR_DEST = Path("bin/_omplug")
+QML_SRC = Path("shared/qml")
+QML_DEST = Path("lib")
+# (source tree, vendored path inside plugins/<id>/); a source tree that does
+# not exist in the repo is simply not vendored.
+TARGETS = ((LIB_SRC, VENDOR_DEST), (QML_SRC, QML_DEST))
 IGNORED_DIRS = {"__pycache__"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 
@@ -58,14 +64,14 @@ def _files(base: Path) -> dict[str, Path]:
     return out
 
 
-def expected_files(root: Path) -> dict[str, bytes]:
+def expected_files(root: Path, src: Path = LIB_SRC) -> dict[str, bytes]:
     """The exact vendored tree: library files plus VERSION."""
-    files = {rel: p.read_bytes() for rel, p in _files(root / LIB_SRC).items()}
+    files = {rel: p.read_bytes() for rel, p in _files(root / src).items()}
     files["VERSION"] = (root / VERSION_SRC).read_bytes()
     return files
 
 
-def compare_dir(root: Path, vendored: Path) -> list[str]:
+def compare_dir(root: Path, vendored: Path, src: Path = LIB_SRC) -> list[str]:
     """Differences between a vendored directory and shared/ (empty = equal)."""
     try:
         label = vendored.resolve().relative_to(root).as_posix()
@@ -73,7 +79,7 @@ def compare_dir(root: Path, vendored: Path) -> list[str]:
         label = vendored.as_posix()
     if vendored.is_symlink() or not vendored.is_dir():
         return [f"{label}: missing vendored shared library"]
-    expected = expected_files(root)
+    expected = expected_files(root, src)
     actual = _files(vendored)
     problems = []
     for rel in sorted(expected.keys() - actual.keys()):
@@ -93,19 +99,31 @@ def check_consumer(root: Path, plugin_id: str) -> list[str]:
     plugin = root / "plugins" / plugin_id
     if not plugin.is_dir():
         return [f"{plugin_id}: listed in {CONSUMERS} but plugins/{plugin_id} does not exist"]
-    return compare_dir(root, plugin / VENDOR_DEST)
+    problems = []
+    for src, dest in active_targets(root):
+        problems.extend(compare_dir(root, plugin / dest, src))
+    return problems
+
+
+def active_targets(root: Path) -> list[tuple[Path, Path]]:
+    return [(src, dest) for src, dest in TARGETS if (root / src).is_dir()]
 
 
 def sync_consumer(root: Path, plugin_id: str) -> None:
     plugin = root / "plugins" / plugin_id
     if not plugin.is_dir():
         raise FileNotFoundError(f"plugins/{plugin_id} does not exist")
-    dest = plugin / VENDOR_DEST
+    for src, rel_dest in active_targets(root):
+        _sync_tree(root, src, plugin / rel_dest)
+
+
+def _sync_tree(root: Path, src: Path, dest: Path) -> None:
+    """Stage the vendored tree beside dest, then rename it into place."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix="._omplug.stage-", dir=dest.parent))
     old = None
     try:
-        for rel, data in expected_files(root).items():
+        for rel, data in expected_files(root, src).items():
             target = stage / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)

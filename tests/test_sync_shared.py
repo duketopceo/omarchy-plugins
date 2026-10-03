@@ -116,3 +116,39 @@ def test_check_vendored_dir_against_source(tmp_path: Path) -> None:
 def test_repo_check_passes() -> None:
     mod = load()
     assert mod.main(["--check"]) == 0
+
+
+def add_qml(root: Path) -> None:
+    qml = root / "shared" / "qml"
+    qml.mkdir(parents=True)
+    (qml / "ProcEnv.qml").write_text("import QtQuick\nQtObject {}\n")
+
+
+def test_sync_vendors_shared_qml_into_lib(tmp_path: Path) -> None:
+    mod = load()
+    root = make_repo(tmp_path, ["lukedaduke.demo"])
+    add_qml(root)
+    assert mod.main(["--root", str(root)]) == 0
+    lib = root / "plugins" / "lukedaduke.demo" / "lib"
+    assert (lib / "ProcEnv.qml").read_text() == "import QtQuick\nQtObject {}\n"
+    assert (lib / "VERSION").read_text() == "0.1.0\n"
+    assert mod.main(["--root", str(root), "--check"]) == 0
+    assert sorted(p.name for p in lib.parent.iterdir()) == ["bin", "lib"]
+
+
+def test_qml_drift_fails_check(tmp_path: Path) -> None:
+    mod = load()
+    root = make_repo(tmp_path, ["lukedaduke.demo"])
+    add_qml(root)
+    assert mod.main(["--root", str(root)]) == 0
+    (root / "plugins" / "lukedaduke.demo" / "lib" / "ProcEnv.qml").write_text("// edited\n")
+    problems = mod.check_consumer(root, "lukedaduke.demo")
+    assert any("lib/ProcEnv.qml" in p and "differs" in p for p in problems)
+
+
+def test_repo_without_shared_qml_only_vendors_python(tmp_path: Path) -> None:
+    mod = load()
+    root = make_repo(tmp_path, ["lukedaduke.demo"])
+    assert mod.main(["--root", str(root)]) == 0
+    assert not (root / "plugins" / "lukedaduke.demo" / "lib").exists()
+    assert mod.main(["--root", str(root), "--check"]) == 0
