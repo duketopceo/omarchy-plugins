@@ -43,12 +43,15 @@ required. See `.env.example`.
 | Id | What |
 |---|---|
 | `lukedaduke.fan` | RAM, CPU/GPU/NVMe temps, top processes, fan presets + custom curves |
-| `lukedaduke.ticker` | Watchlist quotes with TradingView jump |
-| `lukedaduke.agents` | Fork of `omarchy.agents` with extra providers |
 | `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
 | `lukedaduke.nexus` | Hardware topology radar: USB/BT/NVMe interconnect map |
-| `lukedaduke.connections` | Unified Bluetooth + Wi-Fi bar widget with toggles |
 | `lukedaduke.power` | Battery status, charge graph, top consumers, power profiles |
+
+### Retired
+
+`lukedaduke.connections`, `lukedaduke.ticker` and `lukedaduke.agents` are retired in favour of
+Omarchy's built-in `omarchy.bluetooth` / `omarchy.network`, `mohamedmansour.finance`, and
+`akitaonrails.ai-usagebar`. Their folders hold a final notice-only stub release.
 
 ## Deploy / visibility
 
@@ -59,11 +62,8 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | Plugin | Repo |
 |---|---|
 | `lukedaduke.fan` | https://github.com/duketopceo/omarchy-fan |
-| `lukedaduke.ticker` | https://github.com/duketopceo/omarchy-ticker |
-| `lukedaduke.agents` | https://github.com/duketopceo/omarchy-agents |
 | `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
 | `lukedaduke.nexus` | https://github.com/duketopceo/omarchy-nexus |
-| `lukedaduke.connections` | https://github.com/duketopceo/omarchy-connections |
 | `lukedaduke.power` | https://github.com/duketopceo/omarchy-power |
 
 Install any of them with:

@@ -67,9 +67,3 @@ def test_missing_entry_points_fails(tmp_path: Path) -> None:
     )
     errors = mod.validate_one(manifest)
     assert any("missing entryPoints" in e for e in errors)
-
-
-def test_agents_panel_uses_own_id() -> None:
-    panel = (ROOT / "plugins/lukedaduke.agents/Panel.qml").read_text()
-    assert 'moduleName: "lukedaduke.agents"' in panel
-    assert 'moduleName: "omarchy.agents"' not in panel

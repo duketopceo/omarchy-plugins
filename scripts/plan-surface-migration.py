@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -12,6 +13,31 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCORECARD = ROOT / "docs" / "SCORECARD.md"
+
+
+def retiring_ids(scorecard: Path | None = None) -> set[str]:
+    """Plugin ids docs/SCORECARD.md lists as retiring; never placed again.
+
+    Raises ValueError when the list cannot be read, so the placement guard
+    fails closed instead of silently allowing a retired plugin back.
+    """
+    path = scorecard if scorecard is not None else SCORECARD
+    try:
+        text = path.read_text()
+    except OSError as exc:
+        raise ValueError(f"cannot read retiring list from {path.name}: {exc}") from exc
+    match = re.search(r"```scorecard-config\n(.*?)\n```", text, re.S)
+    if not match:
+        raise ValueError(f"{path.name} has no scorecard-config block")
+    try:
+        config = json.loads(match.group(1))
+    except ValueError as exc:
+        raise ValueError(f"{path.name} scorecard-config is not valid JSON: {exc}") from exc
+    retiring = config.get("retiring", []) if isinstance(config, dict) else None
+    if not isinstance(retiring, list):
+        raise ValueError(f"{path.name} scorecard-config has no retiring list")
+    return {str(i) for i in retiring}
 
 
 def _direct_bar_ids(config: Mapping[str, Any]) -> set[str]:
@@ -28,9 +54,17 @@ def _direct_bar_ids(config: Mapping[str, Any]) -> set[str]:
     return ids
 
 
-def plan_migration(current: Mapping[str, Any], desired: Mapping[str, Any]) -> dict[str, Any]:
+def plan_migration(
+    current: Mapping[str, Any],
+    desired: Mapping[str, Any],
+    retiring: set[str] | None = None,
+) -> dict[str, Any]:
+    retiring = retiring or set()
     current_ids = _direct_bar_ids(current)
     desired_ids = _direct_bar_ids(desired)
+    placed_retired = sorted(desired_ids & retiring)
+    if placed_retired:
+        raise ValueError("desired layout places retired plugin(s): " + ", ".join(placed_retired))
     remove = sorted(current_ids - desired_ids)
     add = sorted(desired_ids - current_ids)
     retained = sorted(current_ids & desired_ids)
@@ -39,6 +73,7 @@ def plan_migration(current: Mapping[str, Any], desired: Mapping[str, Any]) -> di
         "remove_bar_ids": remove,
         "add_bar_ids": add,
         "retained_bar_ids": retained,
+        "retired_bar_ids": sorted(set(remove) & retiring),
         "requires_shell_backup": bool(remove or add),
         "destructive_actions": [],
         "rollback": "Restore the prior sanitized bar/idle/plugin snapshot; do not delete plugin data or keyring entries.",
@@ -71,6 +106,7 @@ def render_markdown(plan: Mapping[str, Any]) -> str:
         f"- Remove bar IDs: {', '.join(f'`{item}`' for item in plan.get('remove_bar_ids', [])) or 'none'}",
         f"- Add bar IDs: {', '.join(f'`{item}`' for item in plan.get('add_bar_ids', [])) or 'none'}",
         f"- Retain bar IDs: {', '.join(f'`{item}`' for item in plan.get('retained_bar_ids', [])) or 'none'}",
+        f"- Retired (replaced) bar IDs: {', '.join(f'`{item}`' for item in plan.get('retired_bar_ids', [])) or 'none'}",
         "",
         "## Safety",
         "",
@@ -91,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
     args = parser.parse_args(argv)
     try:
-        plan = plan_migration(_read_json(args.current), _read_json(args.desired))
+        plan = plan_migration(_read_json(args.current), _read_json(args.desired), retiring_ids())
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2

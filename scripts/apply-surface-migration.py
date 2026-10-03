@@ -56,9 +56,70 @@ def _direct_ids(config: Mapping[str, Any]) -> set[str]:
     return ids
 
 
+def _retiring_ids() -> set[str]:
+    """Retiring list from docs/SCORECARD.md via the planner's reader; any
+    failure to read it stops the apply (fail closed)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "plan_surface_migration", ROOT / "scripts" / "plan-surface-migration.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load the migration planner for the retiring list")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return module.retiring_ids()
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
+def _merged_entries(desired_entries: list[Any], current_by_id: Mapping[str, Mapping[str, Any]]) -> list[Any]:
+    """Desired entries in desired order. A retained id keeps the live entry's
+    inline settings (watermarks, mute lists, tray order); the snapshot only
+    fills keys the live entry lacks."""
+    out = []
+    for entry in desired_entries:
+        if isinstance(entry, Mapping) and isinstance(entry.get("id"), str) and entry["id"] in current_by_id:
+            merged = copy.deepcopy(dict(entry))
+            merged.update(copy.deepcopy(dict(current_by_id[entry["id"]])))
+            out.append(merged)
+        else:
+            out.append(copy.deepcopy(entry))
+    return out
+
+
+def _merge_bar(current: Mapping[str, Any], desired_bar: Mapping[str, Any]) -> dict[str, Any]:
+    bar = copy.deepcopy(dict(desired_bar))
+    live = current.get("bar", {}).get("layout", {}) if isinstance(current.get("bar"), Mapping) else {}
+    by_id = {e["id"]: e for entries in (live.values() if isinstance(live, Mapping) else [])
+             if isinstance(entries, list) for e in entries
+             if isinstance(e, Mapping) and isinstance(e.get("id"), str)}
+    layout = bar.get("layout")
+    if isinstance(layout, Mapping):
+        bar["layout"] = {section: _merged_entries(entries, by_id) if isinstance(entries, list) else entries
+                         for section, entries in layout.items()}
+    return bar
+
+
+def _merge_plugins(current: Mapping[str, Any], desired_plugins: Any) -> Any:
+    if not isinstance(desired_plugins, list):
+        return copy.deepcopy(desired_plugins)
+    live = current.get("plugins") if isinstance(current.get("plugins"), list) else []
+    by_id = {e["id"]: e for e in live if isinstance(e, Mapping) and isinstance(e.get("id"), str)}
+    merged = _merged_entries(desired_plugins, by_id)
+    # A live entry the snapshot lacks is never dropped (it may carry settings).
+    desired_ids = {e.get("id") for e in desired_plugins if isinstance(e, Mapping)}
+    merged.extend(copy.deepcopy(e) for e in live
+                  if isinstance(e, Mapping) and e.get("id") not in desired_ids)
+    return merged
+
+
 def _plan(current: Mapping[str, Any], desired: Mapping[str, Any]) -> dict[str, Any]:
     current_ids = _direct_ids(current)
     desired_ids = _direct_ids(desired)
+    placed_retired = sorted(desired_ids & _retiring_ids())
+    if placed_retired:
+        raise RuntimeError("desired layout places retired plugin(s): " + ", ".join(placed_retired))
     return {
         "remove_bar_ids": sorted(current_ids - desired_ids),
         "add_bar_ids": sorted(desired_ids - current_ids),
@@ -158,11 +219,13 @@ def apply_migration(
     backup_path = _backup_current(current_path, backup_root, plan)
     updated = copy.deepcopy(current)
     if "bar" in desired:
-        updated["bar"] = desired["bar"]
-    if "disabledPlugins" in desired:
+        updated["bar"] = _merge_bar(current, desired["bar"])
+    # The live disable list is the user's choice (e.g. whether the lock
+    # screen runs); a stale snapshot never re-disables anything.
+    if "disabledPlugins" in desired and "disabledPlugins" not in current:
         updated["disabledPlugins"] = desired["disabledPlugins"]
     if "plugins" in desired:
-        updated["plugins"] = desired["plugins"]
+        updated["plugins"] = _merge_plugins(current, desired["plugins"])
     mode = stat.S_IMODE(current_path.stat().st_mode)
     encoded = (json.dumps(updated, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     _atomic_write(current_path, encoded, mode)

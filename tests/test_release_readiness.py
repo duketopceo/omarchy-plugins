@@ -263,3 +263,55 @@ def test_split_check_catches_drifted_qml_lib(tmp_path: Path) -> None:
     res = _split_check(repo, split)
     assert res.returncode != 0
     assert "ProcEnv.qml" in res.stdout + res.stderr
+
+
+def test_retiring_plugin_needs_no_catalog_entry_but_keeps_other_checks(tmp_path: Path) -> None:
+    module = load_module()
+    root = tmp_path / "repo"
+    plugin_root = root / "plugins"
+    stub = plugin_root / "old.stub"
+    stub.mkdir(parents=True)
+    (stub / "manifest.json").write_text(json.dumps({
+        "schemaVersion": 1, "id": "old.stub", "name": "x", "version": "3.0.0", "author": "a",
+        "kinds": ["bar-widget"], "entryPoints": {"barWidget": "Stub.qml"}}))
+    (stub / "Stub.qml").write_text("// stub\n")
+    (stub / "README.md").write_text("retired\n")
+    (root / "docs").mkdir()
+    (root / "docs" / "SCORECARD.md").write_text(
+        '# s\n\n```scorecard-config\n{"retiring": ["old.stub"]}\n```\n')
+    catalog = root / "catalog.json"
+    catalog.write_text(json.dumps({"plugins": []}))
+    errors = module.check_tree(plugin_root, catalog)
+    assert not any("catalog" in e for e in errors), errors
+    assert any("missing LICENSE" in e for e in errors)
+
+
+def _stub_repo(tmp_path: Path, retiring: list[str], catalog_plugins: list[dict]) -> tuple[Path, Path]:
+    root = tmp_path / "repo"
+    stub = root / "plugins" / "old.stub"
+    stub.mkdir(parents=True)
+    (stub / "manifest.json").write_text(json.dumps({
+        "schemaVersion": 1, "id": "old.stub", "name": "x", "version": "3.0.0", "author": "a",
+        "kinds": ["bar-widget"], "entryPoints": {"barWidget": "Stub.qml"}}))
+    (stub / "Stub.qml").write_text("// stub\n")
+    (stub / "README.md").write_text("retired\n")
+    (stub / "LICENSE").write_text("MIT\n")
+    (root / "docs").mkdir()
+    (root / "docs" / "SCORECARD.md").write_text(
+        "# s\n\n```scorecard-config\n" + json.dumps({"retiring": retiring}) + "\n```\n")
+    catalog = root / "catalog.json"
+    catalog.write_text(json.dumps({"plugins": catalog_plugins}))
+    return root / "plugins", catalog
+
+
+def test_non_retiring_stub_without_catalog_entry_still_fails(tmp_path: Path) -> None:
+    module = load_module()
+    plugin_root, catalog = _stub_repo(tmp_path, [], [])
+    assert any("missing catalog entry" in e for e in module.check_tree(plugin_root, catalog))
+
+
+def test_retiring_plugin_still_in_catalog_keeps_parity_checks(tmp_path: Path) -> None:
+    module = load_module()
+    plugin_root, catalog = _stub_repo(tmp_path, ["old.stub"],
+                                      [{"id": "old.stub", "version": "2.0.0", "repo": "x"}])
+    assert any("catalog version mismatch" in e for e in module.check_tree(plugin_root, catalog))
