@@ -101,6 +101,11 @@ def main(argv: list[str]) -> None:
 
 
 if __name__ == "__main__":
+    # Backstop: a hung filesystem write must not outlive the panel's deadline.
+    import signal
+
+    signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
+    signal.alarm(4)
     try:
         main(sys.argv[1:])
     except OSError as exc:

@@ -47,14 +47,14 @@ See docs/SCORECARD.md for semantics.
 {
   "plugin": "lukedaduke.fan",
   "criteria": {
-    "no_open_hm_findings": "pending",
-    "plaintext_external_text": "pending",
-    "exec_discipline": "pending",
+    "no_open_hm_findings": "pass",
+    "plaintext_external_text": "pass",
+    "exec_discipline": "pass",
     "envelope": "pending",
-    "fixture_tests": "pending",
-    "visibility_gating": "pending",
-    "stale_backoff": "pending",
-    "readme_claims": "pending"
+    "fixture_tests": "pass",
+    "visibility_gating": "pass",
+    "stale_backoff": "pass",
+    "readme_claims": "pass"
   },
   "manual": {
     "spawn_measurement": {
@@ -68,6 +68,6 @@ See docs/SCORECARD.md for semantics.
       "date": null
     }
   },
-  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+  "notes": "U10 2026-10-03: H (XDG_RUNTIME_DIR scrub) and both M findings are fixed (ProcEnv keeps XDG_RUNTIME_DIR; fan control follows the helper status and writable targets; root helper ships as the omarchy-fan-helper package). Every Text with a binding is PlainText and check-plugin-contract reports 0 errors with strict estate rules. All execs go through lib/DeadlineProcess + ProcEnv; helpers set signal.alarm. tests/test_fan_processes.py runs the full collector on all six hw fixtures. Bar --bar is gated by VisibilityGate (<=1/min), full collect only while the panel is open, one refresh on reveal/open; StaleLabel shows staleness after 3 intervals and backs failures off to 60 s. envelope stays pending: omarchy-fan-set (spawned for mode changes) prints no envelope. spawn_measurement and the live passes are not yet recorded."
 }
 ```

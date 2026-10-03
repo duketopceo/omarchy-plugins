@@ -33,33 +33,30 @@ def load_fan_set():
 
 def test_collect_json_bounds() -> None:
     stats = load(STATS, "system_monitor_stats")
-    data = stats.collect(sample_seconds=0)
-    assert data["ok"] is True
-    assert 0 <= data["mem_pct"] <= 100
-    assert 0 <= data["cpu_load"] <= 100
-    assert isinstance(data["cpu_temp"], str)
-    assert isinstance(data["fan_control"], bool)
-    assert isinstance(data["daemon_running"], bool)
+    data, caps = stats.build("full")
+    assert 0 <= data["mem"]["pct"] <= 100
+    assert 0 <= data["cpu"]["load"] <= 100
+    assert data["temp"]["c"] is None or isinstance(data["temp"]["c"], int)
+    assert isinstance(caps["fan_control"], bool)
     json.dumps(data)
 
 
-def test_empty_hwmon_temps(tmp_path: Path) -> None:
+def test_empty_hwmon_temps() -> None:
     stats = load(STATS, "system_monitor_stats")
-    empty = tmp_path / "hwmon"
-    empty.mkdir()
-    devices = stats.hwmon_paths(base=empty)
-    assert devices == {}
-    cpu, fan1, fan2 = stats.cpu_temp_and_fans(devices)
-    assert cpu == "--"
-    assert fan1 == 0
-    assert stats.nvme_temp(devices) == "--"
+    temps = stats.temperatures([])
+    assert temps["cpu"] is None
+    assert temps["headline"] == {"c": None, "source": "none", "label": ""}
+    assert stats.fans([]) == []
+    assert stats.nvme_temp([]) is None
 
 
 def test_kill_refuses_pid_one() -> None:
     kill = load(KILL, "kill_proc")
-    assert kill.kill_pid(1) == 2
-    assert kill.kill_pid(0) == 2
-    assert kill.main([]) == 2
+    for pid in (0, 1):
+        env = kill.envelope.wrap(lambda: kill.kill(pid))
+        assert env["ok"] is False and env["error"] == "refused"
+    env = kill.envelope.wrap(lambda: kill.parse([]))
+    assert env["ok"] is False and env["error"] == "usage"
 
 
 def test_daemon_descriptor_security(tmp_path: Path) -> None:
@@ -126,80 +123,75 @@ def test_read_fan_mode_validation(tmp_path: Path) -> None:
     assert stats.read_fan_mode(named) == "custom-silent"
 
 
-def test_fan_control_gated_on_capability(tmp_path: Path, monkeypatch) -> None:
+def hwmon_tree(root: Path, name: str, files: dict[str, str]) -> Path:
+    """A one-device sysfs fixture tree under root."""
+    base = root / "sys/class/hwmon/hwmon0"
+    base.mkdir(parents=True)
+    (base / "name").write_text(name + "\n")
+    for key, value in files.items():
+        (base / key).write_text(value + "\n")
+    return base
+
+
+def test_fan_control_gated_on_capability(tmp_path: Path) -> None:
     """fan_control must reflect real capability, not just helper presence."""
     stats = load(STATS, "system_monitor_stats")
-    monkeypatch.setattr(stats, "is_daemon_running", lambda: False)
 
-    # No daemon and no driveable fan hwmon -> read-only
-    assert stats.fan_control_available({}) is False
-    # A temp-only sensor is not fan control
-    sensor = tmp_path / "hwmon_temp"
-    sensor.mkdir()
-    (sensor / "temp1_input").write_text("42000")
-    assert stats.fan_control_available({"coretemp": sensor}) is False
+    def devices(root: Path):
+        return stats.sysfs.hwmon_devices(root)
+
+    # No driveable fan hwmon -> read-only; a temp-only sensor is not fan control.
+    assert stats.fan_control_available([]) is False
+    temp_only = tmp_path / "temp_only"
+    hwmon_tree(temp_only, "coretemp", {"temp1_input": "42000"})
+    assert stats.fan_control_available(devices(temp_only)) is False
 
     # macsmc fan*_target the daemon can drive -> control enabled
-    macsmc = tmp_path / "hwmon_macsmc"
-    macsmc.mkdir()
-    (macsmc / "fan1_target").write_text("2000")
-    assert stats.fan_control_available({"macsmc_hwmon": macsmc}) is True
+    mac = tmp_path / "mac"
+    hwmon_tree(mac, "macsmc_hwmon", {"fan1_target": "2000"})
+    assert stats.fan_control_available(devices(mac)) is True
 
     # dell_smm pwm* the daemon can drive -> control enabled
-    dell = tmp_path / "hwmon_dell"
-    dell.mkdir()
-    (dell / "pwm1").write_text("128")
-    assert stats.fan_control_available({"dell_smm": dell}) is True
-
-    # A running daemon without a writable fan target is still read-only.
-    monkeypatch.setattr(stats, "is_daemon_running", lambda: True)
-    assert stats.fan_control_available({}) is False
+    dell = tmp_path / "dell"
+    hwmon_tree(dell, "dell_smm", {"pwm1": "128"})
+    assert stats.fan_control_available(devices(dell)) is True
 
 
 def test_soc_power_w_heatpipe(tmp_path: Path) -> None:
     stats = load(STATS, "system_monitor_stats")
-    macsmc = tmp_path / "hwmon_macsmc"
-    macsmc.mkdir()
-    (macsmc / "power4_input").write_text("15973271")
-    (macsmc / "power4_label").write_text("Heatpipe Power")
-    (macsmc / "power2_input").write_text("86718147")
-    (macsmc / "power2_label").write_text("AC Input Power")
-    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) == 16.0
+    hwmon_tree(tmp_path, "macsmc_hwmon", {
+        "power4_input": "15973271", "power4_label": "Heatpipe Power",
+        "power2_input": "86718147", "power2_label": "AC Input Power",
+    })
+    assert stats.soc_power_w(stats.sysfs.hwmon_devices(tmp_path)) == 16.0
 
 
 def test_soc_power_w_absent(tmp_path: Path) -> None:
     stats = load(STATS, "system_monitor_stats")
-    macsmc = tmp_path / "hwmon_macsmc"
-    macsmc.mkdir()
-    (macsmc / "power1_input").write_text("1000000")
-    (macsmc / "power1_label").write_text("Total System Power")
-    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) is None
-    assert stats.soc_power_w({}) is None
+    hwmon_tree(tmp_path, "macsmc_hwmon", {"power1_input": "1000000", "power1_label": "Total System Power"})
+    assert stats.soc_power_w(stats.sysfs.hwmon_devices(tmp_path)) is None
+    assert stats.soc_power_w([]) is None
 
 
 def test_gpu_clients_shape() -> None:
     stats = load(STATS, "system_monitor_stats")
-    clients = stats.gpu_clients()
+    procs = stats.scan_processes(Path("/proc"))
+    clients = stats.gpu_clients(Path("/proc"), procs)
     assert isinstance(clients, list)
     for c in clients:
-        assert isinstance(c["pid"], int)
-        assert isinstance(c["name"], str) and c["name"]
-
-
-def test_asahi_gpu_load_graceful() -> None:
-    """fdinfo counters absent (current asahi kernels) -> None, not a crash."""
-    stats = load(STATS, "system_monitor_stats")
-    gpu_load = stats._asahi_gpu_load(sample_seconds=0)
-    assert gpu_load is None or (isinstance(gpu_load, int) and 0 <= gpu_load <= 100)
+        assert isinstance(c["label"], str) and c["label"]
+        assert isinstance(c["count"], int) and c["count"] >= 1
 
 
 def test_collect_gpu_fields() -> None:
     stats = load(STATS, "system_monitor_stats")
-    data = stats.collect(sample_seconds=0)
-    assert isinstance(data["gpu_load"], int)  # -1 sentinel when unavailable
-    assert isinstance(data["gpu_load_reason"], str)
-    assert data["gpu_power_w"] is None or isinstance(data["gpu_power_w"], float)
-    assert isinstance(data["gpu_clients"], list)
+    data, caps = stats.build("full")
+    gpu = data["gpu"]
+    assert gpu["load"] is None or isinstance(gpu["load"], int)
+    assert isinstance(gpu["reason"], str)
+    assert gpu["power_w"] is None or isinstance(gpu["power_w"], float)
+    assert isinstance(gpu["clients"], list)
+    assert caps["gpu_load"] is (gpu["load"] is not None)
     json.dumps(data)
 
 

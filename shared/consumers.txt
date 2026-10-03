@@ -1,3 +1,4 @@
 # Plugins that vendor shared/py/_omplug into plugins/<id>/bin/_omplug/.
 # One plugin id per line; a plugin opts in here inside its own track unit,
 # then runs `python3 scripts/sync-shared.py` and commits the vendored copy.
+lukedaduke.fan
