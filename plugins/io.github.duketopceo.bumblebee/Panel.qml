@@ -26,6 +26,69 @@ Panel {
   property string catalogRefreshError: ""
   property string currentTab: "exposures" // "exposures" | "catalog" | "log"
 
+  // Muted exposure ids — `ignoredExposures` on this plugin's shell.json
+  // entry. The service reads the same key: muted ids still advance the
+  // scan watermark (staying seen/panel-visible) but never raise a toast.
+  LocalSettings { id: ls; pluginId: root.moduleName }
+
+  // Same id the service's exposureId() computes — mirrors _clean() +
+  // the 200-char clip in scan_bumblebee.py exactly, or the mute list
+  // silently misses on long or control-char-bearing names.
+  function _cleanField(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .substring(0, 96)
+      .replace(/^\s+|\s+$/g, "")
+  }
+
+  function exposureId(e) {
+    if (!e || typeof e !== "object") return ""
+    var key = _cleanField(e.name) + "|" + _cleanField(e.ecosystem)
+            + "|" + _cleanField(e.package) + "@" + _cleanField(e.version)
+    return key.replace(/[|@]/g, "").length ? key.substring(0, 200) : ""
+  }
+
+  function mutedIds() {
+    var e = ls.loaded ? ls.entry : null
+    return (e && Array.isArray(e.ignoredExposures)) ? e.ignoredExposures : []
+  }
+
+  function setMuted(id, muted) {
+    if (!id) return
+    // Prefer the service-owned setter: it mutates the service's own
+    // (fresher) entry in memory synchronously. Writing shell.json from
+    // here only reaches the service on the file watcher's next tick,
+    // which a running scan's diff can beat — the muted exposure would
+    // still toast once.
+    var svc = null
+    try {
+      if (root.bar && root.bar.shell
+          && typeof root.bar.shell.serviceFor === "function")
+        svc = root.bar.shell.serviceFor(root.moduleName)
+    } catch (e) { svc = null }
+    if (svc && typeof svc.setMuted === "function") {
+      svc.setMuted(id, muted)
+      return
+    }
+    var cur = ls.entry
+    var entry = {}
+    if (cur && typeof cur === "object") {
+      for (var k in cur) entry[k] = cur[k]
+    }
+    var ids = (Array.isArray(entry.ignoredExposures)
+               ? entry.ignoredExposures.slice() : [])
+    var i = ids.indexOf(id)
+    if (muted && i === -1) ids.push(id)
+    if (!muted && i !== -1) ids.splice(i, 1)
+    entry.ignoredExposures = ids
+    ls.remember(entry)
+    if (root.bar && root.bar.shell
+        && typeof root.bar.shell.updateEntryInline === "function") {
+      try { root.bar.shell.updateEntryInline(root.moduleName, entry) }
+      catch (e) {}
+    }
+  }
+
   // ---- palette: fg/dim + alpha fills only, never a raw hex ----
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(fg, 1.5)
@@ -592,10 +655,13 @@ Panel {
 
           delegate: Rectangle {
             required property var modelData
+            readonly property string expId: root.exposureId(modelData)
+            readonly property bool muted: root.mutedIds().indexOf(expId) !== -1
             property color sevColor: root.sevUrgent(modelData.severity) ? root.urgent : root.accent
             width: expCol.width
             height: expRow.implicitHeight + Style.space(16)
             radius: Style.cornerRadius
+            opacity: muted ? 0.55 : 1.0
             color: root.fgFill(0.04)
             border.color: root.sevUrgent(modelData.severity)
                           ? Qt.rgba(sevColor.r, sevColor.g, sevColor.b, 0.3)
@@ -608,7 +674,8 @@ Panel {
               spacing: Style.space(10)
 
               Column {
-                width: parent.width - sevChip.width - parent.spacing
+                width: parent.width - sevChip.width - muteBtn.width
+                       - parent.spacing * 2
                 spacing: Style.space(2)
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -654,6 +721,36 @@ Panel {
                   font.bold: true
                   elide: Text.ElideRight
                   horizontalAlignment: Text.AlignHCenter
+                }
+              }
+
+              // Mute toggle — silences toasts for this exposure id while
+              // leaving it visible here and advancing the scan watermark.
+              Rectangle {
+                id: muteBtn
+                height: Style.space(20)
+                width: height
+                radius: Style.cornerRadius
+                anchors.verticalCenter: parent.verticalCenter
+                color: muteArea.containsMouse ? root.fgFill(0.12)
+                                              : root.fgFill(0.05)
+
+                Text {
+                  anchors.centerIn: parent
+                  // bell-off when muted, bell when live (nerd font)
+                  text: muted ? "󰂛" : "󰂚"
+                  textFormat: Text.PlainText
+                  color: muted ? root.dim : root.fg
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+
+                MouseArea {
+                  id: muteArea
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.setMuted(expId, !muted)
                 }
               }
             }

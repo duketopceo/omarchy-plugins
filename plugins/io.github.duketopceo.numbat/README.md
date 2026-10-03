@@ -44,8 +44,16 @@ omarchy plugin enable io.github.duketopceo.numbat
 - Dropdown: findings feed (rule, agent, relative time) + per-agent last-activity
 - **Findings toasts**: a persistent shell service stats the record files every
   5s; when they grow it diffs findings against a persisted watermark and raises
-  a severity-tinted popup (max 3, ~8s each, click to open the panel) — even with
-  the dropdown closed. First launch baselines silently; no popup storms
+  a severity-tinted popup (max 3, click to open the panel) — even with the
+  dropdown closed. First launch baselines silently; no popup storms.
+  Popup discipline: toasts are gated at `toastMinSeverity` (default `medium` —
+  accepted `info`/`low`/`medium`/`high`/`critical`), cooled down per
+  `rule|agent` for `toastCooldownS` (default 1800), coalesced into one summary
+  card per burst, fade at a severity-scaled rate (critical stays until
+  clicked), and suppress entirely while the notification service's
+  do-not-disturb is on. Both keys live on this plugin's `shell.json` entry.
+  Suppressed findings still advance the watermark and stay in the panel —
+  nothing replays later
 - **Jev agent review**: the Jev tab (or `bin/jev_review.py`) sends recent
   numbat events to [TypeSafe Jev](https://openrouter.ai/typesafe/jev-1.13)
   via OpenRouter's decisions API and surfaces useless tool calls, wrong

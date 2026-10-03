@@ -34,9 +34,15 @@ omarchy plugin enable io.github.duketopceo.bumblebee
   cache age once an hour and force-rescans when it's stale — the radar stays
   fresh even if you never open the panel
 - When a scan finds **new** exposures that weren't in the previous baseline,
-  the service raises an urgent toast in the top-right corner (~10s, click to
+  the service raises an urgent toast in the top-right corner (15s, click to
   dismiss, max 3 stacked). The toast only fires on the *delta*: the first
-  poll baselines silently, and zero exposures is always silent
+  poll baselines silently, and zero exposures is always silent. Toasts
+  suppress entirely while the notification service reports do-not-disturb;
+  suppressed ids still advance the watermark, so nothing replays later
+- **Muting**: the bell toggle on each exposure row adds its id to
+  `ignoredExposures` on the plugin's `shell.json` entry — muted ids stay
+  visible in the panel (dimmed) and still count as "seen", but never toast.
+  Toggle again to unmute; the key can also be edited by hand
 - Partial scans surface a `PARTIAL` chip instead of silently undercounting
 - Results cache at `~/.local/state/omarchy/bumblebee/last-scan.json` (0600,
   atomic writes)

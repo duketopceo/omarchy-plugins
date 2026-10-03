@@ -54,7 +54,6 @@ Item {
   readonly property int staleAfterS: 6 * 3600   // helper's default interval
   readonly property int pollMs: 60 * 60 * 1000  // 1 stat per hour
   readonly property int catalogStaleAfterS: 7 * 24 * 3600  // auto-refresh past a week
-  readonly property int toastMs: 10000
   readonly property int maxToasts: 3
 
   // Session-only throttle so a failed refresh retries next poll, not every
@@ -65,6 +64,29 @@ Item {
   // new catalog — otherwise the merged upstream.json sits unread until the
   // next stale tick (~6h).
   property bool _rescanAfterRefresh: false
+
+  // Do-not-disturb, resolved from whichever notifications service is live
+  // (clone-aware — same call the notification-center panel makes).
+  // Fail-open: no service means toasts behave as before.
+  readonly property var notificationService: {
+    var host = root.shell
+    if (!host || typeof host.serviceFor !== "function") return null
+    var id = "omarchy.notifications"
+    if (root.pluginRegistry
+        && typeof root.pluginRegistry.resolveEnabledId === "function")
+      id = root.pluginRegistry.resolveEnabledId(id)
+    return host.serviceFor(id)
+  }
+  readonly property bool dnd: notificationService
+                              ? notificationService.doNotDisturb === true
+                              : false
+
+  // Exposure ids the user has muted via the panel — `ignoredExposures` on
+  // this plugin's shell.json entry. Non-array/missing → empty, no crash.
+  readonly property var ignoredExposures: {
+    var e = ls.loaded ? ls.entry : null
+    return (e && Array.isArray(e.ignoredExposures)) ? e.ignoredExposures : []
+  }
 
   readonly property color urgent: Color.urgent
   readonly property color popupBg: Color.notifications.background
@@ -92,11 +114,21 @@ Item {
 
   // "name|ecosystem|package@version" — mirrors _exposure_ids in
   // scan_bumblebee.py so display names can be matched to emitted ids.
+  // Fields are _clean()'d (ctrl-chars→space, trim, 96/field) and the key
+  // is clipped to 200 exactly like the scanner — a drift here silently
+  // breaks both name matching and the panel's mute list.
+  function _cleanField(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .substring(0, 96)
+      .replace(/^\s+|\s+$/g, "")
+  }
+
   function exposureId(e) {
     if (!e || typeof e !== "object") return ""
-    var key = String(e.name || "") + "|" + String(e.ecosystem || "")
-            + "|" + String(e.package || "") + "@" + String(e.version || "")
-    return key.replace(/[|@]/g, "").length ? key : ""
+    var key = _cleanField(e.name) + "|" + _cleanField(e.ecosystem)
+            + "|" + _cleanField(e.package) + "@" + _cleanField(e.version)
+    return key.replace(/[|@]/g, "").length ? key.substring(0, 200) : ""
   }
 
   // [{id, name}] in scan order. exposure_ids drives the diff; the exposures
@@ -120,6 +152,29 @@ Item {
       for (var k in names) pairs.push({ id: k, name: names[k] })
     }
     return pairs
+  }
+
+  // Panel mute toggles route here so the write is authoritative on the
+  // service's own (fresher) entry and lands in memory synchronously —
+  // a panel-side shell.json write only reaches this instance on the
+  // file watcher's next tick, which a running scan's diff can beat.
+  function setMuted(id, muted) {
+    if (!id) return
+    var cur = ls.entry
+    var entry = {}
+    if (cur && typeof cur === "object" && !Array.isArray(cur)) {
+      for (var k in cur) entry[k] = cur[k]
+    }
+    var ids = Array.isArray(entry.ignoredExposures)
+              ? entry.ignoredExposures.slice() : []
+    var i = ids.indexOf(id)
+    if (muted && i === -1) ids.push(id)
+    if (!muted && i !== -1) ids.splice(i, 1)
+    entry.ignoredExposures = ids
+    ls.remember(entry)
+    if (root.shell && typeof root.shell.updateEntryInline === "function") {
+      try { root.shell.updateEntryInline(root.pluginId, entry) } catch (e) {}
+    }
   }
 
   function lastSeen() {
@@ -157,18 +212,36 @@ Item {
       persistLastSeen(ids)
       return
     }
+    var ignored = root.ignoredExposures
     var fresh = []
     for (var i = 0; i < pairs.length; i++) {
-      if (seen.indexOf(pairs[i].id) === -1) fresh.push(pairs[i])
+      if (seen.indexOf(pairs[i].id) !== -1) continue
+      if (ignored.indexOf(pairs[i].id) !== -1) continue  // muted — still seen
+      fresh.push(pairs[i])
     }
-    if (fresh.length > 0) enqueueToast(fresh.length, fresh[0].name)
+    if (fresh.length > 0 && !root.dnd)
+      enqueueToast(fresh.length, fresh[0].name)
     persistLastSeen(ids)
+  }
+
+  // Lifetime per severity, same map as numbat. Catalog exposures carry no
+  // severity field today — a known-compromise match is treated as "high";
+  // the map is wired per-row so a future severity field needs no delegate
+  // change. 0 = sticky.
+  function toastMsFor(sev) {
+    var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
+    if (s === "critical" || s === "crit") return 0
+    if (s === "high" || s === "error") return 15000
+    if (s === "medium" || s === "moderate" || s === "warning" || s === "warn")
+      return 8000
+    return 6000
   }
 
   function enqueueToast(count, name) {
     var row = {
       count: count,
       topName: String(name || "").substring(0, 96),
+      severity: "high",
       stamp: Date.now()
     }
     if (popupModel.count < maxToasts) {
@@ -432,7 +505,11 @@ Item {
             required property int index
             required property int count
             required property string topName
+            required property string severity
             required property double stamp
+
+            // Severity-scaled: high exposures get 15s; critical would stick.
+            readonly property int lifetimeMs: root.toastMsFor(severity)
 
             Layout.alignment: Qt.AlignRight
             Layout.preferredWidth: cardRow.implicitWidth + Style.space(24)
@@ -443,10 +520,11 @@ Item {
             border.color: Qt.rgba(root.urgent.r, root.urgent.g,
                                   root.urgent.b, 0.55)
 
-            // ~10s on screen, then it removes itself; a click dismisses now.
+            // Lifetime on screen, then it removes itself; a click dismisses
+            // now. interval 0 (critical) means sticky — the timer stays off.
             Timer {
-              interval: root.toastMs
-              running: true
+              interval: Math.max(1, card.lifetimeMs)
+              running: card.lifetimeMs > 0
               onTriggered: root.dismissToast(card.index)
             }
 

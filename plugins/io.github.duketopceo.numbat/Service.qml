@@ -13,7 +13,11 @@ import qs.Commons
 // reads, no scan) and diffs the (size, mtime) signature of the two record
 // sinks. On change, a full probe runs and any finding whose observed_at
 // is newer than the persisted lastSeen watermark becomes a severity-tinted
-// toast in a per-screen overlay window (max 3, ~8s each, click dismisses).
+// toast in a per-screen overlay window (max 3). Toasts are severity-gated
+// (toastMinSeverity, default medium), per-rule|agent cooled-down
+// (toastCooldownS, default 30m), coalesced into one summary card per burst,
+// lifetime scales with severity (critical sticks until clicked), and all
+// toasts suppress while the notification service reports do-not-disturb.
 //
 // The first observation after load is baseline only: the watermark adopts
 // the newest record time on top of whatever was persisted, so a backlog
@@ -46,6 +50,46 @@ Item {
 
   readonly property int maxToasts: 3
   readonly property real toastLifetime: 8000
+
+  // Toast policy (shell.json entry keys; LocalSettings-hydrated):
+  //   toastMinSeverity — "info"|"low"|"medium"|"high"|"critical", default
+  //     "medium". Lower-severity findings still land in the panel.
+  //   toastCooldownS — per rule|agent toast cooldown, default 1800.
+  readonly property int toastMinRank: {
+    var e = ls.loaded ? ls.entry : null
+    var s = e && e.toastMinSeverity !== undefined
+            ? String(e.toastMinSeverity).toLowerCase() : "medium"
+    // Only the five documented values are honored — anything else
+    // ("none", "debug", garbage) falls back to medium, never widens.
+    if (["info", "low", "medium", "high", "critical"].indexOf(s) === -1)
+      return 2
+    return sevRank(s)
+  }
+  readonly property int toastCooldownMs: {
+    var e = ls.loaded ? ls.entry : null
+    var s = e ? Number(e.toastCooldownS) : NaN
+    return isFinite(s) && s > 0 ? s * 1000 : 30 * 60 * 1000
+  }
+
+  // rule|agent -> epoch ms of the last toast it produced. Session-scoped:
+  // a shell restart re-arms cooled-down rules, which is the safe direction.
+  property var _ruleLastToast: ({})
+
+  // Do-not-disturb, resolved from whichever notifications service is live
+  // (clone-aware — the same call the notification-center panel makes).
+  // Fail-open: no service means toasts behave as before.
+  readonly property var notificationService: {
+    var host = root.shell
+    if (!host || typeof host.serviceFor !== "function") return null
+    var id = "omarchy.notifications"
+    if (root.pluginRegistry
+        && typeof root.pluginRegistry.resolveEnabledId === "function")
+      id = root.pluginRegistry.resolveEnabledId(id)
+    return host.serviceFor(id)
+  }
+  readonly property bool dnd: notificationService
+                              ? notificationService.doNotDisturb === true
+                              : false
 
   readonly property string pluginRoot: {
     var p = Qt.resolvedUrl(".").toString()
@@ -132,11 +176,31 @@ Item {
     return m + "m ago"
   }
 
+  // Severity ranks drive gating AND lifetime. Unknown/empty → medium (2):
+  // an unclassified finding still toasts rather than silently dropping.
+  function sevRank(sev) {
+    var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
+    if (s === "critical" || s === "crit") return 4
+    if (s === "high" || s === "error") return 3
+    if (s === "medium" || s === "moderate" || s === "warning" || s === "warn") return 2
+    if (s === "low") return 1
+    if (s === "info" || s === "debug" || s === "none") return 0
+    return 2
+  }
+
   // Meaningful severity tints the card urgent; absent/low stays accent.
   function severe(sev) {
     var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
-    if (s === "") return false
-    return !(s === "info" || s === "low" || s === "none" || s === "debug")
+    return s !== "" && sevRank(s) >= 2
+  }
+
+  // Lifetime per severity: critical sticks until clicked, the rest fade.
+  function toastMsFor(sev) {
+    var r = sevRank(sev)
+    if (r >= 4) return 0
+    if (r === 3) return 15000
+    if (r === 2) return 8000
+    return 6000
   }
 
   // --------------------------------------------------------- watermark ---
@@ -233,22 +297,58 @@ Item {
       if (ts > maxSeen) maxSeen = ts
       if (ts > root.lastSeen) fresh.push(f)
     }
-    // The helper emits newest-first; keep that order so the freshest
-    // finding lands on top of the stack. Findings past the queue cap stay
-    // visible in the panel — the toast surface stays bounded.
-    var room = Math.max(0, root.maxToasts - toastModel.count)
-    var rows = fresh.slice(0, room)
-    if (rows.length > 0) {
+    // Toast pipeline: severity gate -> per-rule cooldown -> DND ->
+    // coalesce. Suppression never touches the watermark — a silenced
+    // finding is still "seen" (panel stays truthful, nothing replays).
+    var gated = []
+    for (var g = 0; g < fresh.length; g++) {
+      if (root.sevRank(fresh[g].severity) >= root.toastMinRank)
+        gated.push(fresh[g])
+    }
+    var now = Date.now()
+    var allowed = []
+    for (var c = 0; c < gated.length; c++) {
+      var fp = String(gated[c].rule || "finding") + "|"
+             + String(gated[c].agent || "")
+      var last = Number(root._ruleLastToast[fp]) || 0
+      if (now - last >= root.toastCooldownMs) allowed.push(gated[c])
+    }
+    if (!root.dnd && allowed.length > 0 && toastModel.count < root.maxToasts) {
+      var rows = allowed
       Qt.callLater(function() {
-        for (var j = 0; j < rows.length; j++) {
-          if (toastModel.count >= root.maxToasts) break
-          var row = rows[j]
+        // DND can flip on between the check above and this deferred
+        // append — re-check inside the callback.
+        if (root.dnd) return
+        if (toastModel.count >= root.maxToasts) return
+        if (rows.length === 1) {
+          var row = rows[0]
           toastModel.append({
+            "count": 0,
             "rule": String(row.rule || "finding"),
             "agent": String(row.agent || ""),
             "observedAt": String(row.observed_at || ""),
             "severity": String(row.severity === undefined || row.severity === null ? "" : row.severity)
           })
+        } else {
+          // Summary card: one toast per burst. Title reports the worst
+          // severity in the batch; the panel carries the full list.
+          var top = rows[0]
+          for (var t = 1; t < rows.length; t++) {
+            if (root.sevRank(rows[t].severity) > root.sevRank(top.severity))
+              top = rows[t]
+          }
+          toastModel.append({
+            "count": rows.length,
+            "rule": String(top.rule || "finding"),
+            "agent": String(top.agent || ""),
+            "observedAt": String(top.observed_at || ""),
+            "severity": String(top.severity === undefined || top.severity === null ? "" : top.severity)
+          })
+        }
+        for (var m = 0; m < rows.length; m++) {
+          var k = String(rows[m].rule || "finding") + "|"
+                + String(rows[m].agent || "")
+          root._ruleLastToast[k] = now
         }
       })
     }
@@ -400,6 +500,7 @@ Item {
           delegate: Item {
             id: cardSlot
             required property int index
+            required property int count
             required property string rule
             required property string agent
             required property string observedAt
@@ -409,7 +510,8 @@ Item {
             Layout.alignment: Qt.AlignRight
             implicitHeight: card.implicitHeight
 
-            readonly property real lifetime: root.toastLifetime
+            // 0 = sticky (critical), else severity-scaled fade.
+            readonly property real lifetime: root.toastMsFor(cardSlot.severity)
             property real remainingLifetime: 1.0
             readonly property bool ticking: cardSlot.lifetime > 0 && !cardArea.containsMouse
 
@@ -464,7 +566,9 @@ Item {
 
                   Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "NUMBAT FINDING"
+                    text: cardSlot.count > 0
+                          ? "NUMBAT · " + cardSlot.count + " FINDINGS"
+                          : "NUMBAT FINDING"
                     textFormat: Text.PlainText
                     color: root.severe(cardSlot.severity) ? root.urgent : root.cardDim
                     font.family: root.fontFamily
@@ -497,7 +601,9 @@ Item {
 
                 Text {
                   width: parent.width
-                  text: cardSlot.rule
+                  text: cardSlot.count > 0
+                        ? "worst: " + cardSlot.rule
+                        : cardSlot.rule
                   textFormat: Text.PlainText
                   color: root.cardText
                   font.family: root.fontFamily
@@ -518,7 +624,9 @@ Item {
               }
 
               // Lifetime strip — drains left-to-right; hover pauses it.
+              // Hidden on sticky (critical) cards, which never drain.
               Rectangle {
+                visible: cardSlot.lifetime > 0
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
                 height: Style.space(2)
