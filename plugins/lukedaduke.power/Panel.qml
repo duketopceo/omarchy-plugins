@@ -101,6 +101,10 @@ Panel {
     // "lifetime" is implied by sitting under a cycle count; spelling it out
     // pushed this line past the panel width and cost us the value.
     if (typeof ah === "number") bits.push(ah.toFixed(1) + " Ah")
+    // Peripheral batteries ride the footer: the line already wraps, so a long
+    // device name lands on a second row instead of overflowing its column.
+    var periph = Model.fmtPeripherals(root.tele.peripherals)
+    if (periph) bits.push(periph)
     return bits.join(" · ")
   }
 
@@ -641,30 +645,74 @@ Panel {
         // the battery sits above the charge-control start threshold, and we
         // refuse to flicker the whole panel for that ~1s window.
         //
-        // Only the four numbers worth acting on get a row. Voltage, current and
-        // the coulomb counters are all in the helper's JSON for anyone who
-        // wants them, but they're redundant here (V x A = W) and a third label
+        // Six numbers across two rows: the four worth acting on, plus the
+        // negotiated adapter ceiling (a weak PSU reads plainly) and the
+        // hottest thermal sensor (the charge regulator sprints during
+        // fast-charge). Voltage/current/coulombs stay in the JSON — a fourth
         // row would turn a glanceable panel into a spreadsheet.
-        Row {
+        Column {
           visible: root.batteryInfo.percentage !== undefined
           width: parent.width
-          spacing: Style.space(20)
+          spacing: Style.spacing.labelGap
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair {
-              label: root.discharging ? "Time left" : "Time to full"
-              value: root.batteryFlowIdle && !root.haveTele ? "-" : root.timeText()
+          Row {
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair {
+                label: root.discharging ? "Time left" : "Time to full"
+                value: root.batteryFlowIdle && !root.haveTele ? "-" : root.timeText()
+              }
             }
-            InfoPair { label: "Energy"; value: root.energyText() }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair { label: "Power"; value: root.powerText() }
+            }
           }
 
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair { label: "Power"; value: root.powerText() }
-            InfoPair { label: "Temperature"; value: root.tempText() }
+          Row {
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair { label: "Energy"; value: root.energyText() }
+            }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair {
+                label: "AC adapter"
+                value: Model.fmtAdapter(root.tele.power_w, root.tele.adapter_limit_w)
+              }
+            }
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair {
+                label: "Thermals"
+                value: Model.fmtThermal(root.tele.temp_c, root.tele.temps_c)
+              }
+            }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              InfoPair {
+                label: "Pack volts"
+                value: {
+                  var v = root.tele.voltage_v
+                  return (typeof v === "number") ? v.toFixed(2) + " V" : Model.DASH
+                }
+              }
+            }
           }
         }
 
@@ -738,11 +786,38 @@ Panel {
               lineHeight: 1.15
             }
           }
+          // Watts over the same window — the charge line shows where the
+          // level went, this shows the flow that moved it. Magnitude only;
+          // sign lives in the "Power" readout above.
+          Text {
+            width: parent.width
+            visible: !!root.powerData.watts_graph
+            textFormat: Text.PlainText
+            text: root.powerData.watts_graph || ""
+            color: Style.selectedFillFor(root.bar.foreground, Color.accent)
+            opacity: 0.8
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+            elide: Text.ElideRight
+          }
+
+          Text {
+            width: parent.width
+            visible: !!root.powerData.watts_graph
+            textFormat: Text.PlainText
+            text: "watts"
+            color: root.bar.foreground
+            opacity: 0.4
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignRight
+          }
           // The caption under the sparkline already carries the least-squares
           // drain slope, so a separate "Drain rate" row would only repeat it.
         }
 
-        // ---------- Top power & resource consumers ----------
+        // ---------- Drawing power now ----------
         PanelSeparator {
           visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
           foreground: root.bar.foreground
@@ -754,9 +829,23 @@ Panel {
           visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
 
           PanelSectionHeader {
-            text: "TOP RESOURCE CONSUMERS"
+            text: "DRAWING POWER NOW"
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
+          }
+
+          // Rates are measured over the refresh interval, not lifetime %CPU —
+          // the column that used to rank by process age. Watts are each
+          // process's share of busy cores applied to the pack's current draw:
+          // honest as an estimate, which is why they carry the "≈" prefix.
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: "cpu share over ~30 s · ≈W of pack draw"
+            color: root.bar.foreground
+            opacity: 0.4
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
           }
 
           Column {
@@ -783,10 +872,21 @@ Panel {
                 }
 
                 Text {
-                  width: Style.space(60)
+                  width: Style.space(52)
                   textFormat: Text.PlainText
                   text: modelData.cpu
                   color: root.bar.foreground
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  horizontalAlignment: Text.AlignRight
+                }
+
+                Text {
+                  width: Style.space(56)
+                  textFormat: Text.PlainText
+                  text: Model.fmtEstWatts(modelData.watts)
+                  color: root.bar.foreground
+                  opacity: 0.7
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   horizontalAlignment: Text.AlignRight
@@ -937,16 +1037,32 @@ Panel {
     }
   }
 
-  component InfoPair: Row {
+  component InfoPair: Item {
     property string label: ""
     property string value: ""
 
     width: parent.width
-    spacing: Style.space(8)
+    implicitHeight: Math.max(infoLabel.implicitHeight, infoValue.implicitHeight)
 
-    InfoLabel { text: label }
-    Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    InfoLabel {
+      id: infoLabel
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      text: label
+    }
+
+    // Anchored between label and right edge with elide: the spacer-Item Row
+    // this replaced let a long value draw clean past its column.
+    InfoValue {
+      id: infoValue
+      anchors.left: infoLabel.right
+      anchors.leftMargin: Style.space(8)
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      text: value
+      horizontalAlignment: Text.AlignRight
+      elide: Text.ElideRight
+    }
   }
 
   component InfoLabel: Text {

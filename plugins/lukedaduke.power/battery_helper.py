@@ -17,12 +17,19 @@ STATE_DIR.mkdir(parents=True, exist_ok=True)
 HISTORY_FILE = STATE_DIR / "battery_history.json"
 HISTORY_NAME = "battery_history.json"
 CACHE_NAME = "consumers_cache.json"
-HISTORY_MAX_BYTES = 64 * 1024  # 240 points serialize to ~15 KiB
+SNAP_NAME = "consumers_prev.json"
+HISTORY_MAX_BYTES = 160 * 1024  # 1440 points (24h @1/min) ~ 90 KiB
+HISTORY_MAX_POINTS = 1440
 
 # Consumers churn slowly; re-forking ps on every panel tick was the single
-# largest cost in this helper.
+# largest cost in this helper. The snapshot rides the same TTL: rows are the
+# rate measured across the last refresh interval, not lifetime %CPU.
 CONSUMERS_TTL_S = 30
 CACHE_MAX_BYTES = 16 * 1024
+SNAP_MAX_BYTES = 256 * 1024
+# A snapshot older than this produces meaningless rates (suspend, long panel
+# close) — report zeros instead of a garbage burst.
+SNAP_STALE_S = 180
 
 POWER_SUPPLY = "/sys/class/power_supply"
 # Asahi/macSMC exposes macsmc-battery; generic ACPI uses BAT*/BATT*.
@@ -94,7 +101,13 @@ def _clean_entry(p):
     except (KeyError, TypeError, ValueError):
         return None
     status = p.get("status", "")
-    return {"time": t, "cap": cap, "status": status if isinstance(status, str) else ""}
+    entry = {"time": t, "cap": cap, "status": status if isinstance(status, str) else ""}
+    # Watts are optional in history — points recorded before the field existed
+    # carry no "w" key and are still valid.
+    w = p.get("w")
+    if isinstance(w, (int, float)):
+        entry["w"] = round(w, 2)
+    return entry
 
 
 def _read_history_meta(dirfd):
@@ -302,6 +315,9 @@ def get_telemetry():
         "charge_limit_pct": _count(attrs, "charge_control_end_threshold"),
         "charge_resume_pct": _count(attrs, "charge_control_start_threshold"),
         "charge_behaviour": behaviour,
+        "adapter_limit_w": _round(_read_power_supply_attr("macsmc-ac", "input_power_limit", 1e6), 1),
+        "temps_c": _read_hwmon_temps(),
+        "peripherals": _read_peripheral_batteries(),
     }
 
     # Watts are only meaningful against a load; below this the gauge is
@@ -330,7 +346,51 @@ def get_telemetry():
     return telemetry
 
 
-def update_history(current_cap, status):
+def _read_power_supply_attr(name, attr, scale=1.0):
+    """One sysfs attribute off a named power_supply node; None when absent."""
+    try:
+        with open(f"{POWER_SUPPLY}/{name}/{attr}") as fh:
+            return float(fh.read().strip()) / scale
+    except (OSError, ValueError):
+        return None
+
+
+def _read_hwmon_temps():
+    """Named thermal sensors from the macsmc hwmon block, {label: degC}."""
+    out = {}
+    for h in Path("/sys/class/hwmon").iterdir():
+        try:
+            if (h / "name").read_text().strip() != "macsmc_hwmon":
+                continue
+        except OSError:
+            continue
+        for t in h.glob("temp*_input"):
+            try:
+                label = t.with_name(t.name.replace("_input", "_label")).read_text().strip()
+                out[label] = round(int(t.read_text().strip()) / 1000.0, 1)
+            except (OSError, ValueError):
+                continue
+    return out
+
+
+def _read_peripheral_batteries():
+    """hidpp_* power supplies (Logitech peripherals etc), {name: pct}."""
+    out = {}
+    for p in Path(POWER_SUPPLY).glob("hidpp_battery_*"):
+        try:
+            cap = int((p / "capacity").read_text().strip())
+        except (OSError, ValueError):
+            continue
+        # model_name is e.g. "MX Keys for Mac" — friendlier than the sysfs name.
+        try:
+            name = (p / "model_name").read_text().strip()
+        except OSError:
+            name = p.name
+        out[name or p.name] = cap
+    return out
+
+
+def update_history(current_cap, status, power_w=None):
     if not isinstance(current_cap, int) or not 0 <= current_cap <= 100:
         return []
     history = []
@@ -347,19 +407,22 @@ def update_history(current_cap, status):
             history = []
             dropped = 0
 
-        # Only append if last point is at least 60s ago or empty.
+        # Only append if last point is at least 60s ago or the charge moved.
         appended = (
             not history
             or (now - history[-1].get("time", 0)) >= 60
             or history[-1].get("cap") != current_cap
         )
         if appended:
-            history.append({"time": now, "cap": current_cap, "status": status})
+            point = {"time": now, "cap": current_cap, "status": status}
+            if isinstance(power_w, (int, float)):
+                point["w"] = round(power_w, 2)
+            history.append(point)
 
-        # Keep ~4h at one point per minute.
-        trimmed = len(history) > 240
+        # 24h at one point per minute.
+        trimmed = len(history) > HISTORY_MAX_POINTS
         if trimmed:
-            history = history[-240:]
+            history = history[-HISTORY_MAX_POINTS:]
 
         # Write only when something actually changed. The panel refreshes every
         # few seconds, so rewriting (and fsyncing) an unchanged 17 KB file on
@@ -560,64 +623,128 @@ def _write_consumers_cache(dirfd, rows):
             pass
 
 
-def _scan_top_consumers():
+def _read_json_state(dirfd, name, max_bytes):
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dirfd)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid() or st.st_size > max_bytes:
+            return None
+        data = json.loads(os.read(fd, max_bytes + 1).decode())
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _write_json_state(dirfd, name, payload):
+    tmp = f".{name}.{os.getpid()}.tmp"
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dirfd)
+    except OSError:
+        return
+    try:
+        os.write(fd, json.dumps(payload).encode())
+    finally:
+        os.close(fd)
+    try:
+        os.rename(tmp, name, src_dir_fd=dirfd, dst_dir_fd=dirfd)
+    except OSError:
+        try:
+            os.unlink(tmp, dir_fd=dirfd)
+        except OSError:
+            pass
+
+
+def _scan_jiffies():
+    """pid -> (comm, utime+stime jiffies) from /proc, one pass."""
+    snap = {}
+    for p in Path("/proc").iterdir():
+        if not p.name.isdigit():
+            continue
+        try:
+            raw = (p / "stat").read_text()
+            # comm is parenthesised and may itself contain spaces/parens —
+            # split on the final ')' so the field offsets hold.
+            close = raw.rfind(")")
+            comm = raw[raw.index("(") + 1:close]
+            fields = raw[close + 2:].split()
+            snap[int(p.name)] = (comm, int(fields[11]) + int(fields[12]))
+        except (OSError, ValueError, IndexError):
+            continue
+    return snap
+
+
+def _scan_top_consumers(dirfd, power_w=None):
+    """Rate-based top consumers: jiffies burned per wall-second since the
+    previous scan, aggregated by comm — 'what is drawing power right now',
+    not lifetime %CPU which mostly measures process age.
+
+    Falls back to zeros (and still records the snapshot) when there is no
+    prior sample or it is too old to trust.
+    """
     consumers = []
     try:
-        cmd = [_tool("ps"), "-eo", "comm,%cpu,%mem"]
-        res = _run(cmd)
-        if res is None:
-            raise RuntimeError("ps failed")
-        lines = res.strip().split("\n")
-        totals = {}
-        for line in lines[1:]:
-            parts = line.split()
-            if len(parts) >= 3:
-                comm = parts[0]
-                # Skip the measuring tools themselves, plus this interpreter
-                # under any comm it might report (python / python3 / python3.14).
-                if comm in ("ps", "awk", "head", "grep", "cat") or comm.startswith("python"):
-                    continue
-                try:
-                    cpu = float(parts[1])
-                    mem = float(parts[2])
-                    if comm not in totals:
-                        totals[comm] = {"cpu": 0.0, "mem": 0.0}
-                    totals[comm]["cpu"] += cpu
-                    totals[comm]["mem"] += mem
-                except ValueError:
-                    continue
+        now = time.time()
+        cur = _scan_jiffies()
+        clk = os.sysconf("SC_CLK_TCK")
 
-        sorted_procs = sorted(totals.items(), key=lambda x: x[1]["cpu"], reverse=True)[:5]
-        max_cpu = max((p[1]["cpu"] for p in sorted_procs), default=100.0)
+        prev_snap = _read_json_state(dirfd, SNAP_NAME, SNAP_MAX_BYTES) or {}
+        prev = prev_snap.get("jobs") or {}
+        prev_at = prev_snap.get("at") or 0
+        fresh = 0 < now - prev_at <= SNAP_STALE_S
+
+        _write_json_state(dirfd, SNAP_NAME, {"at": now, "jobs": cur})
+
+        rates = {}
+        if fresh:
+            span = now - prev_at
+            for pid, (comm, j) in cur.items():
+                pj = prev.get(str(pid))
+                if pj is None:
+                    continue
+                d = j - pj[1]
+                if d < 0:
+                    continue
+                name = pj[0]
+                rates[name] = rates.get(name, 0.0) + (d / clk) / span * 100.0
+
+        rows = sorted(rates.items(), key=lambda x: x[1], reverse=True)
+        # Everything under ~2% of one core is measurement noise, not a burner.
+        rows = [r for r in rows if r[1] >= 2.0][:5]
+        max_cpu = max((r[1] for r in rows), default=10.0)
         max_cpu = max(max_cpu, 10.0)
 
-        for name, data in sorted_procs:
-            cpu_val = data["cpu"]
-            # 12-char bar
+        for name, cpu_val in rows:
             bar_len = int(min(12, max(1, (cpu_val / max_cpu) * 12)))
-            bar_str = "█" * bar_len + "░" * (12 - bar_len)
-            consumers.append({
+            row = {
                 "name": name[:12],
                 "cpu": f"{cpu_val:.1f}%",
                 "cpu_num": cpu_val,
-                "mem": f"{data['mem']:.1f}%",
-                "bar": bar_str
-            })
+                "bar": "█" * bar_len + "░" * (12 - bar_len),
+            }
+            # Rough watts share: this process's slice of busy cores, applied
+            # to the pack's current draw. Honest as an estimate — labelled "≈".
+            if isinstance(power_w, (int, float)) and abs(power_w) >= 1.0:
+                ncpu = os.cpu_count() or 8
+                row["watts"] = round(abs(power_w) * min(1.0, cpu_val / 100.0 / ncpu), 1)
+            consumers.append(row)
     except Exception:
-        consumers = [{"name": "unavailable", "cpu": "0%", "cpu_num": 0, "mem": "0%", "bar": "░░░░░░░░░░░░"}]
+        consumers = [{"name": "unavailable", "cpu": "0%", "cpu_num": 0, "bar": "░" * 12}]
     return consumers
 
 
-def get_top_consumers(force=False):
-    """Top consumers, cached for CONSUMERS_TTL_S to avoid re-forking ps.
-
-    The bar refreshes on a short timer, so without this every tick paid for a
-    full process table walk to redraw numbers that rarely move.
+def get_top_consumers(force=False, power_w=None):
+    """Top consumers, cached for CONSUMERS_TTL_S so the jiffy snapshot always
+    spans a meaningful interval. Each scan doubles as the next scan's baseline.
     """
     try:
         dirfd = _open_state_dir()
     except (PermissionError, OSError):
-        return _scan_top_consumers()
+        return []
 
     lockfd = None
     try:
@@ -626,32 +753,52 @@ def get_top_consumers(force=False):
             cached = _read_consumers_cache(dirfd)
             if cached is not None:
                 return cached
-        rows = _scan_top_consumers()
+        rows = _scan_top_consumers(dirfd, power_w)
         _write_consumers_cache(dirfd, rows)
         return rows
     except (OSError, ValueError, TypeError):
-        return _scan_top_consumers()
+        return []
     finally:
         if lockfd is not None:
             _close_history_lock(lockfd)
         os.close(dirfd)
 
 
+def make_watts_graph(history):
+    """Sparkline of signed watts over the retained window. Only points that
+    carry a 'w' field participate — charge-only history renders empty."""
+    ticks = "▁▂▃▄▅▆▇█"
+    ws = [p["w"] for p in history if isinstance(p, dict) and isinstance(p.get("w"), (int, float))]
+    if len(ws) < 4:
+        return ""
+    points = ws
+    if len(points) > GRAPH_WIDTH:
+        step = len(points) / GRAPH_WIDTH
+        points = [points[min(len(points) - 1, int((i + 1) * step) - 1)] for i in range(GRAPH_WIDTH)]
+    hi = max(abs(w) for w in points)
+    # A flat line carries no information — suppress it below a few watts so
+    # the sparkline only appears when flow is actually interesting.
+    if hi < 3:
+        return ""
+    return "".join(ticks[min(7, int(abs(w) / hi * 7.99))] for w in points)
+
+
 def main():
     args = os.sys.argv[1:]
     cap, status = get_current_battery()
-    history = update_history(cap, status)
+    telemetry = get_telemetry()
     # --sample only records a point; the always-on timer in the panel calls it
     # so history accrues while the panel is closed too.
+    history = update_history(cap, status, (telemetry or {}).get("power_w"))
     if "--sample" in args:
         return
-    telemetry = get_telemetry()
     if cap is None:
         print(json.dumps({
             "capacity": None,
             "status": status,
             "spark": "",
             "ascii_graph": "",
+            "watts_graph": "",
             "top_consumers": [],
             "telemetry": {},
             "insights": {},
@@ -665,7 +812,8 @@ def main():
         "status": status,
         "spark": spark,
         "ascii_graph": ascii_graph,
-        "top_consumers": get_top_consumers(),
+        "watts_graph": make_watts_graph(history),
+        "top_consumers": get_top_consumers(power_w=(telemetry or {}).get("power_w")),
         "telemetry": telemetry,
         "insights": insights,
     }))

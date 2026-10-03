@@ -60,6 +60,63 @@ function fmtAge(manufactured) {
   return parts[0] + "-" + parts[1]
 }
 
+// "56.7 W in · 89.2 W cap" — the negotiated PD ceiling next to the actual
+// draw, so a throttled or undersized charger is visible at a glance.
+function fmtAdapter(powerW, limitW) {
+  var lim = num(limitW)
+  var p = num(powerW)
+  if (lim === null && p === null) return DASH
+  var cur = p === null ? DASH : Math.abs(p).toFixed(1) + " W"
+  if (lim === null) return cur
+  return cur + " of " + lim.toFixed(0) + " W"
+}
+
+// "34° · 48° reg" — pack temperature plus the hottest named sensor off the
+// macsmc hwmon block, kept short: the value lives in a half-width column.
+// The charge regulator sprinting during fast-charge is the thermal signal
+// worth surfacing.
+function fmtThermal(packC, temps) {
+  var parts = []
+  var pack = num(packC)
+  if (pack !== null) parts.push(pack.toFixed(0) + "°")
+  if (temps && typeof temps === "object") {
+    var best = null
+    var bestLabel = ""
+    for (var label in temps) {
+      var v = num(temps[label])
+      if (v === null) continue
+      if (label === "Battery Hotspot" && pack !== null) continue
+      if (best === null || v > best) { best = v; bestLabel = label }
+    }
+    if (best !== null) {
+      var short = bestLabel === "Charge Regulator Temp" ? "reg"
+        : bestLabel === "WiFi/BT Module Temp" ? "wifi"
+        : bestLabel === "NAND Flash Temperature" ? "nand"
+        : bestLabel.split(" ")[0].toLowerCase()
+      parts.push(best.toFixed(0) + "° " + short)
+    }
+  }
+  return parts.length ? parts.join(" · ") : DASH
+}
+
+// "MX Master 3S 100%" — hidpp peripheral batteries, one quiet string.
+function fmtPeripherals(map) {
+  if (!map || typeof map !== "object") return ""
+  var parts = []
+  for (var name in map) {
+    var v = num(map[name])
+    if (v !== null) parts.push(name + " " + Math.round(v) + "%")
+  }
+  return parts.join(" · ")
+}
+
+// "≈6.3 W" — a consumer's estimated share of pack draw; prefixed so nobody
+// reads a derived number as a measured one.
+function fmtEstWatts(w) {
+  var n = num(w)
+  return n === null ? "" : "≈" + n.toFixed(1) + " W"
+}
+
 function clampIndex(index, length) {
   if (length <= 0) return 0
   return Math.max(0, Math.min(length - 1, index))
@@ -169,6 +226,10 @@ if (typeof module !== "undefined") {
     fmtEnergy: fmtEnergy,
     fmtRuntime: fmtRuntime,
     fmtLimit: fmtLimit,
-    fmtAge: fmtAge
+    fmtAge: fmtAge,
+    fmtAdapter: fmtAdapter,
+    fmtThermal: fmtThermal,
+    fmtPeripherals: fmtPeripherals,
+    fmtEstWatts: fmtEstWatts
   }
 }
