@@ -1,0 +1,6 @@
+{
+  "profile": "dell-precision",
+  "source": "synthetic",
+  "captured": "2026-10-03",
+  "notes": "Authored from dell_smm_hwmon + coretemp + ACPI BAT0 docs. BAT0 exposes current_now/voltage_now/charge_* only (no power_now). Fans have no pwm controls exposed here."
+}

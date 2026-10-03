@@ -1,0 +1,6 @@
+{
+  "profile": "nvidia-optimus",
+  "source": "synthetic",
+  "captured": "2026-10-03",
+  "notes": "Hybrid laptop: Intel iGPU active, NVIDIA dGPU runtime-suspended (must not be woken by probes). Battery is BAT1."
+}

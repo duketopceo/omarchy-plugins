@@ -1,0 +1,6 @@
+{
+  "profile": "no-battery",
+  "source": "synthetic",
+  "captured": "2026-10-03",
+  "notes": "Machine with only an AC adapter: no battery, no fans."
+}
