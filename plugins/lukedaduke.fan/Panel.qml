@@ -4,43 +4,59 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "lib"
 
 Panel {
   id: root
   moduleName: "lukedaduke.fan"
   ipcTarget: "lukedaduke.fan"
 
+  // --- fan mode -------------------------------------------------------------
   property string currentMode: "auto"
   property string customName: "balanced"
-  property int cpuLoad: 0
-  property string cpuName: "CPU"
-  property var cpuCores: []
+
+  // --- bar data (cheap `--bar` run, at most once a minute) -------------------
   property int memPct: 0
   property string memUsed: "--"
-  property string memAvail: "--"
   property string memTotal: "--"
+  property int tempC: -1
+  property string tempLabel: ""
+  property string tempSource: "none"
+  property var fanList: []
+
+  // --- panel data (full run, every 5 s while the panel is open) --------------
+  property string cpuName: "CPU"
+  property int cpuLoad: 0
+  property var cpuCores: []
+  property int cpuTemp: -1
+  property string memAvail: "--"
   property string swapUsed: "--"
   property string swapTotal: "--"
-  property int swapPct: 0
-  property string ramInfo: ""
-  property string cpuTemp: "--"
-  property string gpuName: "GPU"
+  property string ramType: ""
+  property string gpuName: ""
   property int gpuLoad: -1
-  property string gpuLoadReason: ""
-  property string gpuTemp: "--"
+  property string gpuReason: ""
+  property int gpuTemp: -1
   property real gpuPowerW: -1
   property var gpuClients: []
-  property string nvmeTemp: "--"
-  property int fan1Rpm: 0
-  property int fan2Rpm: 0
-  property var topMem: []
+  property var temps: []
+  property int nvmeTemp: -1
   property var disks: []
+  property var groups: []
+  property bool warm: false
   property var fanCurve: []
-  property bool isRefreshing: false
+  property bool hasFullData: false
+
   property string fetchError: ""
-  // Last stderr chunk from the stats helper — appended to fetchError when
-  // the process exits non-zero so a crash carries diagnostics.
   property string statsStderr: ""
+
+  // --- process list interaction -------------------------------------------------
+  property int selectedGroup: 0
+  property string expandedLabel: ""
+  property int armedKillPid: 0
+  property string killStatus: ""
+  property string killLabel: ""
+
   // Fan control is owned by the omarchy-fan-helper package (root, from
   // /usr/lib/omarchy-fan). The plugin never installs or elevates it: it only
   // reads the helper's status and asks for a package install/update.
@@ -54,39 +70,103 @@ Panel {
   // so readHelperStatus must not revert currentMode until it catches up.
   property string pendingMode: ""
   property real pendingUntil: 0
+  property var queuedFanArgs: null
   readonly property bool fanControl: root.helperState === "ok" && root.helperControllable
   readonly property bool helperModeActive: root.helperState === "ok" && root.helperMode.length > 0
-  property int selectedProc: 0
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color urgent: Color.urgent
   readonly property color accent: Color.accent
   readonly property color muted: Color.muted
-  readonly property color surface: Color.popups.background
-  readonly property string pluginRoot: {
-    var p = Qt.resolvedUrl(".").toString()
-    if (p.indexOf("file://") === 0)
-      p = p.substring(7)
-    if (p.length > 1 && p.charAt(p.length - 1) === "/")
-      p = p.substring(0, p.length - 1)
-    return p
-  }
+  readonly property color dim: Qt.darker(root.fg, 1.4)
+  readonly property string fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
 
   // Absolute interpreter: a PATH-preceding shadow "python3" must never run
   // inside this long-lived shell process.
   readonly property string py: "/usr/bin/python3"
-  // XDG_RUNTIME_DIR must survive the scrub: the collector resolves
-  // $XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode — the same path
-  // omarchy-fan-set writes (full env) and the daemon reads. Scrubbing it
-  // makes the helper fall back to ~/.local/run, so fan_mode reads "auto"
-  // forever and the badge/presets/right-click cycling go dead.
-  readonly property var procEnv: ({
-    "PATH": "/usr/bin:/bin",
-    "HOME": null,
-    "XDG_RUNTIME_DIR": Quickshell.env("XDG_RUNTIME_DIR"),
-    "LANG": null,
-    "LC_ALL": "C"
-  })
+  readonly property string binDir: pluginPath.path + "/bin"
+
+  PluginRoot {
+    id: pluginPath
+    url: Qt.resolvedUrl(".")
+  }
+
+  // Minimal helper env. Keeps XDG_RUNTIME_DIR so the collector and
+  // omarchy-fan-set agree on $XDG_RUNTIME_DIR/omarchy-fan/, and HOME for the
+  // custom curve file.
+  ProcEnv {
+    id: procEnv
+  }
+
+  VisibilityGate {
+    id: gate
+    shell: root.bar ? root.bar.shell : null
+    panelOpen: root.opened
+    onRevealed: root.refreshBar()
+  }
+
+  StaleLabel {
+    id: freshness
+    intervalMs: root.opened ? 5000 : 60000
+  }
+
+  // --- helpers ------------------------------------------------------------------
+
+  // Cap + normalize helper strings before they reach Text sinks.
+  function clipStr(v, n) {
+    return String(v === undefined || v === null ? "" : v).replace(/[\x00-\x1f\x7f-\x9f<>]/g, " ").slice(0, n || 80)
+  }
+
+  function num(v, fallback) {
+    var n = Number(v)
+    return isFinite(n) ? n : fallback
+  }
+
+  function intOr(v, fallback) {
+    return (v === null || v === undefined || !isFinite(Number(v))) ? fallback : Math.round(Number(v))
+  }
+
+  function pct(v) {
+    return Math.max(0, Math.min(100, Math.round(num(v, 0))))
+  }
+
+  function kindGlyph(kind) {
+    if (kind === "browser") return "󰖟"
+    if (kind === "agent") return "󰚩"
+    if (kind === "dev") return "󰅩"
+    if (kind === "shell") return "󰍹"
+    if (kind === "system") return "󰒓"
+    if (kind === "plugin") return "󰐱"
+    return "󰀻"
+  }
+
+  function memText(mb) {
+    var m = num(mb, 0)
+    return m >= 1024 ? (m / 1024).toFixed(1) + " GB" : Math.round(m) + " MB"
+  }
+
+  function levelColor(value, warn, crit) {
+    if (value < 0 || isNaN(value)) return root.muted
+    if (value >= crit) return root.urgent
+    if (value >= warn) return root.accent
+    return root.fg
+  }
+
+  function tempText(c) {
+    return c >= 0 ? c + "°C" : "--"
+  }
+
+  function modeLetter() {
+    var m = root.currentMode
+    return m === "auto" ? "A" : (m === "high" ? "H" : (m === "med" ? "M" : (m === "custom" ? "C" : "L")))
+  }
+
+  function fanSummary() {
+    if (!root.fanList || root.fanList.length === 0) return "no fan sensors"
+    return root.fanList.map(function(f) { return f.label + " " + f.rpm + " rpm" }).join(" · ")
+  }
+
+  // --- helper status (spawn-free) ---------------------------------------------------
 
   // loaded=false: the status file is gone (helper not installed or stopped).
   function readHelperStatus(loaded) {
@@ -125,12 +205,24 @@ Panel {
 
   function helperHint() {
     if (root.helperState === "missing")
-      return "Fan control: install the omarchy-fan-helper package and run 'systemctl enable --now omarchy-fan-daemon.service'"
+      return "Fan control needs the omarchy-fan-helper package: install it, then run 'systemctl enable --now omarchy-fan-daemon.service'."
     if (root.helperState === "outdated")
-      return "Fan control: update the omarchy-fan-helper package (have " + (root.helperVersion || "?") + ", need " + root.expectedHelperVersion + ")"
+      return "Update the omarchy-fan-helper package (have " + (root.helperVersion || "?") + ", need " + root.expectedHelperVersion + ")."
     if (!root.helperControllable)
-      return "Fan control: no writable fan target here"
-    return "Helper " + root.helperVersion
+      return "This machine exposes no writable fan target; fans stay on firmware control."
+    return "Silent auto curve by default. Fixed presets fall back to auto if the shell goes away."
+  }
+
+  // --- fan mode requests ---------------------------------------------------------------
+
+  function runFanSet(args) {
+    var argv = [root.py, root.binDir + "/omarchy-fan-set"].concat(args)
+    if (fanSetProc.running) {
+      root.queuedFanArgs = argv
+      return
+    }
+    fanSetProc.command = argv
+    fanSetProc.start()
   }
 
   function setMode(mode) {
@@ -138,61 +230,188 @@ Panel {
     // whenever a helper is present (e.g. version drift with a pinned preset).
     if (!mode || !(root.fanControl || (mode === "auto" && root.helperState !== "missing")))
       return
-    currentMode = mode
+    root.currentMode = mode
     root.pendingMode = mode
     root.pendingUntil = Date.now() + 6000
-    Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", mode])
-    refreshTimer.restart()
+    root.runFanSet([mode])
   }
 
   function setCustom(name) {
     if (!root.fanControl)
       return
-    currentMode = "custom"
+    root.currentMode = "custom"
     root.pendingMode = "custom"
     root.pendingUntil = Date.now() + 6000
-    customName = name
-    Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", "custom", name])
-    refreshTimer.restart()
+    root.customName = name
+    root.runFanSet(["custom", name])
   }
 
   function cycleMode() {
     if (!root.fanControl)
       return
-    var from = root.pendingMode.length > 0 ? root.pendingMode : currentMode
-    if (from === "auto")
-      setMode("low")
-    else if (from === "low")
-      setMode("med")
-    else if (from === "med")
-      setMode("high")
-    else if (from === "high")
-      setMode("custom")
-    else
-      setMode("auto")
+    var order = ["auto", "low", "med", "high", "custom"]
+    var from = root.pendingMode.length > 0 ? root.pendingMode : root.currentMode
+    var i = order.indexOf(from)
+    root.setMode(order[(i + 1) % order.length])
   }
 
-  function killProcess(pid) {
-    if (!pid || pid <= 1)
-      return
-    Quickshell.execDetached([root.py, root.pluginRoot + "/bin/kill_proc.py", pid.toString()])
-    refreshTimer.restart()
-  }
+  // --- stats ------------------------------------------------------------------------------
 
-  // Cap + normalize collector-provided strings before they reach Text sinks:
-  // process names and mount paths are locally controlled and must never carry
-  // markup or runaway length into the persistent shell.
-  function clipStr(v, n) {
-    return String(v == null ? "" : v).replace(/[\x00-\x1f\x7f-\x9f<>]/g, " ").slice(0, n || 80)
-  }
-
-  function refresh() {
+  function refreshBar() {
     helperStatusFile.reload()
-    if (!statusProc.running) {
-      root.isRefreshing = true
-      statusProc.running = true
-      statusDeadline.restart()
+    if (!root.opened)
+      barProc.start()
+  }
+
+  function refreshFull() {
+    helperStatusFile.reload()
+    freshness.nowMs = Date.now()
+    fullProc.start()
+  }
+
+  function failed(message) {
+    root.fetchError = clipStr(message, 120)
+    freshness.markFailed()
+  }
+
+  function ingest(text, full) {
+    var raw = String(text || "")
+    if (raw.trim().length === 0) return root.failed("empty stats")
+    if (raw.length > 300000) return root.failed("oversized stats payload")
+    var env = null
+    try {
+      env = JSON.parse(raw)
+    } catch (e) {
+      return root.failed("bad stats json")
     }
+    if (!env || env.ok !== true || !env.data)
+      return root.failed("stats: " + (env && env.error ? env.error : "failed"))
+    var d = env.data
+    var caps = env.capabilities || {}
+
+    var mem = d.mem || {}
+    root.memPct = pct(mem.pct)
+    root.memUsed = num(mem.used_gb, 0).toFixed(1)
+    root.memTotal = num(mem.total_gb, 0).toFixed(1)
+    var t = d.temp || {}
+    root.tempC = intOr(t.c, -1)
+    root.tempLabel = clipStr(t.label, 40)
+    root.tempSource = clipStr(t.source, 8)
+    if (Array.isArray(d.fans))
+      root.fanList = d.fans.slice(0, 6).map(function(f) {
+        return { "label": clipStr(f.label, 32), "rpm": Math.max(0, intOr(f.rpm, 0)) }
+      })
+    // The helper's effective mode wins: an expired preset shows as auto.
+    if (d.fan_mode && !root.helperModeActive && root.pendingMode.length === 0)
+      root.currentMode = clipStr(d.fan_mode, 24).trim()
+
+    if (full) {
+      var cpu = d.cpu || {}
+      root.cpuName = clipStr(cpu.name, 48) || "CPU"
+      root.cpuLoad = pct(cpu.load)
+      root.cpuCores = Array.isArray(cpu.cores) ? cpu.cores.slice(0, 128).map(function(c) {
+        return { "core": intOr(c.core, 0), "percent": pct(c.percent) }
+      }) : []
+      root.cpuTemp = intOr(cpu.temp, -1)
+      root.memAvail = num(mem.avail_gb, 0).toFixed(1)
+      root.swapUsed = num(mem.swap_used_gb, 0).toFixed(1)
+      root.swapTotal = num(mem.swap_total_gb, 0).toFixed(1)
+      root.ramType = clipStr(mem.type, 32)
+      var g = d.gpu || {}
+      root.gpuName = clipStr(g.name, 48)
+      root.gpuLoad = (g.load === null || g.load === undefined) ? -1 : pct(g.load)
+      root.gpuReason = clipStr(g.reason, 90)
+      root.gpuTemp = intOr(g.temp, -1)
+      root.gpuPowerW = (typeof g.power_w === "number") ? g.power_w : -1
+      root.gpuClients = Array.isArray(g.clients) ? g.clients.slice(0, 8).map(function(c) {
+        return clipStr(c.label, 32) + (intOr(c.count, 1) > 1 ? " ×" + intOr(c.count, 1) : "")
+      }) : []
+      root.temps = Array.isArray(d.temps) ? d.temps.slice(0, 8).map(function(x) {
+        return { "label": clipStr(x.label, 40), "c": intOr(x.c, -1) }
+      }) : []
+      root.nvmeTemp = intOr(d.nvme_temp, -1)
+      root.disks = Array.isArray(d.disks) ? d.disks.slice(0, 16).map(function(x) {
+        return { "mount": clipStr(x.mount, 64), "used": num(x.used_gb, 0), "total": num(x.total_gb, 0), "percent": pct(x.percent) }
+      }) : []
+      root.groups = Array.isArray(d.groups) ? d.groups.slice(0, 16).map(function(x) {
+        return {
+          "label": clipStr(x.label, 40),
+          "kind": clipStr(x.kind, 12),
+          "detail": clipStr(x.detail, 90),
+          "cpu": Math.max(0, num(x.cpu, 0)),
+          "mem": Math.max(0, num(x.mem_mb, 0)),
+          "count": Math.max(1, intOr(x.count, 1)),
+          "pids": Array.isArray(x.pids) ? x.pids.slice(0, 3).map(function(p) { return intOr(p, 0) }) : [],
+          "killPid": intOr(x.kill_pid, 0),
+          "killStart": intOr(x.kill_start, 0)
+        }
+      }) : []
+      root.warm = d.warm === true
+      if (Array.isArray(d.fan_curve))
+        root.fanCurve = d.fan_curve.slice(0, 64)
+      root.hasFullData = true
+      if (root.selectedGroup >= root.groups.length)
+        root.selectedGroup = Math.max(0, root.groups.length - 1)
+    }
+    root.fetchError = ""
+    freshness.markGood()
+  }
+
+  function processExited(proc, code) {
+    if (proc.timedOut)
+      root.failed("stats timeout")
+    else if (code !== 0)
+      root.failed(root.statsStderr.length > 0 ? "stats helper failed: " + root.statsStderr : "stats helper exited " + code)
+    root.statsStderr = ""
+  }
+
+  // --- kill ----------------------------------------------------------------------------------
+
+  function selected() {
+    return root.groups[root.selectedGroup] || null
+  }
+
+  // First press arms, second press within 5 s kills. Only single-process
+  // groups carry a kill target; the start time guards against pid reuse.
+  function requestKill(g) {
+    if (!g || g.killPid <= 1)
+      return
+    if (root.armedKillPid !== g.killPid) {
+      root.armedKillPid = g.killPid
+      disarmTimer.restart()
+      return
+    }
+    root.armedKillPid = 0
+    disarmTimer.stop()
+    if (killProc.running)
+      return
+    root.killLabel = g.label
+    root.killStatus = "Stopping " + g.label + "…"
+    killProc.command = [root.py, root.binDir + "/kill_proc.py", String(g.killPid), String(g.killStart)]
+    killProc.start()
+  }
+
+  function killResult(text) {
+    var env = null
+    try {
+      env = JSON.parse(String(text || ""))
+    } catch (e) {
+      env = null
+    }
+    if (env && env.ok === true)
+      root.killStatus = "Stopped " + root.killLabel
+    else {
+      var why = env && env.error ? String(env.error) : "failed"
+      var words = { "permission": "not your process", "gone": "already exited", "changed": "pid now belongs to another process", "refused": "refused" }
+      root.killStatus = "Could not stop " + root.killLabel + ": " + clipStr(words[why] || why, 60)
+    }
+    if (root.opened)
+      root.refreshFull()
+  }
+
+  function toggleExpanded(g) {
+    if (!g) return
+    root.expandedLabel = root.expandedLabel === g.label ? "" : g.label
   }
 
   function btop() {
@@ -201,175 +420,107 @@ Panel {
     root.close()
   }
 
-  function memColor() {
-    if (root.memPct >= 85)
-      return root.urgent
-    if (root.memPct >= 70)
-      return root.accent
-    return root.fg
-  }
-
-  function tempColor(tempStr) {
-    var t = parseInt(tempStr)
-    if (isNaN(t))
-      return root.muted
-    if (t >= 85)
-      return root.urgent
-    if (t >= 65)
-      return root.accent
-    return root.fg
-  }
-
-  function levelColor(value, warn, crit) {
-    if (value < 0 || isNaN(value))
-      return root.muted
-    if (value >= crit)
-      return root.urgent
-    if (value >= warn)
-      return root.accent
-    return root.fg
-  }
-
   visible: true
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Process {
-    id: statusProc
-    command: [root.py, root.pluginRoot + "/bin/system_monitor_stats.py"]
-    clearEnvironment: true
-    environment: root.procEnv
+  // --- processes (DeadlineProcess: deadline + group kill + ProcEnv) -------------------------------
+
+  DeadlineProcess {
+    id: barProc
+    deadlineMs: 9000
+    environment: procEnv.env
+    command: [root.py, root.binDir + "/system_monitor_stats.py", "--bar"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        statusDeadline.stop()
-        root.isRefreshing = false
-        try {
-          if (!text || text.trim().length === 0) {
-            root.fetchError = "empty stats"
-            return
-          }
-          if (text.length > 300000) {
-            root.fetchError = "oversized stats payload"
-            return
-          }
-          var data = JSON.parse(text)
-          if (data.ok === false) {
-            root.fetchError = data.error || "stats failed"
-            return
-          }
-          root.fetchError = ""
-          // The helper's effective mode wins: an expired preset shows as auto.
-          if (data.fan_mode && !root.helperModeActive)
-            root.currentMode = clipStr(data.fan_mode, 24).trim()
-          if (data.cpu_name)
-            root.cpuName = clipStr(data.cpu_name)
-          if (data.cpu_load !== undefined)
-            root.cpuLoad = Math.max(0, Math.min(100, parseInt(data.cpu_load) || 0))
-          if (Array.isArray(data.cpu_cores))
-            root.cpuCores = data.cpu_cores
-          if (data.mem_pct !== undefined)
-            root.memPct = Math.max(0, Math.min(100, parseInt(data.mem_pct) || 0))
-          if (data.mem_used)
-            root.memUsed = clipStr(data.mem_used, 24)
-          if (data.mem_avail)
-            root.memAvail = clipStr(data.mem_avail, 24)
-          if (data.mem_total)
-            root.memTotal = clipStr(data.mem_total, 24)
-          if (data.swap_used)
-            root.swapUsed = clipStr(data.swap_used, 24)
-          if (data.swap_total)
-            root.swapTotal = clipStr(data.swap_total, 24)
-          if (data.swap_pct !== undefined)
-            root.swapPct = Math.max(0, Math.min(100, parseInt(data.swap_pct) || 0))
-          if (data.ram_info)
-            root.ramInfo = clipStr(data.ram_info)
-          if (data.cpu_temp)
-            root.cpuTemp = clipStr(data.cpu_temp, 16)
-          if (data.gpu_name)
-            root.gpuName = clipStr(data.gpu_name)
-          if (data.gpu_load !== undefined) {
-            var gl = parseInt(data.gpu_load)
-            root.gpuLoad = isNaN(gl) ? -1 : Math.max(0, Math.min(100, gl))
-          }
-          if (data.gpu_load_reason !== undefined)
-            root.gpuLoadReason = clipStr(data.gpu_load_reason, 80)
-          if (data.gpu_temp)
-            root.gpuTemp = clipStr(data.gpu_temp, 16)
-          root.gpuPowerW = (typeof data.gpu_power_w === "number") ? data.gpu_power_w : -1
-          if (Array.isArray(data.gpu_clients))
-            root.gpuClients = data.gpu_clients.slice(0, 24).map(function(c) {
-              c.name = clipStr(c.name, 32)
-              return c
-            })
-          if (data.nvme_temp)
-            root.nvmeTemp = clipStr(data.nvme_temp, 16)
-          if (data.fan1_rpm !== undefined)
-            root.fan1Rpm = parseInt(data.fan1_rpm) || 0
-          if (data.fan2_rpm !== undefined)
-            root.fan2Rpm = parseInt(data.fan2_rpm) || 0
-          if (Array.isArray(data.top_mem))
-            root.topMem = data.top_mem.slice(0, 32).map(function(p) {
-              p.name = clipStr(p.name, 48)
-              return p
-            })
-          if (Array.isArray(data.disks))
-            root.disks = data.disks.slice(0, 24).map(function(d) {
-              d.mount = clipStr(d.mount, 64)
-              return d
-            })
-          if (Array.isArray(data.fan_curve))
-            root.fanCurve = data.fan_curve
-          if (root.selectedProc >= root.topMem.length)
-            root.selectedProc = Math.max(0, root.topMem.length - 1)
-        } catch (e) {
-          root.fetchError = "bad stats json"
-        }
-      }
+      onStreamFinished: root.ingest(text, false)
     }
-    // A collector crash writes its traceback to stderr — collect it so a
-    // dead helper surfaces real diagnostics instead of a bare exit code.
     stderr: StdioCollector {
       waitForEnd: true
-      onStreamFinished: {
-        var err = String(text || "").trim()
-        root.statsStderr = err.substring(0, 200)
-        if (err)
-          console.warn("system_monitor_stats stderr: " + err.substring(0, 500))
-      }
+      onStreamFinished: root.statsStderr = String(text || "").trim().substring(0, 200)
     }
-    onExited: function (code) {
-      statusDeadline.stop()
-      root.isRefreshing = false
-      if (code !== 0 && root.fetchError.length === 0)
-        root.fetchError = root.statsStderr.length > 0
-          ? "stats helper failed: " + root.statsStderr
-          : "stats helper exited " + code
-      root.statsStderr = ""
+    onExited: function (code) { root.processExited(barProc, code) }
+  }
+
+  DeadlineProcess {
+    id: fullProc
+    deadlineMs: 9000
+    environment: procEnv.env
+    command: [root.py, root.binDir + "/system_monitor_stats.py"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.ingest(text, true)
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.statsStderr = String(text || "").trim().substring(0, 200)
+    }
+    onExited: function (code) { root.processExited(fullProc, code) }
+  }
+
+  DeadlineProcess {
+    id: fanSetProc
+    deadlineMs: 6000
+    environment: procEnv.env
+    onExited: {
+      helperStatusFile.reload()
+      if (root.queuedFanArgs) {
+        fanSetProc.command = root.queuedFanArgs
+        root.queuedFanArgs = null
+        fanSetProc.start()
+      }
     }
   }
 
-  // Hard whole-job deadline: a stuck collector is killed and reaped, never
-  // left running past one refresh interval.
-  Timer {
-    id: statusDeadline
-    interval: 9000
-    onTriggered: {
-      if (statusProc.running) {
-        statusProc.signal(9)
-        root.isRefreshing = false
-        root.fetchError = "stats timeout"
-      }
+  DeadlineProcess {
+    id: killProc
+    deadlineMs: 5000
+    environment: procEnv.env
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.killResult(text)
     }
   }
+
+  // --- timers ------------------------------------------------------------------------------------
+
+  // Bar: one cheap `--bar` run a minute while the bar is visible and the panel
+  // is closed (the panel's own run feeds the bar while it is open). Backs off
+  // on failure; revealed() refreshes once when the bar comes back.
+  Timer {
+    id: barTimer
+    interval: Math.max(60000, freshness.nextDelayMs)
+    running: gate.visible && !root.opened
+    repeat: true
+    onTriggered: root.refreshBar()
+  }
+
+  // Panel: full collect every 5 s only while the panel is open, plus once on open.
+  Timer {
+    id: fullTimer
+    interval: freshness.nextDelayMs
+    running: root.opened && gate.visible
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshFull()
+  }
+
+  Timer {
+    id: disarmTimer
+    interval: 5000
+    onTriggered: root.armedKillPid = 0
+  }
+
+  Component.onCompleted: root.refreshBar()
 
   // Root-owned status from the packaged helper (version, mode, controllable).
-  // Re-read on every stats refresh; a read is spawn-free.
+  // Watched and re-read on every refresh; a read is spawn-free.
   FileView {
     id: helperStatusFile
     path: "/run/omarchy-fan/status.json"
-    watchChanges: false
+    watchChanges: true
     printErrors: false
+    onFileChanged: helperStatusFile.reload()
     onLoaded: root.readHelperStatus(true)
     onLoadFailed: root.readHelperStatus(false)
   }
@@ -402,36 +553,34 @@ Panel {
     onTriggered: heartbeatFile.setText(String(Math.floor(Date.now() / 1000)))
   }
 
-  Timer {
-    id: refreshTimer
-    interval: 5000
-    running: true
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: root.refresh()
-  }
+  // --- bar button -------------------------------------------------------------------------------
 
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰍛 " + root.memUsed + "G " + root.memPct + "% " + root.cpuTemp + " 󰈐 " + (root.currentMode === "auto" ? "A" : (root.currentMode === "high" ? "H" : (root.currentMode === "med" ? "M" : (root.currentMode === "custom" ? "C" : "L"))))
+    text: "󰍛 " + root.memUsed + "G " + root.memPct + "% " + root.tempText(root.tempC) + " 󰈐 " + root.modeLetter()
     fontSize: Style.font.bodySmall
-    active: root.memPct >= 80 || root.currentMode === "high" || (root.currentMode === "auto" && parseInt(root.cpuTemp) >= 60)
-    activeColor: root.memPct >= 85 || parseInt(root.cpuTemp) >= 65 ? root.urgent : (root.bar ? root.bar.barForeground : Color.foreground)
-    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + (root.gpuPowerW >= 0 ? " " + root.gpuPowerW.toFixed(0) + "W" : "") + (root.gpuClients.length > 0 ? " (" + root.gpuClients.length + " procs)" : "") + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
+    active: root.memPct >= 80 || root.currentMode === "high" || root.tempC >= 70
+    activeColor: root.memPct >= 85 || root.tempC >= 80 ? root.urgent : (root.bar ? root.bar.barForeground : Color.foreground)
+    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + " GB"
+                 + " · " + (root.tempSource === "cpu" ? "CPU " : (root.tempSource === "board" ? root.tempLabel + " " : "temp "))
+                 + root.tempText(root.tempC)
+                 + " · " + root.fanSummary()
+                 + (root.fanControl ? " · right-click cycles fan mode" : "")
+                 + " · middle-click btop"
     horizontalMargin: 4.0
     onPressed: function (buttonCode) {
       if (buttonCode === Qt.RightButton)
         root.cycleMode()
       else if (buttonCode === Qt.MiddleButton)
         root.btop()
-      else {
-        root.refresh()
+      else
         root.toggle()
-      }
     }
   }
+
+  // --- panel ------------------------------------------------------------------------------------
 
   KeyboardPanel {
     id: panel
@@ -439,17 +588,22 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    contentWidth: panel.fittedContentWidth(Style.space(340), 420)
-    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, 720)
+    contentWidth: panel.fittedContentWidth(Style.space(380), 460)
+    contentHeight: panel.fittedContentHeight(mainColumn.implicitHeight, 780)
     Keys.onPressed: function (event) {
-      if (event.key === Qt.Key_J) {
-        root.selectedProc = Math.min(root.topMem.length - 1, root.selectedProc + 1)
+      if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
+        root.selectedGroup = Math.min(root.groups.length - 1, root.selectedGroup + 1)
+        root.armedKillPid = 0
         event.accepted = true
-      } else if (event.key === Qt.Key_K) {
-        root.selectedProc = Math.max(0, root.selectedProc - 1)
+      } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
+        root.selectedGroup = Math.max(0, root.selectedGroup - 1)
+        root.armedKillPid = 0
         event.accepted = true
-      } else if (event.key === Qt.Key_X && root.topMem[root.selectedProc]) {
-        root.killProcess(root.topMem[root.selectedProc].pid)
+      } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        root.toggleExpanded(root.selected())
+        event.accepted = true
+      } else if (event.key === Qt.Key_X) {
+        root.requestKill(root.selected())
         event.accepted = true
       } else if (event.key === Qt.Key_B) {
         root.btop()
@@ -457,287 +611,301 @@ Panel {
       }
     }
 
-    Column {
-      id: mainColumn
-      width: parent.width
-      spacing: Style.space(8)
-
-      RowLayout {
-        width: parent.width
-        Text {
-          textFormat: Text.PlainText
-          text: "Resource & Fan"
-          color: root.fg
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.heading
-          font.bold: true
-        }
-        Item {
-          Layout.fillWidth: true
-        }
-        Text {
-          visible: root.fetchError.length > 0
-          text: root.fetchError
-          textFormat: Text.PlainText
-          color: root.urgent
-          font.pixelSize: Style.font.bodySmall
-        }
-        Rectangle {
-          visible: root.fetchError.length === 0
-          width: modeLabel.implicitWidth + 14
-          height: 22
-          radius: 11
-          color: root.currentMode === "high" || (root.currentMode === "custom" && root.customName === "performance") ? root.urgent :
-                 (root.currentMode === "med" || (root.currentMode === "custom" && root.customName === "balanced") ? root.accent : root.muted)
-          Text {
-            id: modeLabel
-            anchors.centerIn: parent
-            text: root.fanControl ? (root.currentMode === "custom" ? root.customName.toUpperCase() : root.currentMode.toUpperCase()) : "READ"
-            textFormat: Text.PlainText
-            color: Color.background
-            font.pixelSize: Style.font.bodySmall
-            font.bold: true
-          }
-          MouseArea {
-            anchors.fill: parent
-            enabled: root.fanControl
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.cycleMode()
-          }
-        }
-      }
-
-      PanelSeparator { foreground: root.fg }
+    Flickable {
+      id: flick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: mainColumn.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
 
       Column {
-        width: parent.width
-        spacing: Style.space(6)
-        Text {
-          text: root.cpuName
-          textFormat: Text.PlainText
-          color: root.fg
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.bodySmall
-          font.bold: true
-        }
+        id: mainColumn
+        width: flick.width
+        spacing: Style.space(10)
+
+        // Header: title, freshness, mode badge.
         RowLayout {
           width: parent.width
+          spacing: Style.space(8)
           Text {
             textFormat: Text.PlainText
-            text: "CPU " + root.cpuLoad + "%"
-            color: root.levelColor(root.cpuLoad, 70, 90)
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.bodySmall
+            text: "Resource & Fan"
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
             font.bold: true
-          }
-          Item {
-            Layout.fillWidth: true
           }
           Text {
-            text: root.cpuTemp
+            visible: freshness.stale
             textFormat: Text.PlainText
-            color: root.tempColor(root.cpuTemp)
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.bodySmall
-            font.bold: true
+            text: "stale · " + freshness.ageText
+            color: root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
           }
-        }
-        Rectangle {
-          width: parent.width
-          height: Style.space(7)
-          radius: 3.5
-          color: root.fg
-          opacity: 0.15
+          Item { Layout.fillWidth: true }
           Rectangle {
-            width: Math.max(4, parent.width * (root.cpuLoad / 100.0))
-            height: parent.height
-            radius: 3.5
-            color: root.levelColor(root.cpuLoad, 70, 90)
+            Layout.preferredWidth: modeLabel.implicitWidth + Style.space(14)
+            Layout.preferredHeight: Style.space(22)
+            radius: height / 2
+            color: root.currentMode === "high" ? root.urgent : (root.currentMode === "auto" ? root.muted : root.accent)
+            Text {
+              id: modeLabel
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: root.fanControl ? (root.currentMode === "custom" ? root.customName.toUpperCase() : root.currentMode.toUpperCase()) : "READ ONLY"
+              color: Color.background
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+            MouseArea {
+              anchors.fill: parent
+              enabled: root.fanControl
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.cycleMode()
+            }
           }
         }
-      }
 
-      Column {
-        width: parent.width
-        visible: root.cpuCores.length > 0
-        spacing: Style.space(6)
         Text {
-          text: root.cpuCores.length + " CORES"
-          textFormat: Text.PlainText
-          color: root.muted
-          font.pixelSize: Style.font.bodySmall
-          font.bold: true
-        }
-        Grid {
-          id: coresGrid
+          visible: root.fetchError.length > 0
           width: parent.width
-          columns: root.cpuCores.length <= 8 ? 2 : (root.cpuCores.length <= 16 ? 4 : 6)
-          columnSpacing: Style.space(6)
-          rowSpacing: Style.space(4)
-          Repeater {
-            model: root.cpuCores
-            delegate: Rectangle {
-              required property var modelData
-              width: (parent.width - parent.columnSpacing * (parent.columns - 1)) / parent.columns
-              height: Style.space(20)
-              radius: Style.space(3)
-              color: "transparent"
-              border.color: root.fg
-              border.width: 1
-              opacity: 0.9
-              Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                color: root.levelColor(modelData.percent, 60, 80)
-                opacity: 0.35
-                radius: parent.radius
-                width: parent.width * Math.max(0, Math.min(1, modelData.percent / 100.0))
-              }
-              Text {
-                textFormat: Text.PlainText
-                anchors.centerIn: parent
-                text: "C" + modelData.core
-                color: root.fg
-                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                font.pixelSize: Style.font.caption
-                font.bold: true
+          textFormat: Text.PlainText
+          text: root.fetchError
+          color: root.urgent
+          wrapMode: Text.Wrap
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        // ---------------- Overview ----------------
+        PanelSeparator { foreground: root.fg }
+        PanelSectionHeader {
+          text: "OVERVIEW"
+          foreground: root.fg
+          fontFamily: root.fontFamily
+        }
+
+        // CPU
+        Column {
+          width: parent.width
+          spacing: Style.space(4)
+          RowLayout {
+            width: parent.width
+            Text {
+              Layout.fillWidth: true
+              textFormat: Text.PlainText
+              text: root.cpuName
+              elide: Text.ElideRight
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: (root.hasFullData ? root.cpuLoad + "%" : "…") + "  ·  " + (root.cpuTemp >= 0 ? root.cpuTemp + "°C" : "no CPU sensor")
+              color: root.levelColor(root.cpuLoad, 70, 90)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+          }
+          Rectangle {
+            width: parent.width
+            height: Style.space(6)
+            radius: height / 2
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.15)
+            Rectangle {
+              width: Math.max(height, parent.width * root.cpuLoad / 100.0)
+              height: parent.height
+              radius: height / 2
+              color: root.levelColor(root.cpuLoad, 70, 90)
+            }
+          }
+          Grid {
+            visible: root.cpuCores.length > 0
+            width: parent.width
+            columns: Math.min(12, Math.max(1, root.cpuCores.length))
+            columnSpacing: Style.space(3)
+            rowSpacing: Style.space(3)
+            Repeater {
+              model: root.cpuCores
+              delegate: Rectangle {
+                required property var modelData
+                width: (parent.width - parent.columnSpacing * (parent.columns - 1)) / parent.columns
+                height: Style.space(14)
+                radius: Style.space(2)
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+                Rectangle {
+                  anchors.bottom: parent.bottom
+                  width: parent.width
+                  height: parent.height * modelData.percent / 100.0
+                  radius: parent.radius
+                  color: root.levelColor(modelData.percent, 60, 85)
+                  opacity: 0.6
+                }
               }
             }
           }
         }
-      }
 
-      PanelSeparator { foreground: root.fg }
-
-      Column {
-        width: parent.width
-        spacing: Style.space(6)
-        RowLayout {
-          width: parent.width
-          Text {
-            textFormat: Text.PlainText
-            text: "Memory"
-            color: root.fg
-            font.bold: true
-            font.pixelSize: Style.font.bodySmall
-          }
-          Item {
-            Layout.fillWidth: true
-          }
-          Text {
-            text: root.memUsed + " / " + root.memTotal + " GB (" + root.memPct + "%)"
-            textFormat: Text.PlainText
-            color: root.memColor()
-            font.bold: true
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-        Rectangle {
-          width: parent.width
-          height: Style.space(7)
-          radius: 3.5
-          color: root.fg
-          opacity: 0.15
-          Rectangle {
-            width: Math.max(4, parent.width * (root.memPct / 100.0))
-            height: parent.height
-            radius: 3.5
-            color: root.memColor()
-          }
-        }
-        Text {
-          textFormat: Text.PlainText
-          text: "avail " + root.memAvail + "G · swap " + root.swapUsed + "/" + root.swapTotal + "G" + (root.ramInfo ? " · " + root.ramInfo : "")
-          color: root.muted
-          font.pixelSize: Style.font.bodySmall
-        }
-      }
-
-      PanelSeparator { foreground: root.fg }
-
-      Column {
-        width: parent.width
-        visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--" || root.gpuLoadReason !== ""
-        spacing: Style.space(6)
-        RowLayout {
-          width: parent.width
-          Text {
-            text: root.gpuName
-            textFormat: Text.PlainText
-            color: root.fg
-            font.bold: true
-            font.pixelSize: Style.font.bodySmall
-          }
-          Item {
-            Layout.fillWidth: true
-          }
-          Text {
-            text: (root.gpuLoad >= 0 ? root.gpuLoad + "% " : "") + root.gpuTemp
-            textFormat: Text.PlainText
-            color: root.tempColor(root.gpuTemp)
-            font.bold: true
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-        Text {
-          visible: root.gpuLoad < 0 && root.gpuLoadReason !== ""
-          width: parent.width
-          text: root.gpuLoadReason
-          textFormat: Text.PlainText
-          color: root.muted
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
-        }
-        Rectangle {
-          visible: root.gpuLoad >= 0
-          width: parent.width
-          height: Style.space(7)
-          radius: 3.5
-          color: root.fg
-          opacity: 0.15
-          Rectangle {
-            width: Math.max(4, parent.width * (root.gpuLoad / 100.0))
-            height: parent.height
-            radius: 3.5
-            color: root.levelColor(root.gpuLoad, 70, 90)
-          }
-        }
-        Text {
-          visible: root.gpuPowerW >= 0 || root.gpuClients.length > 0
-          width: parent.width
-          text: (root.gpuPowerW >= 0 ? "pkg " + root.gpuPowerW.toFixed(1) + " W" : "")
-                + (root.gpuPowerW >= 0 && root.gpuClients.length > 0 ? " · " : "")
-                + (root.gpuClients.length > 0
-                   ? root.gpuClients.length + " gpu proc" + (root.gpuClients.length > 1 ? "s" : "")
-                     + ": " + root.gpuClients.slice(0, 4).map(function(c) { return c.name }).join(", ")
-                     + (root.gpuClients.length > 4 ? "…" : "")
-                   : "")
-          textFormat: Text.PlainText
-          color: root.muted
-          font.pixelSize: Style.font.bodySmall
-          elide: Text.ElideRight
-          wrapMode: Text.NoWrap
-        }
-      }
-
-      PanelSeparator {
-        visible: root.disks.length > 0
-        foreground: root.fg
-      }
-
-      Column {
-        width: parent.width
-        visible: root.disks.length > 0
-        spacing: Style.space(6)
-        Text {
-          textFormat: Text.PlainText
-          text: "Storage"
-          color: root.fg
-          font.bold: true
-          font.pixelSize: Style.font.bodySmall
-        }
+        // Memory
         Column {
+          width: parent.width
+          spacing: Style.space(4)
+          RowLayout {
+            width: parent.width
+            Text {
+              textFormat: Text.PlainText
+              text: "Memory"
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+            Item { Layout.fillWidth: true }
+            Text {
+              textFormat: Text.PlainText
+              text: root.memUsed + " / " + root.memTotal + " GB  ·  " + root.memPct + "%"
+              color: root.levelColor(root.memPct, 70, 85)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+          }
+          Rectangle {
+            width: parent.width
+            height: Style.space(6)
+            radius: height / 2
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.15)
+            Rectangle {
+              width: Math.max(height, parent.width * root.memPct / 100.0)
+              height: parent.height
+              radius: height / 2
+              color: root.levelColor(root.memPct, 70, 85)
+            }
+          }
+          Text {
+            visible: root.hasFullData
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.memAvail + " GB free · swap " + root.swapUsed + " / " + root.swapTotal + " GB" + (root.ramType ? " · " + root.ramType : "")
+            elide: Text.ElideRight
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+
+        // GPU
+        Column {
+          visible: root.gpuName.length > 0
+          width: parent.width
+          spacing: Style.space(4)
+          RowLayout {
+            width: parent.width
+            Text {
+              Layout.fillWidth: true
+              textFormat: Text.PlainText
+              text: root.gpuName
+              elide: Text.ElideRight
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+            Text {
+              textFormat: Text.PlainText
+              text: (root.gpuLoad >= 0 ? root.gpuLoad + "%" : "load n/a")
+                    + (root.gpuTemp >= 0 ? "  ·  " + root.gpuTemp + "°C" : "")
+                    + (root.gpuPowerW >= 0 ? "  ·  SoC " + root.gpuPowerW.toFixed(1) + " W" : "")
+              color: root.levelColor(root.gpuLoad, 70, 90)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+            }
+          }
+          Rectangle {
+            visible: root.gpuLoad >= 0
+            width: parent.width
+            height: Style.space(6)
+            radius: height / 2
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.15)
+            Rectangle {
+              width: Math.max(height, parent.width * root.gpuLoad / 100.0)
+              height: parent.height
+              radius: height / 2
+              color: root.levelColor(root.gpuLoad, 70, 90)
+            }
+          }
+          Text {
+            visible: root.gpuLoad < 0 && root.gpuReason.length > 0
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.gpuReason
+            wrapMode: Text.Wrap
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          Text {
+            visible: root.gpuClients.length > 0
+            width: parent.width
+            textFormat: Text.PlainText
+            text: "Using the GPU: " + root.gpuClients.join(", ")
+            elide: Text.ElideRight
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+
+        // Temperatures
+        Column {
+          visible: root.temps.length > 0
+          width: parent.width
+          spacing: Style.space(4)
+          Text {
+            textFormat: Text.PlainText
+            text: root.cpuTemp >= 0 ? "Temperatures" : "Board temperatures (no CPU sensor exposed)"
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+          Flow {
+            width: parent.width
+            spacing: Style.space(6)
+            Repeater {
+              model: root.temps
+              delegate: Rectangle {
+                required property var modelData
+                width: tempChip.implicitWidth + Style.space(12)
+                height: tempChip.implicitHeight + Style.space(6)
+                radius: height / 2
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+                Text {
+                  id: tempChip
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: modelData.label + "  " + modelData.c + "°"
+                  color: root.levelColor(modelData.c, 65, 85)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+            }
+          }
+        }
+
+        // Storage
+        Column {
+          visible: root.disks.length > 0
           width: parent.width
           spacing: Style.space(4)
           Repeater {
@@ -749,80 +917,82 @@ Panel {
               RowLayout {
                 width: parent.width
                 Text {
-                  text: modelData.mount
+                  Layout.fillWidth: true
                   textFormat: Text.PlainText
+                  text: "Disk " + modelData.mount
+                  elide: Text.ElideMiddle
                   color: root.fg
+                  font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   font.bold: true
-                  Layout.preferredWidth: 100
-                  elide: Text.ElideRight
-                }
-                Item {
-                  Layout.fillWidth: true
                 }
                 Text {
-                  text: modelData.used_gb + " / " + modelData.total_gb + "G (" + modelData.percent + "%)"
                   textFormat: Text.PlainText
+                  text: modelData.used.toFixed(0) + " / " + modelData.total.toFixed(0) + " GB  ·  " + modelData.percent + "%"
+                    + (modelData.mount === "/" && root.nvmeTemp >= 0 ? "  ·  " + root.nvmeTemp + "°C" : "")
                   color: root.levelColor(modelData.percent, 80, 95)
+                  font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                 }
               }
               Rectangle {
                 width: parent.width
-                height: Style.space(5)
-                radius: 2.5
-                color: root.fg
-                opacity: 0.15
+                height: Style.space(4)
+                radius: height / 2
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.15)
                 Rectangle {
-                  width: Math.max(4, parent.width * (modelData.percent / 100.0))
+                  width: Math.max(height, parent.width * modelData.percent / 100.0)
                   height: parent.height
-                  radius: 2.5
+                  radius: height / 2
                   color: root.levelColor(modelData.percent, 80, 95)
                 }
               }
             }
           }
         }
-      }
 
-      PanelSeparator { foreground: root.fg }
+        // ---------------- Fans ----------------
+        PanelSeparator { foreground: root.fg }
+        PanelSectionHeader {
+          text: "FANS"
+          foreground: root.fg
+          fontFamily: root.fontFamily
+        }
 
-      Column {
-        width: parent.width
-        spacing: Style.space(8)
-        RowLayout {
+        Text {
           width: parent.width
-          Text {
-            textFormat: Text.PlainText
-            Layout.fillWidth: true
-            text: "Fans " + root.fan1Rpm + " / " + root.fan2Rpm + " RPM"
-            color: root.fg
-            font.pixelSize: Style.font.bodySmall
-          }
+          textFormat: Text.PlainText
+          text: root.fanSummary()
+          wrapMode: Text.Wrap
+          color: root.fg
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
         Text {
           width: parent.width
-          text: root.helperHint()
           textFormat: Text.PlainText
+          text: root.helperHint()
           wrapMode: Text.Wrap
-          color: root.fanControl ? root.muted : root.accent
+          color: root.fanControl ? root.dim : root.accent
+          font.family: root.fontFamily
           font.pixelSize: Style.font.caption
         }
         Rectangle {
-          visible: !root.fanControl && root.helperState !== "missing"
+          visible: !root.fanControl && root.helperState !== "missing" && root.currentMode !== "auto"
           width: parent.width
-          height: Style.space(34)
-          radius: Style.space(6)
+          height: Style.space(30)
+          radius: Style.cornerRadius
           color: "transparent"
-          border.color: root.fg
+          border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4)
           border.width: 1
           Text {
             anchors.centerIn: parent
-            text: "Reset to auto"
             textFormat: Text.PlainText
+            text: "Reset to auto"
             color: root.fg
-            font.bold: true
+            font.family: root.fontFamily
             font.pixelSize: Style.font.caption
+            font.bold: true
           }
           MouseArea {
             anchors.fill: parent
@@ -839,23 +1009,22 @@ Panel {
             delegate: Rectangle {
               required property string modelData
               width: (parent.width - Style.space(24)) / 5
-              height: Style.space(34)
-              radius: Style.space(6)
-              opacity: root.fanControl ? 1 : 0.4
+              height: Style.space(30)
+              radius: Style.cornerRadius
               color: root.currentMode === modelData ? root.fg : "transparent"
-              border.color: root.fg
+              border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4)
               border.width: 1
               Text {
                 anchors.centerIn: parent
-                text: modelData === "auto" ? "Auto" : (modelData === "low" ? "Low" : (modelData === "med" ? "Med" : (modelData === "high" ? "High" : "Cust")))
                 textFormat: Text.PlainText
+                text: modelData === "med" ? "Med" : modelData.charAt(0).toUpperCase() + modelData.slice(1)
                 color: root.currentMode === modelData ? Color.background : root.fg
-                font.bold: true
+                font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+                font.bold: true
               }
               MouseArea {
                 anchors.fill: parent
-                enabled: root.fanControl
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.setMode(modelData)
               }
@@ -863,54 +1032,51 @@ Panel {
           }
         }
         Row {
+          visible: root.fanControl && root.currentMode === "custom"
           width: parent.width
           spacing: Style.space(6)
-          visible: root.fanControl && root.currentMode === "custom"
           Repeater {
             model: ["silent", "balanced", "performance"]
             delegate: Rectangle {
               required property string modelData
               width: (parent.width - Style.space(12)) / 3
-              height: Style.space(28)
-              radius: Style.space(6)
-              opacity: root.fanControl ? 1 : 0.4
+              height: Style.space(26)
+              radius: Style.cornerRadius
               color: root.customName === modelData ? root.accent : "transparent"
-              border.color: root.fg
+              border.color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.4)
               border.width: 1
               Text {
                 anchors.centerIn: parent
-                text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                 textFormat: Text.PlainText
+                text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                 color: root.customName === modelData ? Color.background : root.fg
-                font.bold: true
+                font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+                font.bold: true
               }
               MouseArea {
                 anchors.fill: parent
-                enabled: root.fanControl
                 cursorShape: Qt.PointingHandCursor
                 onClicked: root.setCustom(modelData)
               }
             }
           }
         }
+        // Read-only preview of the active custom curve (temperature → PWM).
         Canvas {
           id: curveCanvas
-          visible: root.currentMode === "custom" && root.fanCurve.length > 1
+          visible: root.fanControl && root.currentMode === "custom" && root.fanCurve.length > 1
           width: parent.width
-          height: Style.space(70)
+          height: Style.space(60)
           onPaint: {
             var ctx = getContext("2d")
             ctx.clearRect(0, 0, width, height)
-            if (!root.fanCurve || root.fanCurve.length < 2)
+            var pts = root.fanCurve
+            if (!pts || pts.length < 2)
               return
-            var pad = 8
+            var pad = 6
             var cw = width - pad * 2
             var ch = height - pad * 2
-            var tMax = 100
-            var pMax = 255
-            var pts = root.fanCurve
-
             ctx.strokeStyle = "rgba(" + Math.round(root.fg.r * 255) + "," + Math.round(root.fg.g * 255) + "," + Math.round(root.fg.b * 255) + ",0.15)"
             ctx.lineWidth = 1
             ctx.beginPath()
@@ -918,30 +1084,16 @@ Panel {
             ctx.lineTo(pad, height - pad)
             ctx.lineTo(width - pad, height - pad)
             ctx.stroke()
-
             ctx.strokeStyle = root.accent
             ctx.lineWidth = 2
             ctx.beginPath()
             for (var i = 0; i < pts.length; i++) {
-              var t = pts[i][0]
-              var p = pts[i][1]
-              var x = pad + (t / tMax) * cw
-              var y = (height - pad) - (p / pMax) * ch
-              if (i === 0)
-                ctx.moveTo(x, y)
-              else
-                ctx.lineTo(x, y)
+              var x = pad + (Number(pts[i][0]) / 100) * cw
+              var y = (height - pad) - (Number(pts[i][1]) / 255) * ch
+              if (i === 0) ctx.moveTo(x, y)
+              else ctx.lineTo(x, y)
             }
             ctx.stroke()
-
-            var ct = parseInt(root.cpuTemp)
-            if (!isNaN(ct)) {
-              ctx.fillStyle = root.urgent
-              ctx.beginPath()
-              var cx = pad + Math.min(1, Math.max(0, ct / tMax)) * cw
-              ctx.arc(cx, height - pad - 4, 3, 0, Math.PI * 2)
-              ctx.fill()
-            }
           }
           Connections {
             target: root
@@ -951,96 +1103,186 @@ Panel {
             }
           }
         }
-      }
 
-      PanelSeparator { foreground: root.fg }
-
-      Column {
-        width: parent.width
-        spacing: Style.space(4)
-        visible: root.topMem && root.topMem.length > 0
+        // ---------------- What's running ----------------
+        PanelSeparator { foreground: root.fg }
         RowLayout {
           width: parent.width
+          PanelSectionHeader {
+            text: "WHAT'S RUNNING"
+            foreground: root.fg
+            fontFamily: root.fontFamily
+          }
+          Item { Layout.fillWidth: true }
           Text {
             textFormat: Text.PlainText
-            text: "TOP MEMORY  ·  j/k  x kill"
-            color: root.muted
-            font.pixelSize: Style.font.bodySmall
-            font.bold: true
-          }
-          Item {
-            Layout.fillWidth: true
-          }
-          Text {
-            textFormat: Text.PlainText
-            text: "b btop"
-            color: root.muted
+            text: "busy first, then memory · j/k ↵ x · b btop"
+            color: root.dim
+            font.family: root.fontFamily
             font.pixelSize: Style.font.caption
           }
         }
-        Repeater {
-          model: root.topMem
-          delegate: Rectangle {
-            required property var modelData
-            required property int index
-            width: parent.width
-            height: Style.space(26)
-            radius: Style.space(4)
-            color: index === root.selectedProc ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
-            MouseArea {
-              anchors.fill: parent
-              hoverEnabled: true
-              onEntered: root.selectedProc = index
-            }
-            RowLayout {
-              anchors.fill: parent
-              anchors.leftMargin: Style.space(4)
-              anchors.rightMargin: Style.space(4)
-              Text {
-                text: modelData.name || "unknown"
-                textFormat: Text.PlainText
-                color: root.fg
-                font.bold: true
-                font.pixelSize: Style.font.bodySmall
-                Layout.preferredWidth: 120
-                elide: Text.ElideRight
+        Text {
+          visible: root.hasFullData && !root.warm
+          width: parent.width
+          textFormat: Text.PlainText
+          text: "Measuring CPU use; numbers appear on the next refresh."
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+        Text {
+          visible: !root.hasFullData
+          width: parent.width
+          textFormat: Text.PlainText
+          text: "Reading processes…"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(2)
+          Repeater {
+            model: root.groups
+            delegate: Rectangle {
+              id: groupRow
+              required property var modelData
+              required property int index
+              readonly property bool expanded: root.expandedLabel === modelData.label
+              readonly property bool armed: modelData.killPid > 1 && root.armedKillPid === modelData.killPid
+              width: parent.width
+              height: rowContent.implicitHeight + Style.space(8)
+              radius: Style.cornerRadius
+              color: index === root.selectedGroup ? Style.selectedFillFor(root.fg, Color.accent) : "transparent"
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.selectedGroup = groupRow.index
+                onClicked: root.toggleExpanded(groupRow.modelData)
               }
-              Text {
-                textFormat: Text.PlainText
-                text: "PID " + (modelData.pid || "")
-                color: root.muted
-                font.pixelSize: Style.font.bodySmall
-              }
-              Item {
-                Layout.fillWidth: true
-              }
-              Text {
-                text: (modelData.mem_mb || 0) + " MB"
-                textFormat: Text.PlainText
-                color: root.fg
-                font.pixelSize: Style.font.bodySmall
-              }
-              Rectangle {
-                width: 18
-                height: 18
-                radius: 4
-                color: root.urgent
-                Text {
-                  textFormat: Text.PlainText
-                  anchors.centerIn: parent
-                  text: "x"
-                  color: Color.background
-                  font.pixelSize: Style.font.bodySmall
-                  font.bold: true
+
+              Column {
+                id: rowContent
+                x: Style.space(6)
+                y: Style.space(4)
+                width: parent.width - Style.space(12)
+                spacing: Style.space(2)
+
+                RowLayout {
+                  width: parent.width
+                  spacing: Style.space(8)
+                  Text {
+                    Layout.preferredWidth: Style.space(18)
+                    textFormat: Text.PlainText
+                    text: root.kindGlyph(groupRow.modelData.kind)
+                    color: groupRow.modelData.kind === "agent" ? root.accent : root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                  }
+                  Column {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                      width: parent.width
+                      textFormat: Text.PlainText
+                      text: groupRow.modelData.label + (groupRow.modelData.count > 1 ? "  ×" + groupRow.modelData.count : "")
+                      elide: Text.ElideRight
+                      color: root.fg
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                    }
+                    Text {
+                      width: parent.width
+                      textFormat: Text.PlainText
+                      text: groupRow.modelData.detail
+                      elide: Text.ElideRight
+                      color: root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
+                  Column {
+                    spacing: 0
+                    Text {
+                      anchors.right: parent.right
+                      textFormat: Text.PlainText
+                      text: groupRow.modelData.cpu.toFixed(groupRow.modelData.cpu >= 10 ? 0 : 1) + "% CPU"
+                      color: root.levelColor(groupRow.modelData.cpu, 50, 100)
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: groupRow.modelData.cpu >= 1
+                    }
+                    Text {
+                      anchors.right: parent.right
+                      textFormat: Text.PlainText
+                      text: root.memText(groupRow.modelData.mem)
+                      color: root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
                 }
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: root.killProcess(modelData.pid)
+
+                RowLayout {
+                  visible: groupRow.expanded
+                  width: parent.width
+                  spacing: Style.space(8)
+                  Text {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Style.space(26)
+                    textFormat: Text.PlainText
+                    text: (groupRow.modelData.count > 1 ? "Top PIDs " : "PID ") + groupRow.modelData.pids.join(", ")
+                          + (groupRow.modelData.count > groupRow.modelData.pids.length ? " …" : "")
+                          + (groupRow.modelData.killPid > 1 ? "" : "  ·  stop it from its app")
+                    elide: Text.ElideRight
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Rectangle {
+                    visible: groupRow.modelData.killPid > 1
+                    Layout.preferredWidth: killText.implicitWidth + Style.space(14)
+                    Layout.preferredHeight: killText.implicitHeight + Style.space(6)
+                    radius: Style.cornerRadius
+                    color: groupRow.armed ? root.urgent : "transparent"
+                    border.color: root.urgent
+                    border.width: 1
+                    Text {
+                      id: killText
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: groupRow.armed ? "Confirm kill" : "Kill"
+                      color: groupRow.armed ? Color.background : root.urgent
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                    }
+                    MouseArea {
+                      anchors.fill: parent
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: root.requestKill(groupRow.modelData)
+                    }
+                  }
                 }
               }
             }
           }
+        }
+
+        Text {
+          visible: root.killStatus.length > 0
+          width: parent.width
+          textFormat: Text.PlainText
+          text: root.killStatus
+          elide: Text.ElideRight
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
         }
       }
     }

@@ -72,6 +72,7 @@ PWM_FALL_STEP = 4    # per 2s tick -> ~2min to fully settle
 PWM_DEADBAND = 2     # ignore target changes smaller than this
 
 TICK_SECONDS = 2
+ONE_SHOT_DEADLINE_S = 60  # handback / migrate-legacy-unit backstop
 # The panel writes the heartbeat every 30s; four missed beats means the shell
 # is gone and a fixed preset must not pin the fans.
 HEARTBEAT_MAX_AGE = 120
@@ -649,6 +650,10 @@ def main(argv: list[str] | None = None) -> int:
               "install the omarchy-fan-helper package", file=sys.stderr)
         return 78
 
+    if args.command != "run":
+        # One-shot commands get a wall-clock backstop; the long-running
+        # `run` loop deliberately has none (systemd supervises it).
+        signal.alarm(ONE_SHOT_DEADLINE_S)
     if args.command == "handback":
         FanHelper(root=root).release_fans()
         return 0

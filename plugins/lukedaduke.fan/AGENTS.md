@@ -7,8 +7,11 @@ Inherits from [luke-agents/AGENTS.md](https://github.com/duketopceo/luke-agents/
 
 ## What This Repo Does
 
-Laptop resource monitor for the Omarchy bar: RAM, CPU load, CPU/GPU/NVMe thermals
-from `hwmon`, fan RPM, and a top-process list with `j`/`k` selection and kill.
+Resource monitor for the Omarchy bar: RAM, CPU load, GPU, temperatures from
+`hwmon`, disks, fan RPM, and a "What's running" list that groups processes
+under friendly names (alias table in `bin/system_monitor_stats.py`) with a
+redacted one-line description, `j`/`k` selection, and a confirmed kill for
+single-process groups.
 On top of read-only monitoring it drives an optional fan daemon that applies
 preset or user curves to `fan*_target` (Apple Silicon `macsmc_hwmon`) or `pwm*`
 (`dell_smm`).
@@ -31,15 +34,23 @@ next publish.** Make the change in the umbrella, then
 | Path | Role |
 |---|---|
 | `manifest.json` | Plugin contract. `id` / `kinds: ["bar-widget"]` / `entryPoints.barWidget` |
-| `Panel.qml` | Bar text + dropdown. ~900 lines, the whole UI |
-| `bin/system_monitor_stats.py` | Long-lived sampler. Emits bounded JSON on stdout |
-| `bin/kill_proc.py` | Kills one pid by number. Refuses `pid <= 1` |
+| `Panel.qml` | Bar text + dropdown, the whole UI |
+| `bin/system_monitor_stats.py` | One-shot collector. `--bar` (RAM, temp, fans; no process scan) or full (panel). Emits the R13 envelope |
+| `bin/kill_proc.py` | Kills one pid; refuses `pid <= 1` and a pid whose start time changed. Emits the envelope |
+| `bin/_omplug/`, `lib/` | Vendored shared library (`scripts/sync-shared.py` in the umbrella). Never edit here |
 | `bin/omarchy-fan-set` | Writes fan mode + custom curve to `$XDG_RUNTIME_DIR/omarchy-fan/` |
 | `bin/omarchy-fan-daemon` | Source of the packaged root helper (installed to `/usr/lib/omarchy-fan/`); never run from this folder |
 
-`Panel.qml` execs the helpers with the absolute interpreter `/usr/bin/python3`,
-reads the helper's `/run/omarchy-fan/status.json`, and writes the 30 s shell
-heartbeat with a FileView. It contains no `pkexec` path.
+`Panel.qml` execs the helpers with the absolute interpreter `/usr/bin/python3`
+through `lib/DeadlineProcess` with `lib/ProcEnv`, watches the helper's
+`/run/omarchy-fan/status.json`, and writes the 30 s shell heartbeat with a
+FileView. It contains no `pkexec` path.
+
+Cost budget (docs/SCORECARD.md: 1 spawn/min idle): the bar runs `--bar` at
+most once a minute, bound to `lib/VisibilityGate`; the full collect runs every
+5 s only while the panel is open. Do not add a spawn to the closed-panel path.
+The collector reads `/proc` and `/sys` directly and never spawns `ps`, `df`,
+or hardware-listing tools; `nvidia-smi` runs only for an awake NVIDIA GPU.
 
 ## Runtime Contract
 
@@ -52,7 +63,7 @@ heartbeat with a FileView. It contains no `pkexec` path.
 - `moduleName` and `ipcTarget` in `Panel.qml` must both equal the manifest `id`
   (`lukedaduke.fan`). The shell routes IPC on this string.
 - Graceful degradation is a feature, not an oversight. With no daemon and no
-  driveable fan target the panel stays read-only, shows `READ`, and disables the
+  driveable fan target the panel stays read-only, shows `READ ONLY`, and hides the
   preset buttons. Keep that path working.
 
 ## Validation
