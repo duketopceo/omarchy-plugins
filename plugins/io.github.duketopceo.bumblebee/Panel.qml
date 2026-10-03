@@ -177,7 +177,14 @@ Panel {
 
   function catalogSubtitle() {
     if (root.catalogRefreshedAt === "") return "upstream catalog not fetched yet"
-    return "upstream refreshed " + root.relTime(root.catalogRefreshedAt)
+    var s = "upstream refreshed " + root.relTime(root.catalogRefreshedAt)
+    // Mirrors catalogStaleAfterS in Service.qml (7d auto-refresh).
+    var t = Date.parse(String(root.catalogRefreshedAt))
+    if (isFinite(t)) {
+      var eta = 7 * 86400 - Math.max(0, Math.round((Date.now() - t) / 1000))
+      s += eta > 0 ? " · auto-refresh in ~" + fmtAge(eta) : " · refresh due"
+    }
+    return s
   }
 
   function fmtAge(ageS) {
