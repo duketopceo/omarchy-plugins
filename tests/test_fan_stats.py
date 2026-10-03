@@ -691,13 +691,18 @@ def test_root_from_package_path_proceeds(monkeypatch) -> None:
     assert calls == ["run_loop"]
 
 
-class FakePw:
-    pw_dir = "/home/tester"
+TESTER_HOME = Path("/home") / "tester"
+
+
+class FakeAccount:
+    """Stands in for a pwd entry; only the home directory is read."""
+
+    pw_dir = str(TESTER_HOME)
 
 
 def fake_home(monkeypatch, root: Path) -> Path:
     import pwd
-    monkeypatch.setattr(pwd, "getpwuid", lambda _uid: FakePw())
+    monkeypatch.setattr(pwd, "getpwuid", lambda _uid: FakeAccount())
     cdir = root / "home/tester/.config/omarchy"
     cdir.mkdir(parents=True, exist_ok=True)
     return cdir
