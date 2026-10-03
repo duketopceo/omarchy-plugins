@@ -40,8 +40,15 @@ omarchy plugin enable io.github.duketopceo.numbat
 
 ## Features
 
-- Bar radar glyph shows live state; urgent tint when findings land in the last 24h
-- Dropdown: findings feed (rule, agent, relative time) + per-agent last-activity
+- Bar radar glyph shows live state; urgent tint when findings land in the last 24h.
+  An unseen-count badge rides the glyph — findings newer than the
+  `lastPanelSeen` watermark (persisted on this plugin's `shell.json` entry
+  each time the dropdown opens)
+- Dropdown: findings feed (rule, agent, relative time, severity chip) +
+  per-agent last-activity; agent chips filter the feed
+- Log tab carries the record-file size, growth rate, and a copyable rotate
+  command when `records.ndjson` grows past the hint threshold — the plugin
+  itself stays read-only on `~/.numbat`
 - **Findings toasts**: a persistent shell service stats the record files every
   5s; when they grow it diffs findings against a persisted watermark and raises
   a severity-tinted popup (max 3, click to open the panel) — even with the

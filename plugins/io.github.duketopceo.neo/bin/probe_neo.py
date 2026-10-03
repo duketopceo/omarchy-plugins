@@ -19,11 +19,13 @@ Verbs — exactly one JSON object on stdout, exit 0:
         "shim": {...}, "server": {...}},
        "ports": {"9211": bool, "49337": bool, "49338": bool},
        "mcp": {"up": bool, "server": str|null, "version": str|null},
+       "tabs": int|null,
        "endpoint": "http://127.0.0.1:9211/mcp", "error": str|null}
 
-  start | stop | restart
-      systemctl --user <verb> on all three units, then a status payload
-      shaped like above (mcp check skipped on stop — nothing to probe).
+  start | stop | restart [unit]
+      systemctl --user <verb> on all three units — or one when `unit` is a
+      known key (chromium|shim|server) — then a status payload shaped like
+      above (mcp check skipped on stop — nothing to probe).
 
 Everything is bounded: one `systemctl show` call, one /proc/net/tcp read,
 one 3s MCP initialize. Unit control uses absolute /usr/bin/systemctl under
@@ -36,7 +38,7 @@ import subprocess
 import sys
 import urllib.request
 
-JOB_DEADLINE_S = 45   # control verbs can wait out a unit's TimeoutStopSec
+JOB_DEADLINE_S = 50   # control verbs can wait out a unit's TimeoutStopSec (35s) plus a status pass (13s)
 SYSTEMCTL_TIMEOUT_S = 35
 SYSTEMCTL = "/usr/bin/systemctl"
 UNITS = {  # display key -> unit name
@@ -175,6 +177,26 @@ def _mcp_health():
     return False, None, None
 
 
+def _tab_count():
+    """Open page-target count via the CDP shim's HTTP /json/list.
+
+    Plain GET, no websocket — 2s bound. None when the shim is down or
+    answers something unexpected; the panel renders '—' for that.
+    """
+    try:
+        with urllib.request.urlopen(
+                "http://127.0.0.1:49338/json/list",
+                timeout=2.0) as resp:
+            blob = resp.read(256 * 1024).decode("utf-8", errors="replace")
+        targets = json.loads(blob)
+    except Exception:
+        return None
+    if not isinstance(targets, list):
+        return None
+    return sum(1 for t in targets
+               if isinstance(t, dict) and t.get("type") == "page")
+
+
 def _status(check_mcp=True):
     units = _unit_states()
     ports = _listening_ports()
@@ -185,19 +207,27 @@ def _status(check_mcp=True):
         "units": units,
         "ports": ports,
         "mcp": {"up": mcp_up, "server": mcp_name, "version": mcp_ver},
+        "tabs": _tab_count(),
         "endpoint": ENDPOINT,
         "error": None,
     }
 
 
-def _control(verb):
-    """systemctl --user <verb> all three units -> {"ok","action","error"}."""
+def _control(verb, unit=None):
+    """systemctl --user <verb> on the units -> {"ok","action","error"}.
+
+    `unit` narrows to one of the three known keys ("chromium"|"shim"|
+    "server"); anything else is rejected before systemctl runs.
+    """
     if verb not in ("start", "stop", "restart"):
         return {"ok": False, "action": verb, "error": "bad_verb"}
-    rc, _out = _run([SYSTEMCTL, "--user", verb, *UNITS.values()],
+    if unit is not None and unit not in UNITS:
+        return {"ok": False, "action": verb, "error": "bad_unit"}
+    targets = [UNITS[unit]] if unit else list(UNITS.values())
+    rc, _out = _run([SYSTEMCTL, "--user", verb, *targets],
                     timeout_s=SYSTEMCTL_TIMEOUT_S)
     ok = rc == 0
-    payload = {"ok": ok, "action": verb,
+    payload = {"ok": ok, "action": (verb + ":" + unit) if unit else verb,
                "error": None if ok else "systemctl_failed"}
     # MCP health is checked on the next regular status poll — right after a
     # unit transition it would flap for a second or two anyway.
@@ -214,8 +244,10 @@ def main():
     signal.alarm(JOB_DEADLINE_S)
 
     verb = sys.argv[1] if len(sys.argv) > 1 else "status"
+    unit = sys.argv[2] if len(sys.argv) > 2 else None
     try:
-        payload = (_control(verb) if verb in ("start", "stop", "restart")
+        payload = (_control(verb, unit)
+                   if verb in ("start", "stop", "restart")
                    else _status())
     except Exception as exc:
         payload = {"ok": False, "error": "internal: " + _clean(exc, 120)}
