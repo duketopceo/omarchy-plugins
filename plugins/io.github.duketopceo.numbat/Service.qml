@@ -59,8 +59,11 @@ Item {
     var e = ls.loaded ? ls.entry : null
     var s = e && e.toastMinSeverity !== undefined
             ? String(e.toastMinSeverity).toLowerCase() : "medium"
-    var r = sevRank(s)
-    return r >= 0 ? r : 2
+    // Only the five documented values are honored — anything else
+    // ("none", "debug", garbage) falls back to medium, never widens.
+    if (["info", "low", "medium", "high", "critical"].indexOf(s) === -1)
+      return 2
+    return sevRank(s)
   }
   readonly property int toastCooldownMs: {
     var e = ls.loaded ? ls.entry : null
@@ -181,7 +184,7 @@ Item {
     if (s === "high" || s === "error") return 3
     if (s === "medium" || s === "moderate" || s === "warning" || s === "warn") return 2
     if (s === "low") return 1
-    if (s === "info" || s === "debug" || s === "none" || s === "") return 0
+    if (s === "info" || s === "debug" || s === "none") return 0
     return 2
   }
 
@@ -313,6 +316,9 @@ Item {
     if (!root.dnd && allowed.length > 0 && toastModel.count < root.maxToasts) {
       var rows = allowed
       Qt.callLater(function() {
+        // DND can flip on between the check above and this deferred
+        // append — re-check inside the callback.
+        if (root.dnd) return
         if (toastModel.count >= root.maxToasts) return
         if (rows.length === 1) {
           var row = rows[0]

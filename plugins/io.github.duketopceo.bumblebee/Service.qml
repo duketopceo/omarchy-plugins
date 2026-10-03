@@ -114,11 +114,21 @@ Item {
 
   // "name|ecosystem|package@version" — mirrors _exposure_ids in
   // scan_bumblebee.py so display names can be matched to emitted ids.
+  // Fields are _clean()'d (ctrl-chars→space, trim, 96/field) and the key
+  // is clipped to 200 exactly like the scanner — a drift here silently
+  // breaks both name matching and the panel's mute list.
+  function _cleanField(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .substring(0, 96)
+      .replace(/^\s+|\s+$/g, "")
+  }
+
   function exposureId(e) {
     if (!e || typeof e !== "object") return ""
-    var key = String(e.name || "") + "|" + String(e.ecosystem || "")
-            + "|" + String(e.package || "") + "@" + String(e.version || "")
-    return key.replace(/[|@]/g, "").length ? key : ""
+    var key = _cleanField(e.name) + "|" + _cleanField(e.ecosystem)
+            + "|" + _cleanField(e.package) + "@" + _cleanField(e.version)
+    return key.replace(/[|@]/g, "").length ? key.substring(0, 200) : ""
   }
 
   // [{id, name}] in scan order. exposure_ids drives the diff; the exposures
@@ -142,6 +152,29 @@ Item {
       for (var k in names) pairs.push({ id: k, name: names[k] })
     }
     return pairs
+  }
+
+  // Panel mute toggles route here so the write is authoritative on the
+  // service's own (fresher) entry and lands in memory synchronously —
+  // a panel-side shell.json write only reaches this instance on the
+  // file watcher's next tick, which a running scan's diff can beat.
+  function setMuted(id, muted) {
+    if (!id) return
+    var cur = ls.entry
+    var entry = {}
+    if (cur && typeof cur === "object" && !Array.isArray(cur)) {
+      for (var k in cur) entry[k] = cur[k]
+    }
+    var ids = Array.isArray(entry.ignoredExposures)
+              ? entry.ignoredExposures.slice() : []
+    var i = ids.indexOf(id)
+    if (muted && i === -1) ids.push(id)
+    if (!muted && i !== -1) ids.splice(i, 1)
+    entry.ignoredExposures = ids
+    ls.remember(entry)
+    if (root.shell && typeof root.shell.updateEntryInline === "function") {
+      try { root.shell.updateEntryInline(root.pluginId, entry) } catch (e) {}
+    }
   }
 
   function lastSeen() {

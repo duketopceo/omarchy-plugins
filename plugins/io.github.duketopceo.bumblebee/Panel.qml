@@ -31,12 +31,21 @@ Panel {
   // scan watermark (staying seen/panel-visible) but never raise a toast.
   LocalSettings { id: ls; pluginId: root.moduleName }
 
-  // Same id the service's exposureId() computes — "name|ecosystem|pkg@ver".
+  // Same id the service's exposureId() computes — mirrors _clean() +
+  // the 200-char clip in scan_bumblebee.py exactly, or the mute list
+  // silently misses on long or control-char-bearing names.
+  function _cleanField(v) {
+    return String(v === undefined || v === null ? "" : v)
+      .replace(/[\u0000-\u001f\u007f]/g, " ")
+      .substring(0, 96)
+      .replace(/^\s+|\s+$/g, "")
+  }
+
   function exposureId(e) {
     if (!e || typeof e !== "object") return ""
-    var key = String(e.name || "") + "|" + String(e.ecosystem || "")
-            + "|" + String(e.package || "") + "@" + String(e.version || "")
-    return key.replace(/[|@]/g, "").length ? key : ""
+    var key = _cleanField(e.name) + "|" + _cleanField(e.ecosystem)
+            + "|" + _cleanField(e.package) + "@" + _cleanField(e.version)
+    return key.replace(/[|@]/g, "").length ? key.substring(0, 200) : ""
   }
 
   function mutedIds() {
@@ -46,6 +55,21 @@ Panel {
 
   function setMuted(id, muted) {
     if (!id) return
+    // Prefer the service-owned setter: it mutates the service's own
+    // (fresher) entry in memory synchronously. Writing shell.json from
+    // here only reaches the service on the file watcher's next tick,
+    // which a running scan's diff can beat — the muted exposure would
+    // still toast once.
+    var svc = null
+    try {
+      if (root.bar && root.bar.shell
+          && typeof root.bar.shell.serviceFor === "function")
+        svc = root.bar.shell.serviceFor(root.moduleName)
+    } catch (e) { svc = null }
+    if (svc && typeof svc.setMuted === "function") {
+      svc.setMuted(id, muted)
+      return
+    }
     var cur = ls.entry
     var entry = {}
     if (cur && typeof cur === "object") {
