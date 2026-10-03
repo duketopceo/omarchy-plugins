@@ -11,11 +11,8 @@
   },
   "first_party_from_this_repo": [
     "lukedaduke.fan",
-    "lukedaduke.ticker",
-    "lukedaduke.agents",
     "lukedaduke.standby",
     "lukedaduke.nexus",
-    "lukedaduke.connections",
     "lukedaduke.power",
     "io.github.duketopceo.bumblebee",
     "io.github.duketopceo.numbat",
@@ -110,5 +107,10 @@
     "omarchy.keyboard-layout",
     "omarchy.audio",
     "lukekimball.active-window"
-  ]
+  ],
+  "retired_from_this_repo": {
+    "lukedaduke.connections": "omarchy.bluetooth + omarchy.network (first-party)",
+    "lukedaduke.ticker": "mohamedmansour.finance",
+    "lukedaduke.agents": "akitaonrails.ai-usagebar"
+  }
 }

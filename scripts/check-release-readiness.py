@@ -140,6 +140,23 @@ def _check_plugin(
     return errors
 
 
+def _retiring(repo_root: Path) -> set[str]:
+    """Plugins docs/SCORECARD.md lists as retiring: stub releases that are no
+    longer catalogued, so they skip the catalog parity checks."""
+    try:
+        text = (repo_root / "docs" / "SCORECARD.md").read_text()
+    except OSError:
+        return set()
+    import re
+    match = re.search(r"```scorecard-config\n(.*?)\n```", text, re.S)
+    if not match:
+        return set()
+    try:
+        return {str(i) for i in json.loads(match.group(1)).get("retiring", [])}
+    except (ValueError, AttributeError):
+        return set()
+
+
 def check_tree(
     plugin_root: Path,
     catalog_path: Path,
@@ -164,6 +181,7 @@ def check_tree(
     except OSError:
         ci_text = ""
     errors: list[str] = []
+    retiring = _retiring(catalog_path.parent)
     for plugin in sorted(plugin_root.iterdir(), key=lambda item: item.name) if plugin_root.is_dir() else []:
         if not plugin.is_dir() or plugin.name.startswith(".") or ".bak." in plugin.name:
             continue
@@ -171,7 +189,9 @@ def check_tree(
             continue
         if plugin_id and plugin.name != plugin_id:
             continue
-        errors.extend(_check_plugin(plugin, catalog_by_id.get(plugin.name), ci_text, tracked_files))
+        retired = plugin.name in retiring and plugin.name not in catalog_by_id
+        errors.extend(e for e in _check_plugin(plugin, catalog_by_id.get(plugin.name), ci_text, tracked_files)
+                      if not (retired and "catalog" in e))
     if plugin_id and not any(plugin.name == plugin_id for plugin in plugin_root.iterdir() if plugin.is_dir()):
         errors.append(f"plugin not found: {plugin_id}")
     if shared_root is not None:

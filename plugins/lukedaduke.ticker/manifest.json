@@ -1,22 +1,21 @@
 {
   "schemaVersion": 1,
   "id": "lukedaduke.ticker",
-  "name": "Market Watchlist",
-  "version": "2.1.5",
+  "name": "Market Watchlist (retired)",
+  "version": "3.0.0",
   "author": "lukedaduke",
   "license": "MIT",
-  "description": "Gold, tech, nuclear, energy, and rates in the Omarchy bar. Click a row for TradingView.",
+  "description": "Retired. Replaced by mohamedmansour.finance. This release only shows a pointer to the replacement.",
   "kinds": [
     "bar-widget"
   ],
-  "activation": "on-demand",
   "entryPoints": {
-    "barWidget": "Panel.qml"
+    "barWidget": "Stub.qml"
   },
   "barWidget": {
-    "displayName": "Market Watchlist",
-    "description": "Watchlist quotes with TradingView jump",
-    "category": "Finance",
+    "displayName": "Market Watchlist (retired)",
+    "description": "Retired; use mohamedmansour.finance",
+    "category": "Utilities",
     "allowMultiple": false,
     "defaultSection": "right"
   }

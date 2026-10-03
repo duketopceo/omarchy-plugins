@@ -120,3 +120,51 @@ def test_rollback_restores_the_saved_shell_snapshot(tmp_path: Path) -> None:
     assert json.loads(current.read_text())["bar"]["layout"]["left"] == [
         {"id": "lukekimball.active-window"}
     ]
+
+
+def test_apply_keeps_inline_settings_of_retained_entries(tmp_path: Path) -> None:
+    module = load_module()
+    current = tmp_path / "shell.json"
+    desired = tmp_path / "desired.json"
+    current.write_text(json.dumps({
+        "bar": {"layout": {"right": [
+            {"id": "io.github.tyrichards.tray", "order": ["a", "b"], "widgets": {"x": 1}},
+            {"id": "lukedaduke.connections"},
+            {"id": "io.github.duketopceo.bumblebee", "lastSeenExposures": ["e1"]},
+        ]}},
+        "plugins": [{"id": "lukedaduke.standby", "enabled": True, "location": "Austin"}],
+    }))
+    desired.write_text(json.dumps({
+        "bar": {"layout": {"right": [
+            {"id": "io.github.tyrichards.tray"},
+            {"id": "omarchy.bluetooth"}, {"id": "omarchy.network"},
+            {"id": "io.github.duketopceo.bumblebee"},
+        ]}},
+        "plugins": [{"id": "lukedaduke.standby", "enabled": True}],
+    }))
+    module.apply_migration(current_path=current, desired_path=desired,
+                           backup_root=tmp_path / "backups", rescan=lambda: None)
+    out = json.loads(current.read_text())
+    right = out["bar"]["layout"]["right"]
+    assert [e["id"] for e in right] == ["io.github.tyrichards.tray", "omarchy.bluetooth",
+                                        "omarchy.network", "io.github.duketopceo.bumblebee"]
+    assert right[0]["order"] == ["a", "b"] and right[0]["widgets"] == {"x": 1}
+    assert right[3]["lastSeenExposures"] == ["e1"]
+    assert out["plugins"][0]["location"] == "Austin"
+
+
+def test_apply_refuses_to_place_a_retired_plugin(tmp_path: Path) -> None:
+    module = load_module()
+    current = tmp_path / "shell.json"
+    desired = tmp_path / "desired.json"
+    current.write_text(json.dumps({"bar": {"layout": {"right": []}}}))
+    desired.write_text(json.dumps({"bar": {"layout": {"right": [{"id": "lukedaduke.ticker"}]}}}))
+    before = current.read_bytes()
+    try:
+        module.apply_migration(current_path=current, desired_path=desired,
+                               backup_root=tmp_path / "backups", rescan=lambda: None)
+    except RuntimeError as exc:
+        assert "lukedaduke.ticker" in str(exc)
+    else:
+        raise AssertionError("apply placed a retired plugin")
+    assert current.read_bytes() == before

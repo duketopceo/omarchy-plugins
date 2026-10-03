@@ -1,45 +1,11 @@
-# Market Watchlist
+# Market Watchlist (retired)
 
-A lightweight Omarchy bar widget for tracking a fixed watchlist of quotes: gold, tech, nuclear, energy, and rates.
+This plugin is retired. It is replaced by `mohamedmansour.finance` (Omafinance), a configurable market widget.
 
-## Install
+## Move to the replacement
 
-```bash
-omarchy plugin add https://github.com/duketopceo/omarchy-ticker
-omarchy plugin enable lukedaduke.ticker
-```
+1. Install it with `omarchy plugin add` from the Omarchy plugin marketplace (search "finance"), then place `mohamedmansour.finance` on your bar.
+2. Remove this plugin: `omarchy plugin remove lukedaduke.ticker` (or delete `~/.config/omarchy/plugins/lukedaduke.ticker`).
 
-## Features
-
-- Yahoo chart endpoints for live(ish) quotes
-- Clean panel with `j`/`k` navigation
-- Enter opens the selected symbol on TradingView
-- Keeps the last good snapshot when a full fetch fails
-
-## Usage
-
-- **Left click** the bar text — open the panel
-- **j / k** — move selection
-- **Enter** — open TradingView for the selected symbol
-- **Esc** — close panel
-
-## Symbols
-
-The default list is hardcoded in `bin/market_stats.py`. Edit that file or add a config option in `manifest.json` to customize.
-
-## Requirements
-
-- `python3` (the helper is stdlib-only; the panel execs `/usr/bin/python3`)
-- `xdg-open` — opens the selected symbol on TradingView
-- Network access to `query1.finance.yahoo.com` over HTTPS (quotes refresh every 60s)
-
-## Removal
-
-```bash
-omarchy plugin disable lukedaduke.ticker
-omarchy plugin remove lukedaduke.ticker
-```
-
-## License
-
-MIT
+This final release (3.0.0) only shows a dimmed icon whose tooltip points to the replacement.
+It runs no helpers and makes no network calls. The repository is archived after this release.
