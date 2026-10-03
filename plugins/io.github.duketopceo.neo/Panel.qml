@@ -21,6 +21,7 @@ Panel {
   property bool mcpUp: false
   property string mcpName: ""
   property string mcpVersion: ""
+  property int tabs: -1               // -1 = unknown (shim down/unprobed)
   property string endpoint: "http://127.0.0.1:9211/mcp"
   property string lastError: ""
   property string lastAction: ""
@@ -80,11 +81,13 @@ Panel {
     statusDeadline.restart()
   }
 
-  function control(verb) {
+  function control(verb, unit) {
     if (ctrlProc.running || verb === "") return
     root.busy = true
-    root.lastAction = verb
-    ctrlProc.command = [root.py, root.pluginRoot + "/bin/probe_neo.py", verb]
+    root.lastAction = unit ? verb + " " + unit : verb
+    ctrlProc.command = unit
+      ? [root.py, root.pluginRoot + "/bin/probe_neo.py", verb, unit]
+      : [root.py, root.pluginRoot + "/bin/probe_neo.py", verb]
     ctrlProc.running = true
     ctrlDeadline.restart()
   }
@@ -103,6 +106,8 @@ Panel {
     }
     if (typeof data.endpoint === "string" && data.endpoint !== "")
       root.endpoint = data.endpoint
+    root.tabs = (typeof data.tabs === "number" && data.tabs >= 0)
+                ? Math.floor(data.tabs) : -1
     root.statusKnown = true
     root.lastError = typeof data.error === "string" && data.error !== null
                      ? data.error : ""
@@ -331,8 +336,43 @@ Panel {
                 color: root.dim
                 font.family: root.fontFamily; font.pixelSize: Style.font.caption
               }
+              // Per-unit restart — probes the single named unit server-side.
+              Rectangle {
+                height: Style.space(18)
+                width: unitRstText.implicitWidth + Style.space(10)
+                radius: height / 2
+                color: mUnitRst.containsMouse ? root.fillFor(root.accent, 0.15) : "transparent"
+                border.color: root.fillFor(root.accent, 0.45)
+                Layout.alignment: Qt.AlignVCenter
+
+                Text {
+                  id: unitRstText
+                  anchors.centerIn: parent
+                  text: "restart"
+                  textFormat: Text.PlainText
+                  color: root.foreground
+                  font.family: root.fontFamily; font.pixelSize: Style.font.caption
+                }
+                MouseArea {
+                  id: mUnitRst
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: root.control("restart", modelData.key)
+                }
+              }
             }
           }
+        }
+
+        // Live browser state — tab count via the shim's /json/list.
+        Text {
+          width: parent.width
+          text: "open tabs: " + (root.tabs >= 0 ? String(root.tabs) : "—")
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.fontFamily; font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
         }
 
         // ---- endpoint ----

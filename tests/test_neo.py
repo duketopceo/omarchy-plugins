@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 from pathlib import Path
 
@@ -68,9 +69,11 @@ def test_status_payload_is_bounded_and_typed(monkeypatch):
                         lambda: {"9211": True, "49337": True, "49338": True})
     monkeypatch.setattr(mod, "_mcp_health",
                         lambda: (True, "browseros-neo", "0.0.60"))
+    monkeypatch.setattr(mod, "_tab_count", lambda: 3)
     data = mod._status()
     assert data["ok"] is True
     assert data["mcp"]["server"] == "browseros-neo"
+    assert data["tabs"] == 3
     assert data["endpoint"].endswith("/mcp")
     json.dumps(data)
 
@@ -85,8 +88,10 @@ def test_status_skips_mcp_when_asked(monkeypatch):
     def _boom():
         raise AssertionError("mcp check must be skipped")
     monkeypatch.setattr(mod, "_mcp_health", _boom)
+    monkeypatch.setattr(mod, "_tab_count", lambda: None)
     data = mod._status(check_mcp=False)
     assert data["mcp"]["up"] is False
+    assert data["tabs"] is None
 
 
 def test_control_rejects_bad_verb_and_bounds_calls(monkeypatch):
@@ -125,3 +130,63 @@ def test_control_reports_nonzero_systemctl(monkeypatch):
     monkeypatch.setattr(mod, "_run", lambda argv, **kw: (None, ""))
     res = mod._control("restart")
     assert res["ok"] is False and res["error"] == "systemctl_failed"
+
+
+def _fake_urlopen(payload, fail=False):
+    class _Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+    def _open(req, timeout=None):
+        if fail:
+            raise OSError("conn refused")
+        return _Resp(payload if isinstance(payload, bytes)
+                     else json.dumps(payload).encode())
+    return _open
+
+
+def test_tab_count_pages_only(monkeypatch):
+    mod = load()
+    targets = [
+        {"type": "page", "url": "https://a"},
+        {"type": "page", "url": "https://b"},
+        {"type": "service_worker", "url": "chrome://sw"},
+        {"type": "background_page", "url": "chrome://ext"},
+    ]
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen(targets))
+    assert mod._tab_count() == 2
+
+
+def test_tab_count_failure_and_shape(monkeypatch):
+    mod = load()
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen(None, fail=True))
+    assert mod._tab_count() is None
+    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen({"not": "a list"}))
+    assert mod._tab_count() is None
+
+
+def test_control_per_unit_restart(monkeypatch):
+    mod = load()
+    calls = []
+    monkeypatch.setattr(mod, "_run",
+                        lambda argv, **kw: (0, calls.append(list(argv)) or ""))
+    monkeypatch.setattr(mod, "_unit_states",
+                        lambda: {k: {"active": True, "sub": "running", "pid": 1}
+                                 for k in mod.UNITS})
+    monkeypatch.setattr(mod, "_listening_ports",
+                        lambda: {"9211": True, "49337": True, "49338": True})
+    res = mod._control("restart", "shim")
+    assert res["ok"] is True
+    assert res["action"] == "restart:shim"
+    assert calls == [["/usr/bin/systemctl", "--user", "restart",
+                      "browserclaw-shim"]]
+
+
+def test_control_rejects_bad_unit(monkeypatch):
+    mod = load()
+    def _no_run(argv, **kw):
+        raise AssertionError("_run must not be called for a bad unit")
+    monkeypatch.setattr(mod, "_run", _no_run)
+    res = mod._control("restart", "bogus")
+    assert res["ok"] is False and res["error"] == "bad_unit"

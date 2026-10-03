@@ -131,8 +131,9 @@ Item {
     return key.replace(/[|@]/g, "").length ? key.substring(0, 200) : ""
   }
 
-  // [{id, name}] in scan order. exposure_ids drives the diff; the exposures
-  // list supplies display names for matching ids (same order, same source).
+  // [{id, name, severity}] in scan order. exposure_ids drives the diff;
+  // the exposures list supplies display names and catalog severity for
+  // matching ids (same order, same source). Missing severity -> "high".
   function pairsFrom(data) {
     var names = {}
     var exposures = Array.isArray(data.exposures) ? data.exposures : []
@@ -140,16 +141,25 @@ Item {
       var eid = exposureId(exposures[i])
       if (!eid) continue
       var label = String(exposures[i].name || exposures[i].package || "")
-      names[eid] = label !== "" ? label : "unnamed exposure"
+      var sv = String(exposures[i].severity === undefined
+                      || exposures[i].severity === null
+                      ? "" : exposures[i].severity)
+      names[eid] = { name: label !== "" ? label : "unnamed exposure", sev: sv }
     }
     var pairs = []
     var ids = Array.isArray(data.exposure_ids) ? data.exposure_ids : []
     for (var j = 0; j < ids.length && j < 50; j++) {
       var s = String(ids[j] || "")
-      if (s !== "") pairs.push({ id: s, name: names[s] || s })
+      if (s === "") continue
+      var meta = names[s]
+      pairs.push({ id: s,
+                   name: meta ? meta.name : s,
+                   severity: meta && meta.sev !== "" ? meta.sev : "high" })
     }
     if (pairs.length === 0) {
-      for (var k in names) pairs.push({ id: k, name: names[k] })
+      for (var k in names)
+        pairs.push({ id: k, name: names[k].name,
+                     severity: names[k].sev !== "" ? names[k].sev : "high" })
     }
     return pairs
   }
@@ -219,15 +229,32 @@ Item {
       if (ignored.indexOf(pairs[i].id) !== -1) continue  // muted — still seen
       fresh.push(pairs[i])
     }
-    if (fresh.length > 0 && !root.dnd)
-      enqueueToast(fresh.length, fresh[0].name)
+    if (fresh.length > 0 && !root.dnd) {
+      // Summary toast reports the worst severity in the burst.
+      var worst = fresh[0]
+      for (var w = 1; w < fresh.length; w++) {
+        if (sevRank(fresh[w].severity) > sevRank(worst.severity))
+          worst = fresh[w]
+      }
+      enqueueToast(fresh.length, worst.name, worst.severity)
+    }
     persistLastSeen(ids)
   }
 
-  // Lifetime per severity, same map as numbat. Catalog exposures carry no
-  // severity field today — a known-compromise match is treated as "high";
-  // the map is wired per-row so a future severity field needs no delegate
-  // change. 0 = sticky.
+  // Same severity map as numbat — unknown/empty -> medium.
+  function sevRank(sev) {
+    var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
+    if (s === "critical" || s === "crit") return 4
+    if (s === "high" || s === "error") return 3
+    if (s === "medium" || s === "moderate" || s === "warning" || s === "warn") return 2
+    if (s === "low") return 1
+    if (s === "info" || s === "debug" || s === "none") return 0
+    return 2
+  }
+
+  // Lifetime per severity, same map as numbat. Exposures carry the
+  // catalog's severity field; ones without it are emitted as "high" by
+  // pairsFrom. 0 = sticky.
   function toastMsFor(sev) {
     var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
     if (s === "critical" || s === "crit") return 0
@@ -237,11 +264,11 @@ Item {
     return 6000
   }
 
-  function enqueueToast(count, name) {
+  function enqueueToast(count, name, severity) {
     var row = {
       count: count,
       topName: String(name || "").substring(0, 96),
-      severity: "high",
+      severity: String(severity || "high"),
       stamp: Date.now()
     }
     if (popupModel.count < maxToasts) {

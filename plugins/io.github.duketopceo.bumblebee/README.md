@@ -34,8 +34,11 @@ omarchy plugin enable io.github.duketopceo.bumblebee
   cache age once an hour and force-rescans when it's stale — the radar stays
   fresh even if you never open the panel
 - When a scan finds **new** exposures that weren't in the previous baseline,
-  the service raises an urgent toast in the top-right corner (15s, click to
-  dismiss, max 3 stacked). The toast only fires on the *delta*: the first
+  the service raises an urgent toast in the top-right corner (click to
+  dismiss, max 3 stacked). Toast lifetime scales with the catalog
+  entry's `severity` — critical stays until clicked, high 15s, medium 8s —
+  and a multi-exposure burst coalesces to one card reporting the worst.
+  The toast only fires on the *delta*: the first
   poll baselines silently, and zero exposures is always silent. Toasts
   suppress entirely while the notification service reports do-not-disturb;
   suppressed ids still advance the watermark, so nothing replays later
@@ -58,7 +61,8 @@ Drop additional advisories as `*.json` files in
 `~/.config/omarchy/plugins-data/bumblebee/catalog.d/` — they are merged at scan
 time. Catalog updates to the shipped set ride plugin updates; the runtime
 fetch is only the upstream merge described below (manual, or auto when the
-merged catalog goes a week stale).
+merged catalog goes a week stale; the catalog tab shows the refresh ETA
+alongside the refreshed-at age).
 
 ### Advisory refresh
 

@@ -27,13 +27,16 @@ sidecar it renders DOWN — install it only where the sidecar exists.
 
 ## Privacy & security posture
 
-- No telemetry, no third-party network calls. The only network traffic is a
-  loopback MCP `initialize` to `127.0.0.1:9211` (3s, read-only).
+- No telemetry, no third-party network calls. The only traffic is loopback:
+  an MCP `initialize` to `127.0.0.1:9211` (3s) and a `/json/list` GET to the
+  CDP shim on `127.0.0.1:49338` (2s), both read-only.
 - The helper execs `/usr/bin/systemctl` and `/usr/bin/wl-copy` by absolute
   path under a fixed `PATH`, with bounded output and a hard job deadline.
 - `status` is pure stat: one `systemctl --user show`, one `/proc/net/tcp`
-  read, one bounded MCP POST. Control verbs (`start|stop|restart`) only run
-  on click.
+  read, one bounded MCP POST, one `/json/list` GET on the CDP shim for the
+  open-tab count. Control verbs (`start|stop|restart [unit]`) only run on
+  click — each unit row carries its own restart, the control row drives
+  the whole stack.
 
 ## Install
 

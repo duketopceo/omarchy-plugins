@@ -2,11 +2,13 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.neo",
   "name": "Neo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "duketopceo",
   "license": "MIT",
   "description": "BrowserOS neo sidecar status + control: unit health, ports, MCP endpoint, start/stop/restart",
-  "kinds": ["bar-widget"],
+  "kinds": [
+    "bar-widget"
+  ],
   "entryPoints": {
     "barWidget": "Panel.qml"
   }

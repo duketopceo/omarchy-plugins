@@ -37,6 +37,59 @@ Panel {
   property string jevModel: ""
   property int jevEventCount: 0
   property string currentTab: "activity" // "activity" | "findings" | "log" | "review"
+  property string agentFilter: ""
+
+  // Persisted shell.json entry for this plugin — same LocalSettings the
+  // service uses. The panel writes `lastPanelSeen` (ms epoch) on open;
+  // findings newer than it drive the bar badge count.
+  LocalSettings { id: ls; pluginId: root.moduleName }
+
+  // Unseen = findings newer than the last time the panel was opened.
+  // Watermark advances on open, so the badge always means "new since you
+  // last looked", not "new in the file".
+  readonly property int unseenCount: {
+    var e = ls.loaded ? ls.entry : null
+    var wm = e ? Number(e.lastPanelSeen) || 0 : 0
+    var n = 0
+    for (var i = 0; i < findings.length; i++) {
+      var ms = new Date(String(findings[i].observed_at || "")).getTime()
+      if (isFinite(ms) && ms > wm) n++
+    }
+    return n
+  }
+
+  // Distinct agents across the current feed, first-seen order (bounded).
+  readonly property var filterAgents: {
+    var seen = {}, out = []
+    for (var i = 0; i < findings.length; i++) {
+      var a = String(findings[i].agent || "unknown agent")
+      if (!seen[a]) { seen[a] = true; out.push(a) }
+    }
+    return out.slice(0, 8)
+  }
+
+  // Feed as filtered by the agent chip row; "" shows everything.
+  readonly property var feedFindings: {
+    if (agentFilter === "") return findings
+    return findings.filter(function (f) {
+      return String(f.agent || "unknown agent") === agentFilter
+    })
+  }
+
+  function markPanelSeen() {
+    var cur = ls.entry
+    var entry = {}
+    if (cur && typeof cur === "object" && !Array.isArray(cur)) {
+      for (var k in cur) entry[k] = cur[k]
+    }
+    entry.lastPanelSeen = Date.now()
+    ls.remember(entry)
+    if (root.bar && root.bar.shell
+        && typeof root.bar.shell.updateEntryInline === "function") {
+      try { root.bar.shell.updateEntryInline(root.moduleName, entry) }
+      catch (e) {}
+    }
+  }
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
@@ -138,6 +191,32 @@ Panel {
     return m + "m ago"
   }
 
+  // Same severity map the service toasts use — unknown/empty -> medium.
+  function sevRank(sev) {
+    var s = String(sev === undefined || sev === null ? "" : sev).toLowerCase()
+    if (s === "critical" || s === "crit") return 4
+    if (s === "high" || s === "error") return 3
+    if (s === "medium" || s === "moderate" || s === "warning" || s === "warn") return 2
+    if (s === "low") return 1
+    if (s === "info" || s === "debug" || s === "none") return 0
+    return 2
+  }
+
+  // Chip label/color for a finding's severity. Empty severity -> no chip
+  // ("" label), never a fabricated "MED".
+  function sevLabel(sev) {
+    var s = String(sev === undefined || sev === null ? "" : sev)
+    s = s.replace(/^\s+|\s+$/g, "").toUpperCase()
+    return s.substring(0, 4)
+  }
+
+  function sevColor(sev) {
+    var r = sevRank(sev)
+    if (r >= 3) return root.urgent
+    if (r === 2) return root.accent
+    return root.dim
+  }
+
   // Findings carry severity only when the source record had the field; any
   // meaningful level highlights the row's left border, absent/low -> uniform.
   function severe(f) {
@@ -161,7 +240,7 @@ Panel {
     function toggle() { root.toggle() }
   }
 
-  onOpenedChanged: if (opened) root.refresh()
+  onOpenedChanged: if (opened) { root.refresh(); root.markPanelSeen() }
 
   Process {
     id: statusProc
@@ -302,6 +381,32 @@ Panel {
     active: root.hooksSeen
     activeColor: root.findingsCount > 0 ? root.urgent : root.accent
     onPressed: function (b) { root.refresh(); root.toggle() }
+  }
+
+  // Unseen-findings badge over the bar glyph. Counts records newer than
+  // lastPanelSeen; hidden at zero.
+  Rectangle {
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.rightMargin: -Style.space(2)
+    anchors.topMargin: -Style.space(2)
+    width: Math.max(Style.space(14), badgeText.implicitWidth + Style.space(8))
+    height: Style.space(13)
+    radius: height / 2
+    visible: root.unseenCount > 0
+    color: root.urgent
+    border.color: root.fgFill(0.2)
+
+    Text {
+      id: badgeText
+      anchors.centerIn: parent
+      text: root.unseenCount > 9 ? "9+" : String(root.unseenCount)
+      textFormat: Text.PlainText
+      color: Color.background
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption - 2
+      font.bold: true
+    }
   }
 
   KeyboardPanel {
@@ -728,6 +833,43 @@ Panel {
 
       PanelSectionHeader { text: "FINDINGS · 24H"; foreground: root.foreground; fontFamily: root.fontFamily }
 
+      // Agent filter chips — only worth showing when >1 agent produced
+      // findings. "ALL" resets to the unfiltered feed.
+      Row {
+        visible: root.filterAgents.length > 1
+        spacing: Style.space(4)
+
+        Repeater {
+          model: ["ALL"].concat(root.filterAgents)
+
+          delegate: Rectangle {
+            readonly property bool on: (modelData === "ALL")
+                ? root.agentFilter === ""
+                : root.agentFilter === modelData
+            height: Style.space(18)
+            width: chipText.implicitWidth + Style.space(10)
+            radius: height / 2
+            color: on ? root.accentFill(0.30) : root.fgFill(0.06)
+            border.color: on ? root.accentFill(0.60) : root.fgFill(0.10)
+
+            Text {
+              id: chipText
+              anchors.centerIn: parent
+              text: String(modelData).substring(0, 12)
+              textFormat: Text.PlainText
+              color: parent.on ? root.accent : root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              onClicked: root.agentFilter = modelData === "ALL" ? "" : String(modelData)
+            }
+          }
+        }
+      }
+
       Text {
         visible: root.findings.length === 0
         width: parent.width
@@ -738,8 +880,18 @@ Panel {
         font.pixelSize: Style.font.caption
       }
 
+      Text {
+        visible: root.findings.length > 0 && root.feedFindings.length === 0
+        width: parent.width
+        text: "No findings from " + root.agentFilter
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+      }
+
       Repeater {
-        model: root.findings
+        model: root.feedFindings
 
         delegate: Rectangle {
           width: parent.width
@@ -789,6 +941,31 @@ Panel {
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
                 elide: Text.ElideRight
+              }
+            }
+
+            // Severity chip — only when the record carried the field;
+            // color shares the toast rank map.
+            Rectangle {
+              readonly property string lbl: root.sevLabel(modelData.severity)
+              visible: lbl !== ""
+              Layout.alignment: Qt.AlignVCenter
+              width: sevChipText.implicitWidth + Style.space(8)
+              height: Style.space(16)
+              radius: height / 2
+              color: root.sevColor(modelData.severity) === root.urgent
+                     ? root.urgentFill(0.20) : root.fgFill(0.08)
+              border.color: root.sevColor(modelData.severity)
+
+              Text {
+                id: sevChipText
+                anchors.centerIn: parent
+                text: parent.lbl
+                textFormat: Text.PlainText
+                color: root.sevColor(modelData.severity)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption - 2
+                font.bold: true
               }
             }
           }
@@ -896,15 +1073,50 @@ Panel {
         elide: Text.ElideRight
       }
 
-      Text {
+      Row {
         visible: root.recordsRotHint
         width: parent.width
-        text: "Large — numbat has no rotation yet. Rotate by hand: mv ~/.numbat/records.ndjson ~/.numbat/records.old"
-        textFormat: Text.PlainText
-        color: root.urgent
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        wrapMode: Text.WordWrap
+        spacing: Style.space(8)
+
+        Text {
+          width: parent.width - rotCopy.width - parent.spacing
+          text: "Large — numbat has no rotation yet. Copy the rotate command and run it by hand (the plugin stays read-only on ~/.numbat)."
+          textFormat: Text.PlainText
+          color: root.urgent
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Rectangle {
+          id: rotCopy
+          height: Style.space(22)
+          width: rotCopyText.implicitWidth + Style.space(12)
+          radius: Style.cornerRadius
+          color: mRotCopy.containsMouse ? root.accentFill(0.12) : "transparent"
+          border.color: root.accentFill(0.5)
+          anchors.verticalCenter: parent.verticalCenter
+
+          Text {
+            id: rotCopyText
+            anchors.centerIn: parent
+            text: "copy cmd"
+            textFormat: Text.PlainText
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          MouseArea {
+            id: mRotCopy
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: Quickshell.execDetached(
+              ["/usr/bin/wl-copy", "--",
+               "mv ~/.numbat/records.ndjson ~/.numbat/records.ndjson.old"])
+          }
+        }
       }
 
       // STREAMED = records.ndjson (--emit all hooks) is the live feed;
