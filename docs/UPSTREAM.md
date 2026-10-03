@@ -8,6 +8,45 @@ require a **public** GitHub repo with `manifest.json` at the repository root
 ([publish guide](https://plugins.omarchy.org/publish.html)). `omarchy plugin
 add` has the same constraint, so each plugin ships from its own repo.
 
+## Installation and discovery integrity
+
+`omarchy plugin add` and the host registry discover plugin directories by
+manifest. Keep the live discovery root limited to the intended plugin IDs:
+
+- Development installs use `scripts/install.sh --link`.
+- Release installs use `scripts/install.sh --copy`; generated Python/Node
+  artifacts and symlinks are excluded from the copy and rejected by validation.
+- Legacy `*.bak.*` directories are moved to
+  `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-plugins/backups` (or the
+  explicit `--backup-root`) before a rescan. They remain available for rollback
+  but are no longer candidates for discovery.
+- Duplicate non-backup manifest IDs fail preflight before installation changes
+  the intended source tree.
+
+The repository `catalog.json` is authoring metadata, not the host registry. Use
+the supported host rescan after a reversible install migration; do not hand-edit
+host-owned registry state.
+
+## Release readiness
+
+Before a subtree publish, run:
+
+```sh
+python3 scripts/check-release-readiness.py
+```
+
+The gate checks catalog/manifest version parity, required license and README
+files, entry points, generated artifacts, host-specific paths, and
+architecture evidence. The CI matrix supplies x86_64 and aarch64 evidence when
+a manifest does not declare its own architecture list. `scripts/publish.sh`
+runs the gate before any subtree split or remote push.
+
+A release copy is made with `scripts/install.sh --copy`; it excludes generated
+Python/Node artifacts and rejects symlinked or host-specific content. Keep the
+release checklist attached to the publishing change with the source revision,
+manifest/catalog version, architecture evidence, upstream version/checksum,
+and rollback artifact.
+
 ## Sync model
 
 - **Outbound (publish):** `scripts/publish.sh <id|all>` subtree-pushes

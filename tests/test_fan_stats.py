@@ -146,9 +146,56 @@ def test_fan_control_gated_on_capability(tmp_path: Path, monkeypatch) -> None:
     (dell / "pwm1").write_text("128")
     assert stats.fan_control_available({"dell_smm": dell}) is True
 
-    # A running daemon consumes the mode file even without fan hwmon
+    # A running daemon without a writable fan target is still read-only.
     monkeypatch.setattr(stats, "is_daemon_running", lambda: True)
-    assert stats.fan_control_available({}) is True
+    assert stats.fan_control_available({}) is False
+
+
+def test_soc_power_w_heatpipe(tmp_path: Path) -> None:
+    stats = load(STATS, "system_monitor_stats")
+    macsmc = tmp_path / "hwmon_macsmc"
+    macsmc.mkdir()
+    (macsmc / "power4_input").write_text("15973271")
+    (macsmc / "power4_label").write_text("Heatpipe Power")
+    (macsmc / "power2_input").write_text("86718147")
+    (macsmc / "power2_label").write_text("AC Input Power")
+    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) == 16.0
+
+
+def test_soc_power_w_absent(tmp_path: Path) -> None:
+    stats = load(STATS, "system_monitor_stats")
+    macsmc = tmp_path / "hwmon_macsmc"
+    macsmc.mkdir()
+    (macsmc / "power1_input").write_text("1000000")
+    (macsmc / "power1_label").write_text("Total System Power")
+    assert stats.soc_power_w({"macsmc_hwmon": macsmc}) is None
+    assert stats.soc_power_w({}) is None
+
+
+def test_gpu_clients_shape() -> None:
+    stats = load(STATS, "system_monitor_stats")
+    clients = stats.gpu_clients()
+    assert isinstance(clients, list)
+    for c in clients:
+        assert isinstance(c["pid"], int)
+        assert isinstance(c["name"], str) and c["name"]
+
+
+def test_asahi_gpu_load_graceful() -> None:
+    """fdinfo counters absent (current asahi kernels) -> None, not a crash."""
+    stats = load(STATS, "system_monitor_stats")
+    gpu_load = stats._asahi_gpu_load(sample_seconds=0)
+    assert gpu_load is None or (isinstance(gpu_load, int) and 0 <= gpu_load <= 100)
+
+
+def test_collect_gpu_fields() -> None:
+    stats = load(STATS, "system_monitor_stats")
+    data = stats.collect(sample_seconds=0)
+    assert isinstance(data["gpu_load"], int)  # -1 sentinel when unavailable
+    assert isinstance(data["gpu_load_reason"], str)
+    assert data["gpu_power_w"] is None or isinstance(data["gpu_power_w"], float)
+    assert isinstance(data["gpu_clients"], list)
+    json.dumps(data)
 
 
 def test_panel_retains_xdg_runtime_dir() -> None:
@@ -156,4 +203,35 @@ def test_panel_retains_xdg_runtime_dir() -> None:
     panel = PANEL.read_text()
     assert 'Quickshell.env("XDG_RUNTIME_DIR")' in panel
     assert '"XDG_RUNTIME_DIR": null' not in panel
+
+
+def test_daemon_start_has_no_password_elevation_or_host_path() -> None:
+    starter = FAN_DIR / "bin" / "omarchy-fan-daemon-start"
+    source = starter.read_text()
+    assert "omaseal" not in source.lower()
+    assert "sudo -s" not in source.lower()
+    assert "get_omaseal_password" not in source
+    assert "/home/lukekimball" not in source
+    assert "pkexec" in source
+    assert "--caller-uid" in source
+    assert "SUDO_UID" not in source
+
+
+def test_daemon_does_not_invent_a_target_user(monkeypatch) -> None:
+    from importlib.machinery import SourceFileLoader
+
+    daemon_path = ROOT / "plugins/lukedaduke.fan/bin/omarchy-fan-daemon"
+    daemon = SourceFileLoader("omarchy_fan_daemon_unknown_uid", str(daemon_path)).load_module()
+    monkeypatch.delenv("OMARCHY_FAN_UID", raising=False)
+    monkeypatch.delenv("SUDO_UID", raising=False)
+    monkeypatch.setattr(daemon.os, "getuid", lambda: 0)
+    monkeypatch.setattr(daemon, "_active_run_user", lambda: None)
+
+    assert daemon.target_uid() == -1
+
+
+def test_daemon_start_resolves_service_from_plugin_directory() -> None:
+    starter = (FAN_DIR / "bin" / "omarchy-fan-daemon-start").read_text()
+    assert 'SERVICE_SRC="$PLUGIN_DIR/omarchy-fan-daemon.service"' in starter
+    assert 'SERVICE_DST="/etc/systemd/system/omarchy-fan-daemon.service"' in starter
 

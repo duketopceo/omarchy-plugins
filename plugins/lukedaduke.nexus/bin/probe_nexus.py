@@ -255,13 +255,12 @@ def get_nexus():
             title = name
             desc = "Network"
             icon = "󰈀"
-            if name == "enp0s20f0u1u2u4":
-                title = "Dock Gigabit LAN"
-                desc = "High-speed wired link"
-                icon = "󰈀"
+            if name.startswith("en"):
+                title = "Ethernet Network"
+                desc = "Wired network interface"
             elif name.startswith("wl"):
-                title = "Wi-Fi 6 Wireless"
-                desc = "Primary Wi-Fi connection"
+                title = "Wi-Fi Network"
+                desc = "Wireless network interface"
                 icon = "󰤨"
             elif name == "nordlynx":
                 title = "NordVPN Tunnel"
@@ -269,7 +268,7 @@ def get_nexus():
                 icon = "󰖂"
             elif name == "tailscale0":
                 title = "Tailscale Mesh"
-                desc = "Homelab & server overlay"
+                desc = "Overlay network interface"
                 icon = "󰖂"
 
             net_list.append({
@@ -306,15 +305,15 @@ def get_nexus():
             title = f"Storage ({name})"
             desc = f"{tran.upper()} drive"
             icon = "󰋊"
-            if "PC711" in model:
-                title = "OS Root NVMe (512GB)"
-                desc = "Encrypted System Drive (/home)"
-            elif "SN520" in model:
-                title = "Data NVMe (256GB)"
-                desc = "Fast Storage (/mnt/data)"
+            if tran == "nvme":
+                title = f"NVMe Storage ({name})"
+                desc = "Non-Volatile storage"
+            elif tran == "sata":
+                title = f"SATA Storage ({name})"
+                desc = "SATA drive"
             elif tran == "usb":
-                title = f"USB Flash Drive ({size})"
-                desc = "Ventoy Multi-Boot USB Stick"
+                title = f"USB Storage ({name})"
+                desc = "External storage"
                 icon = "󱊞"
             elif name == "zram0":
                 title = f"ZRAM Fast Swap ({size})"

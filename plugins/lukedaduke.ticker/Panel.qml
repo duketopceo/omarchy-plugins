@@ -203,6 +203,7 @@ Panel {
       RowLayout {
         width: parent.width
         Text {
+          textFormat: Text.PlainText
           text: "Market watchlist"
           color: root.fg
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -247,6 +248,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: root.marketItems.length === 0 && !root.isFetching
         text: "No quotes yet"
         color: root.muted
@@ -329,6 +331,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         anchors.horizontalCenter: parent.horizontalCenter
         text: "Enter or click opens TradingView"
         color: root.muted

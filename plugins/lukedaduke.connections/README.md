@@ -27,21 +27,34 @@ omarchy plugin remove lukedaduke.connections
 
 ## Notes
 
-This plugin embeds the stock Omarchy shell panels
-(`/usr/share/omarchy/shell/plugins/panels/bluetooth|network/Panel.qml`) for
-its dropdown views, so it requires a stock Omarchy install. It spawns no
-processes of its own.
+This plugin embeds the stock Omarchy shell panels for its dropdown views, so it
+requires a stock Omarchy install. It resolves the host root from
+`OMARCHY_PATH` and falls back to the packaged `/usr/share/omarchy` location.
+If either panel cannot load, the corresponding icon is dimmed and its tooltip
+reports the panel as unavailable instead of presenting a false control. It
+spawns no processes of its own.
+
+Run the read-only host check when a radio, panel, or permission appears broken:
+
+```bash
+python3 scripts/check-host-integration.py --format markdown
+```
 
 **Disable the stock Bluetooth/Network widgets.** The embedded panels register
 IPC handlers on `omarchy.bluetooth` and `omarchy.network`. If the stock
-widgets stay in your `bar.layout` (`~/.config/omarchy/shell.json`), both
-instances compete for the same IPC target — first registration wins, so
-`qs ipc` calls route unpredictably — and each panel runs its own service
-subscriptions. Remove the `omarchy.bluetooth` and `omarchy.network` entries
-from your bar layout; this widget replaces them.
+widgets stay in your bar layout, both instances compete for the same IPC
+target — first registration wins, so calls route unpredictably — and each panel
+runs its own service subscriptions. Remove the `omarchy.bluetooth` and
+`omarchy.network` entries from the bar layout; this widget replaces them.
 
 Because both full stock panels stay loaded behind the icons, this widget is
 heavier than two plain icon buttons — the tradeoff for reusing their
 dropdowns, keyboard navigation, and radio toggles.
+
+## Data and privacy
+
+The widget reads only Bluetooth and network state from the host panels. It
+does not log device names, addresses, credentials, or network payloads. The
+host integration checker records status categories, not raw command output.
 
 MIT — see [LICENSE](LICENSE).

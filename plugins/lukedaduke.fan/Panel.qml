@@ -26,7 +26,10 @@ Panel {
   property string cpuTemp: "--"
   property string gpuName: "GPU"
   property int gpuLoad: -1
+  property string gpuLoadReason: ""
   property string gpuTemp: "--"
+  property real gpuPowerW: -1
+  property var gpuClients: []
   property string nvmeTemp: "--"
   property int fan1Rpm: 0
   property int fan2Rpm: 0
@@ -73,7 +76,7 @@ Panel {
   })
 
   function triggerDaemon() {
-    Quickshell.execDetached(["pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
+    Quickshell.execDetached(["/usr/bin/pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
     refreshTimer.restart()
   }
 
@@ -231,8 +234,16 @@ Panel {
             var gl = parseInt(data.gpu_load)
             root.gpuLoad = isNaN(gl) ? -1 : Math.max(0, Math.min(100, gl))
           }
+          if (data.gpu_load_reason !== undefined)
+            root.gpuLoadReason = clipStr(data.gpu_load_reason, 80)
           if (data.gpu_temp)
             root.gpuTemp = clipStr(data.gpu_temp, 16)
+          root.gpuPowerW = (typeof data.gpu_power_w === "number") ? data.gpu_power_w : -1
+          if (Array.isArray(data.gpu_clients))
+            root.gpuClients = data.gpu_clients.slice(0, 24).map(function(c) {
+              c.name = clipStr(c.name, 32)
+              return c
+            })
           if (data.nvme_temp)
             root.nvmeTemp = clipStr(data.nvme_temp, 16)
           if (data.fan1_rpm !== undefined)
@@ -313,7 +324,7 @@ Panel {
     fontSize: Style.font.bodySmall
     active: root.memPct >= 80 || root.currentMode === "high" || (root.currentMode === "auto" && parseInt(root.cpuTemp) >= 60)
     activeColor: root.memPct >= 85 || parseInt(root.cpuTemp) >= 65 ? root.urgent : (root.bar ? root.bar.barForeground : Color.foreground)
-    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
+    tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + (root.gpuPowerW >= 0 ? " " + root.gpuPowerW.toFixed(0) + "W" : "") + (root.gpuClients.length > 0 ? " (" + root.gpuClients.length + " procs)" : "") + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
     horizontalMargin: 4.0
     onPressed: function (buttonCode) {
       if (buttonCode === Qt.RightButton)
@@ -359,6 +370,7 @@ Panel {
       RowLayout {
         width: parent.width
         Text {
+          textFormat: Text.PlainText
           text: "Resource & Fan"
           color: root.fg
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -416,6 +428,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "CPU " + root.cpuLoad + "%"
             color: root.levelColor(root.cpuLoad, 70, 90)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -487,6 +500,7 @@ Panel {
                 width: parent.width * Math.max(0, Math.min(1, modelData.percent / 100.0))
               }
               Text {
+                textFormat: Text.PlainText
                 anchors.centerIn: parent
                 text: "C" + modelData.core
                 color: root.fg
@@ -507,6 +521,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "Memory"
             color: root.fg
             font.bold: true
@@ -537,6 +552,7 @@ Panel {
           }
         }
         Text {
+          textFormat: Text.PlainText
           text: "avail " + root.memAvail + "G · swap " + root.swapUsed + "/" + root.swapTotal + "G" + (root.ramInfo ? " · " + root.ramInfo : "")
           color: root.muted
           font.pixelSize: Style.font.bodySmall
@@ -547,7 +563,7 @@ Panel {
 
       Column {
         width: parent.width
-        visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--"
+        visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--" || root.gpuLoadReason !== ""
         spacing: Style.space(6)
         RowLayout {
           width: parent.width
@@ -569,6 +585,15 @@ Panel {
             font.pixelSize: Style.font.bodySmall
           }
         }
+        Text {
+          visible: root.gpuLoad < 0 && root.gpuLoadReason !== ""
+          width: parent.width
+          text: root.gpuLoadReason
+          textFormat: Text.PlainText
+          color: root.muted
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
         Rectangle {
           visible: root.gpuLoad >= 0
           width: parent.width
@@ -583,6 +608,22 @@ Panel {
             color: root.levelColor(root.gpuLoad, 70, 90)
           }
         }
+        Text {
+          visible: root.gpuPowerW >= 0 || root.gpuClients.length > 0
+          width: parent.width
+          text: (root.gpuPowerW >= 0 ? "pkg " + root.gpuPowerW.toFixed(1) + " W" : "")
+                + (root.gpuPowerW >= 0 && root.gpuClients.length > 0 ? " · " : "")
+                + (root.gpuClients.length > 0
+                   ? root.gpuClients.length + " gpu proc" + (root.gpuClients.length > 1 ? "s" : "")
+                     + ": " + root.gpuClients.slice(0, 4).map(function(c) { return c.name }).join(", ")
+                     + (root.gpuClients.length > 4 ? "…" : "")
+                   : "")
+          textFormat: Text.PlainText
+          color: root.muted
+          font.pixelSize: Style.font.bodySmall
+          elide: Text.ElideRight
+          wrapMode: Text.NoWrap
+        }
       }
 
       PanelSeparator {
@@ -595,6 +636,7 @@ Panel {
         visible: root.disks.length > 0
         spacing: Style.space(6)
         Text {
+          textFormat: Text.PlainText
           text: "Storage"
           color: root.fg
           font.bold: true
@@ -656,6 +698,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             Layout.fillWidth: true
             text: "Fans " + root.fan1Rpm + " / " + root.fan2Rpm + " RPM"
             color: root.fg
@@ -671,6 +714,7 @@ Panel {
             border.width: 1
             opacity: root.daemonRunning ? 0.7 : 1.0
             Text {
+              textFormat: Text.PlainText
               id: daemonBtnText
               anchors.centerIn: parent
               text: root.daemonRunning ? "● Daemon Active" : "⚡ Start Daemon"
@@ -816,6 +860,7 @@ Panel {
         RowLayout {
           width: parent.width
           Text {
+            textFormat: Text.PlainText
             text: "TOP MEMORY  ·  j/k  x kill"
             color: root.muted
             font.pixelSize: Style.font.bodySmall
@@ -825,6 +870,7 @@ Panel {
             Layout.fillWidth: true
           }
           Text {
+            textFormat: Text.PlainText
             text: "b btop"
             color: root.muted
             font.pixelSize: Style.font.caption
@@ -858,6 +904,7 @@ Panel {
                 elide: Text.ElideRight
               }
               Text {
+                textFormat: Text.PlainText
                 text: "PID " + (modelData.pid || "")
                 color: root.muted
                 font.pixelSize: Style.font.bodySmall
@@ -877,6 +924,7 @@ Panel {
                 radius: 4
                 color: root.urgent
                 Text {
+                  textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: "x"
                   color: Color.background

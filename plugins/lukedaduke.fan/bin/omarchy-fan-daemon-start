@@ -1,75 +1,64 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-# Resolve script directory and target user
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TARGET_UID="${OMARCHY_FAN_UID:-$(id -u)}"
-if [ "$TARGET_UID" -eq 0 ] && [ -n "$SUDO_UID" ]; then
-    TARGET_UID="$SUDO_UID"
-fi
-
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 SERVICE_SRC="$PLUGIN_DIR/omarchy-fan-daemon.service"
-if [ ! -f "$SERVICE_SRC" ]; then
-    SERVICE_SRC="/home/lukekimball/.config/omarchy/omarchy-fan-daemon.service"
-fi
 SERVICE_DST="/etc/systemd/system/omarchy-fan-daemon.service"
+SYSTEMCTL="/usr/bin/systemctl"
+PKEXEC="/usr/bin/pkexec"
 
-# Retrieve sudo password from OmaSeal keyring if available
-get_omaseal_password() {
-    if command -v omaseal >/dev/null 2>&1; then
-        for acc in "sudo" "system" "default" "root" "$USER"; do
-            pass=$(omaseal get system "$acc" 2>/dev/null || omaseal get sudo "$acc" 2>/dev/null || true)
-            if [ -n "$pass" ]; then
-                echo "$pass"
-                return 0
-            fi
-        done
-    fi
-    return 1
-}
+if [ ! -f "$SERVICE_SRC" ]; then
+    echo "fan service definition is missing: $SERVICE_SRC" >&2
+    exit 1
+fi
+case "$PLUGIN_DIR" in
+    *'&'*|*'|'*|*'\'*)
+        echo "plugin path cannot be represented safely in the service unit" >&2
+        exit 1
+        ;;
+esac
 
-PASS=$(get_omaseal_password || true)
+CALLER_UID=""
+if [ "${1:-}" = "--caller-uid" ]; then
+    CALLER_UID="${2:-}"
+    shift 2
+fi
 
-run_elevated() {
-    if [ "$(id -u)" -eq 0 ]; then
-        "$@"
-    elif [ -n "$PASS" ]; then
-        echo "$PASS" | sudo -S "$@"
-    elif command -v pkexec >/dev/null 2>&1; then
-        pkexec "$@"
-    else
-        sudo "$@"
-    fi
-}
-
-# If running as unprivileged user, re-invoke ourselves through run_elevated
 if [ "$(id -u)" -ne 0 ]; then
-    run_elevated env OMARCHY_FAN_UID="$TARGET_UID" "$0" "$@"
-    exit $?
+    if [ ! -x "$PKEXEC" ]; then
+        echo "fan control requires the system authorization helper" >&2
+        exit 1
+    fi
+    exec "$PKEXEC" "$0" --caller-uid "$(id -u)"
 fi
 
-# We are root:
-# 1. Update / install systemd service if available
-USER_HOME="${SUDO_USER:+$(getent passwd "$SUDO_USER" | cut -d: -f6)}"
-USER_HOME="${USER_HOME:-$HOME}"
-
-if [ -f "$SERVICE_SRC" ]; then
-    sed -e "s|%h|$USER_HOME|g" \
-        -e "s|ExecStart=.*|ExecStart=$PLUGIN_DIR/bin/omarchy-fan-daemon --uid $TARGET_UID|" \
-        -e "s|OMARCHY_FAN_UID=[0-9]*|OMARCHY_FAN_UID=$TARGET_UID|g" \
-        "$SERVICE_SRC" > "$SERVICE_DST"
-    # Ensure uid arg and env are present
-    if ! grep -q -- "--uid" "$SERVICE_DST"; then
-        sed -i "s|bin/omarchy-fan-daemon|bin/omarchy-fan-daemon --uid $TARGET_UID|" "$SERVICE_DST"
-    fi
-    if ! grep -q "OMARCHY_FAN_UID" "$SERVICE_DST"; then
-        sed -i "/Environment=/a Environment=\"OMARCHY_FAN_UID=$TARGET_UID\"" "$SERVICE_DST"
-    fi
-    systemctl daemon-reload
-    systemctl restart omarchy-fan-daemon.service
-    exit 0
+TARGET_UID="$CALLER_UID"
+if [ -z "$TARGET_UID" ]; then
+    TARGET_UID="${OMARCHY_FAN_UID:-}"
+fi
+if [ -z "$TARGET_UID" ]; then
+    TARGET_UID="$(/usr/bin/find /run/user -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | /usr/bin/awk '$1 >= 1000 { print $1; exit }')"
+fi
+if ! [[ "$TARGET_UID" =~ ^[0-9]+$ ]] || [ "$TARGET_UID" -lt 1 ]; then
+    echo "unable to determine the desktop user for fan control" >&2
+    exit 1
 fi
 
-# 2. Fallback: exec daemon directly
-exec "$PLUGIN_DIR/bin/omarchy-fan-daemon" --uid "$TARGET_UID"
+if [ ! -x "$SYSTEMCTL" ]; then
+    echo "systemd is required for the approved fan helper" >&2
+    exit 1
+fi
+
+TMP_SERVICE="/etc/systemd/system/.omarchy-fan-daemon.service.$$"
+trap 'rm -f "$TMP_SERVICE"' EXIT
+sed \
+    -e "s|ExecStart=.*|ExecStart=$PLUGIN_DIR/bin/omarchy-fan-daemon --uid $TARGET_UID|" \
+    -e "s|OMARCHY_FAN_UID=[0-9]*|OMARCHY_FAN_UID=$TARGET_UID|g" \
+    "$SERVICE_SRC" >"$TMP_SERVICE"
+/usr/bin/install -o root -g root -m 0644 "$TMP_SERVICE" "$SERVICE_DST"
+"$SYSTEMCTL" daemon-reload
+if ! "$SYSTEMCTL" is-enabled -q omarchy-fan-daemon.service 2>/dev/null; then
+    "$SYSTEMCTL" enable omarchy-fan-daemon.service
+fi
+"$SYSTEMCTL" restart omarchy-fan-daemon.service

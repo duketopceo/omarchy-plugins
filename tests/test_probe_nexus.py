@@ -249,12 +249,12 @@ def test_ip_addr_parsing(monkeypatch) -> None:
     assert "docker0" not in names
     assert "veth1234" not in names
 
-    wifi = next(r for r in data["network"] if r["name"] == "Wi-Fi 6 Wireless")
+    wifi = next(r for r in data["network"] if r["name"] == "Wi-Fi Network")
     assert wifi["ip"] == "192.168.1.50"
     assert wifi["status"] == "CONNECTED"
 
-    dock = next(r for r in data["network"] if r["name"] == "Dock Gigabit LAN")
-    assert dock["ip"] == "10.0.0.5"
+    ethernet = next(r for r in data["network"] if r["name"] == "Ethernet Network")
+    assert ethernet["ip"] == "10.0.0.5"
 
     ts = next(r for r in data["network"] if r["name"] == "Tailscale Mesh")
     assert ts["ip"] == "No IP"
@@ -354,13 +354,13 @@ def test_lsblk_storage_rows(monkeypatch) -> None:
 
     # Model match → friendly NVMe title; mounts walked depth-first through
     # children, first non-null mount wins.
-    nvme = storage["OS Root NVMe (512GB)"]
+    nvme = storage["NVMe Storage (nvme0n1)"]
     assert nvme["mount"] == "/boot"
     assert nvme["status"] == "MOUNTED"
 
-    # tran == "usb" is what earns the flash-drive label.
-    usb = storage["USB Flash Drive (32G)"]
-    assert usb["desc"] == "Ventoy Multi-Boot USB Stick"
+    # tran == "usb" is what earns the external-storage label.
+    usb = storage["USB Storage (sdb)"]
+    assert usb["desc"] == "External storage"
     assert usb["mount"] == "/mnt/ventoy"
 
     zram = next(r for r in data["storage"] if r["name"].startswith("ZRAM"))
@@ -377,7 +377,7 @@ def test_lsblk_sata_disk_not_labeled_usb(monkeypatch) -> None:
     a SATA sda renders as a generic storage row."""
     data = run_lsblk_probe(monkeypatch)
     sda = next(r for r in data["storage"] if "sda" in r["name"])
-    assert sda["name"] == "Storage (sda)"
+    assert sda["name"] == "SATA Storage (sda)"
     assert sda["desc"] == "SATA drive"
     assert sda["icon"] == "󰋊"
 
@@ -438,3 +438,10 @@ def test_empty_system_returns_ok_shape(monkeypatch) -> None:
     data = mod.get_nexus()
     assert data == {"ok": True, "usb": [], "bluetooth": [], "network": [], "storage": []}
     json.dumps(data)
+
+
+def test_probe_has_no_host_specific_interface_or_disk_labels() -> None:
+    source = PROBE.read_text()
+    assert "enp0s20f0u1u2u4" not in source
+    assert "PC711" not in source
+    assert "SN520" not in source

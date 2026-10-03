@@ -5,7 +5,7 @@
     {
       "id": "lukedaduke.fan",
       "path": "plugins/lukedaduke.fan",
-      "version": "2.1.4",
+      "version": "2.1.5",
       "kinds": [
         "bar-widget"
       ],
@@ -14,7 +14,7 @@
     {
       "id": "lukedaduke.ticker",
       "path": "plugins/lukedaduke.ticker",
-      "version": "2.1.4",
+      "version": "2.1.5",
       "kinds": [
         "bar-widget"
       ],
@@ -23,7 +23,7 @@
     {
       "id": "lukedaduke.agents",
       "path": "plugins/lukedaduke.agents",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "kinds": [
         "bar-widget"
       ],
@@ -32,7 +32,7 @@
     {
       "id": "lukedaduke.standby",
       "path": "plugins/lukedaduke.standby",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "kinds": [
         "overlay"
       ],
@@ -41,7 +41,7 @@
     {
       "id": "lukedaduke.nexus",
       "path": "plugins/lukedaduke.nexus",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "kinds": [
         "bar-widget"
       ],
@@ -50,7 +50,7 @@
     {
       "id": "lukedaduke.connections",
       "path": "plugins/lukedaduke.connections",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kinds": [
         "bar-widget"
       ],
@@ -59,7 +59,7 @@
     {
       "id": "lukedaduke.power",
       "path": "plugins/lukedaduke.power",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "kinds": [
         "bar-widget"
       ],
@@ -88,7 +88,7 @@
     {
       "id": "io.github.duketopceo.pplx",
       "path": "plugins/io.github.duketopceo.pplx",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "kinds": [
         "bar-widget"
       ],

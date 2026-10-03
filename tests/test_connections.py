@@ -75,11 +75,15 @@ def test_loaders_fill_their_bar_buttons(qml: str) -> None:
 def test_loaders_warn_on_error(qml: str) -> None:
     assert qml.count("Loader.Error") == 2
     assert "console.warn" in qml
+    assert "btPanelError" in qml
+    assert "wifiPanelError" in qml
+    assert "unavailable" in qml
 
 
 def test_panel_sources_are_stock_paths(qml: str) -> None:
     assert "panels/bluetooth/Panel.qml" in qml
     assert "panels/network/Panel.qml" in qml
+    assert 'Quickshell.env("OMARCHY_PATH")' in qml
 
 
 def test_readme_warns_about_stock_widget_ipc_dupes() -> None:

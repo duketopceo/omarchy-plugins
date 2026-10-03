@@ -1,6 +1,7 @@
-brave-bin
-claude-desktop
-nordvpn-gui-bin
-slack-desktop
-snapd
-termius
+hyprmoncfg-bin
+omarchy-dev
+omarchy-keyring
+omarchy-nvim
+omarchy-settings-dev
+quickshell-git
+ttf-jetbrains-mono-nerd-basic

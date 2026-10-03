@@ -1,126 +1,169 @@
 # New-laptop restore playbook
 
-Use this with an AI that has GitHub access to `duketopceo/omarchy-plugins`, `duketopceo/dotfiles`, and `duketopceo/luke-agents`.
+This playbook targets the current Arch Linux ARM/Asahi host. It is deliberately
+architecture-specific: do not copy package or service assumptions from an x86
+machine. The machine index and package files are the source of truth for the
+sanitized state; private shell configuration remains in the operator's dotfiles
+repository.
 
-Prompt to paste:
-
-> Restore my Omarchy laptop from `duketopceo/omarchy-plugins` `machine/INDEX.md` and `machine/RESTORE.md`. Pull actual config from private `duketopceo/dotfiles` via chezmoi. Do not invent secrets. Stop and ask for 1Password / Tailscale / GitHub auth when needed.
+> Restore with an operator present. Stop for keyring unlock, account login,
+> package-manager authentication, and any hardware-specific confirmation.
 
 ## 0. Guardrails
 
-- Never write secrets to git.
-- Never edit `/usr/share/omarchy/`.
-- Prefer `omarchy pkg add` / `yay` over raw `makepkg`.
-- `sudo` on this distro is fingerprint-first; an agent without a TTY cannot auth.
+- Never write secrets, tokens, private keys, or keyring exports to git.
+- Never edit `/usr/share/omarchy/`; use supported host configuration or a
+  separately owned local clone.
+- Prefer `omarchy pkg add` and the documented Asahi package families.
+- Do not install GPU, firmware, or microcode packages that are not verified for
+  the target hardware.
+- Run `scripts/audit-live-plugins.py` before and after plugin changes.
 
-## 1. Base OS
+## 1. Base system
 
-1. Install Omarchy (Arch/Hyprland). Target ~4.0.x.
-2. Create user `lukedaduke`, groups: `wheel`, `docker`.
-3. Install Tailscale. Log in. Enable Tailscale SSH. `--accept-routes`. Do **not** enable sshd on port 22.
-4. Sign into 1Password. `op` CLI.
-5. Sign into GitHub (`gh auth login`). Need access to private `dotfiles` and `luke-agents`.
+1. Install the current Omarchy/Arch Linux ARM image with the Asahi kernel and
+   matching firmware packages.
+2. Create the operator account with the groups required by the desktop
+   (`wheel`, input, and the groups required by the selected package manager).
+3. Install and authenticate Tailscale if remote access is required. Keep the
+   SSH daemon disabled; use Tailscale SSH only.
+4. Sign in to 1Password and GitHub through their normal interactive flows. Do
+   not paste credentials into this repository or an agent prompt.
 
-## 2. Dotfiles
+## 2. Dotfiles and desktop configuration
 
-```bash
-chezmoi init --apply git@github.com:duketopceo/dotfiles.git
+Set a private checkout directory, then apply the operator's chezmoi repository:
+
+```sh
+export DOTFILES_DIR="${DOTFILES_DIR:-$HOME/src/dotfiles}"
+chezmoi init --apply "git@github.com:duketopceo/dotfiles.git"
 ```
 
-This is the Hyprland / Omarchy shell / terminal / user-timer source. If chezmoi is missing, grab the binary first (`omarchy pkg add chezmoi` or the release in `~/.local/bin` historically).
+Review the generated plan before applying changes. The private repository owns
+Hyprland, Omarchy shell, terminal, and user-service configuration; this
+repository owns only the sanitized machine map and the plugin umbrella.
 
 ## 3. Packages
 
-```bash
-# explicit package names
+Install the explicit package list with the host-supported package manager:
+
+```sh
 xargs -a machine/packages-explicit.txt -r omarchy pkg add
 ```
 
-Foreign/AUR names are in `machine/packages-foreign.txt` (`brave-bin`, `claude-desktop`, `nordvpn-gui-bin`, `slack-desktop`, `snapd`, `termius`). Use `omarchy pkg aur add` / `yay`. Skip anything the new hardware does not need (NVIDIA stack on a non-Nvidia box).
-
-Precision 5560 notes: `nvidia-open-dkms`, `intel-media-driver`, `fprintd`, `thermald`.
+Review `machine/packages-foreign.txt` before installing AUR or other foreign
+packages. The current host uses the Asahi kernel, PipeWire/WirePlumber, BlueZ,
+UPower, and Apple audio services. Do not add desktop packages for a different
+GPU architecture unless the operator explicitly changes the hardware target.
 
 ## 4. Toolchain
 
-```bash
-cp machine/mise.toml ~/.config/mise/config.toml
+Restore the pinned tools from `machine/mise.toml` rather than copying binaries
+from the old machine:
+
+```sh
 mise install
 mise upgrade
-
-uv tool install a0
-uv tool install browser-use
-uv tool install hermes-agent
 ```
 
-Install node-global tools after mise node is on PATH: `@devcontainers/cli`, `agent-browser`, `devin-sdk-cli-linux-x64`, `@railway/cli`.
+Install any project-local tools from their declared package manager and verify
+versions before use. Do not copy dropped AppImages or user-specific binaries
+into this repository.
 
-Cargo: `ast-grep`, `cargo-zigbuild`. Build `kurultai` from `duketopceo/kurultai` if needed.
+## 5. Host services
 
-Large CLIs historically dropped into `~/.local/bin` (not pacman): Factory `agy`, Orca `ori` + `orca.AppImage`, BrowserOS AppImage, ActivityWatch. Re-download current releases; do not copy stale binaries from this index.
+Enable only the services represented in `machine/INDEX.md` and verify them
+after login:
 
-## 5. First-party plugins (this repo)
+- PipeWire, WirePlumber, and Asahi microphone/audio services
+- BlueZ integration for Bluetooth devices
+- desktop portals and Hyprland session services
+- EasyEffects when the operator wants the DSP layer
+- Hyprmoncfg for managed display layouts
+- Voxtype is the default voice owner; enable `voxtype.service` and its bar
+  control only after the operator confirms the capture/privacy policy.
+- Dim remains an opt-in alternative and must not run at the same time as
+  Voxtype while both claim the microphone.
 
-```bash
-git clone git@github.com:duketopceo/omarchy-plugins.git ~/Documents/github/personal/omarchy-plugins
-cd ~/Documents/github/personal/omarchy-plugins
+A failed optional service is a degraded state; it must not cause restore to
+invent credentials or enable a second data collector.
+
+## 6. Owned plugins
+
+Clone this public authoring repository into an operator-selected directory and
+run the local installer in development-link mode:
+
+```sh
+export PLUGIN_REPO="${PLUGIN_REPO:-$HOME/src/omarchy-plugins}"
+git clone https://github.com/duketopceo/omarchy-plugins.git "$PLUGIN_REPO"
+cd "$PLUGIN_REPO"
 ./scripts/install.sh --link
 ```
 
-## 6. Marketplace plugins
+The installer keeps development links distinct from release copies. For a
+release, use the validated copy path and run the manifest and contract checks
+before publishing a standalone plugin repository.
 
-For each `git` URL in `machine/plugins.json` → `marketplace`:
+## 7. Marketplace and external plugins
 
-```bash
+Use the remotes recorded in `machine/plugins.json`:
+
+```sh
 omarchy plugin add <git-url> --enable --yes
 ```
 
-Then restore bar layout from `machine/bar-layout.json` into `~/.config/omarchy/shell.json` (`bar` + `idle` + `disabledPlugins`). `omarchy-shell shell rescanPlugins`.
+Keep ownership and update paths independent. A local checkout, a disabled
+clone, and a hosted tray widget are different states; do not infer that an
+absent direct bar entry means the surface is unused.
 
-Keep stock `omarchy.tailscale` on the bar (do not replace with the unused `lukedaduke.tailscale` clone unless asked).
+Before applying the sanitized bar layout, run the read-only migration plan:
 
-## 7. Skills
-
-Clone private `luke-agents`. Symlink `SKILLS/` into `~/.agents/skills`, `~/.claude/skills`, `~/.grok/skills`. Add bartlett-agents `ce-*` skills the same way if this is a work machine.
-
-## 8. Theme / desktop
-
-```bash
-omarchy theme set Miasma
+```sh
+python3 scripts/plan-surface-migration.py --format markdown
 ```
 
-Copy custom theme `firmitas-utilitas-venustas` from the old `~/.config/omarchy/themes/` if it is not in chezmoi.
+Apply the sanitized bar layout from `machine/bar-layout.json` and the enabled
+plugin list from `machine/plugins.json`, then ask the host to rescan:
 
-Idle: screensaver 300s, lock 600s.
+```sh
+omarchy-shell shell rescanPlugins
+```
 
-## 9. Network extras
+Do not hand-edit host-owned registry state. If a backup directory shadows an
+installed plugin, stop and use the reversible installer migration.
 
-- NordVPN: install, allowlist `100.64.0.0/10`, Meshnet **off**.
-- UFW: default deny in/forward. LocalSend 53317. No sshd rule.
-- Voxtype: user service `voxtype.service` + plugin `hancore.voxtype-enhance`.
+## 8. Secrets and private data
 
-## 10. Local dev
+OmaSeal is the canonical secret-management surface. Unlock it interactively and
+confirm that consumers can resolve keys at use time. The inventory records
+whether a keyring is available, never a key or token value.
 
-`devstack` compose: postgres 5432, redis 6379, minio 9100/9101 on localhost only. Source historically in `dotfiles/Work/devstack/`.
+Before enabling screen, audio, clipboard, calendar, finance, weather, or
+message surfaces, review their egress and retention policy in
+`docs/DATA-LIFECYCLE.md`. Do not restore or delete private data as an implicit
+part of a plugin migration.
 
-## 11. Verify
+## 9. Verification
 
-```bash
+```sh
 omarchy version
+uname -m
 hyprctl monitors
-omarchy-shell shell listPlugins | head
-mise list
-gh auth status
-tailscale status
-chezmoi doctor
+omarchy-shell shell listPlugins
+python3 scripts/audit-live-plugins.py --format json
+python3 scripts/check-host-integration.py --format markdown
+python3 scripts/validate-manifests.py
 ```
 
-Open the bar: calendar center, fan + ticker on the right, usagebar present.
+Check the bar, tray-hosted widgets, audio devices, Bluetooth state, display
+layout, suspend/resume behavior, and service health. Record any unavailable
+capability as unavailable; do not replace a failed probe with a fabricated
+value.
 
-## Stop and ask the human for
+## Stop and ask the operator for
 
-- 1Password vault unlock
-- Tailscale login
-- GitHub org access (work repos)
-- NordVPN login
-- Fingerprint enrollment (`omarchy setup security fingerprint`)
-- NVIDIA vs Intel-only GPU choice if hardware differs
+- keyring or 1Password unlock
+- Tailscale, GitHub, NordVPN, or other account login
+- package-manager or firmware authorization
+- confirmation before enabling a new screen/audio/voice capture surface
+- confirmation before any destructive cleanup of user data

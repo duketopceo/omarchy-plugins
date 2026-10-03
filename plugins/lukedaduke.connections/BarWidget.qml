@@ -8,6 +8,12 @@ import qs.Ui
 BarWidget {
     id: root
     moduleName: "lukedaduke.connections"
+    property bool btPanelError: false
+    property bool wifiPanelError: false
+    readonly property string stockRoot: {
+        var configured = Quickshell.env("OMARCHY_PATH")
+        return configured && configured.length > 0 ? configured : "/usr/share/omarchy"
+    }
     implicitWidth: rowLayout.implicitWidth
     implicitHeight: root.bar ? root.bar.barSize : Style.bar.sizeHorizontal
 
@@ -32,8 +38,10 @@ BarWidget {
             bar: root.bar
             text: btLoader.item && btLoader.item.icon ? btLoader.item.icon : "󰂯"
             // Same source the stock panel reads: Bluetooth.defaultAdapter.
-            dimmed: !(Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled)
-            tooltipText: "Bluetooth · Left: panel · Right: toggle radio"
+            dimmed: root.btPanelError || !(Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled)
+            tooltipText: root.btPanelError
+                ? "Bluetooth panel unavailable · check the host integration"
+                : "Bluetooth · Left: panel · Right: toggle radio"
             onPressed: function(b) {
                 if (!btLoader.item) return;
                 if (b === Qt.RightButton && typeof btLoader.item.toggleBluetooth === "function")
@@ -50,14 +58,17 @@ BarWidget {
                 anchors.fill: parent
                 active: true
                 visible: false
-                source: "file:///usr/share/omarchy/shell/plugins/panels/bluetooth/Panel.qml"
+                source: "file://" + root.stockRoot + "/shell/plugins/panels/bluetooth/Panel.qml"
                 onLoaded: {
+                    root.btPanelError = false;
                     root.injectPanels();
                     Qt.callLater(root.injectPanels);
                 }
                 onStatusChanged: {
-                    if (status === Loader.Error)
+                    if (status === Loader.Error) {
+                        root.btPanelError = true;
                         console.warn("lukedaduke.connections: failed to load stock bluetooth panel: " + source);
+                    }
                 }
             }
         }
@@ -67,8 +78,10 @@ BarWidget {
             bar: root.bar
             text: wifiLoader.item && wifiLoader.item.icon ? wifiLoader.item.icon : "󰤨"
             // Same source the stock panel reads: Networking.wifiEnabled.
-            dimmed: !Networking.wifiEnabled
-            tooltipText: "Wi-Fi · Left: panel · Right: toggle radio"
+            dimmed: root.wifiPanelError || !Networking.wifiEnabled
+            tooltipText: root.wifiPanelError
+                ? "Wi-Fi panel unavailable · check the host integration"
+                : "Wi-Fi · Left: panel · Right: toggle radio"
             onPressed: function(b) {
                 if (!wifiLoader.item) return;
                 if (b === Qt.RightButton && typeof wifiLoader.item.toggleNetwork === "function")
@@ -82,14 +95,17 @@ BarWidget {
                 anchors.fill: parent
                 active: true
                 visible: false
-                source: "file:///usr/share/omarchy/shell/plugins/panels/network/Panel.qml"
+                source: "file://" + root.stockRoot + "/shell/plugins/panels/network/Panel.qml"
                 onLoaded: {
+                    root.wifiPanelError = false;
                     root.injectPanels();
                     Qt.callLater(root.injectPanels);
                 }
                 onStatusChanged: {
-                    if (status === Loader.Error)
+                    if (status === Loader.Error) {
+                        root.wifiPanelError = true;
                         console.warn("lukedaduke.connections: failed to load stock network panel: " + source);
+                    }
                 }
             }
         }

@@ -4,10 +4,12 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=%h/.config/omarchy/plugins/lukedaduke.fan/bin/omarchy-fan-daemon
+# ExecStart is a placeholder: omarchy-fan-daemon-start rewrites it to the
+# plugin's installed path with --uid <desktop user> at install time.
+ExecStart=/usr/bin/omarchy-fan-daemon
 Restart=on-failure
 RestartSec=5
-Environment="XDG_CONFIG_HOME=%h/.config"
+Environment="OMARCHY_FAN_UID=1000"
 
 [Install]
 WantedBy=multi-user.target
