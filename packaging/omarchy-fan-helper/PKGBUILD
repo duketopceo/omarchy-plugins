@@ -1,0 +1,26 @@
+# Local package for the lukedaduke.fan root helper. Build and install from
+# this directory with:  yay -Bi .
+# pkgver must equal HELPER_VERSION in the daemon and expectedHelperVersion in
+# plugins/lukedaduke.fan/Panel.qml (tests/test_fan_helper_package.py checks).
+pkgname=omarchy-fan-helper
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Root fan-curve helper for the lukedaduke.fan Omarchy plugin (macsmc_hwmon, dell_smm)"
+arch=('any')
+url="https://github.com/duketopceo/omarchy-plugins"
+license=('MIT')
+depends=('python' 'systemd')
+install=omarchy-fan-helper.install
+
+# Sources are read straight from this repository checkout (makepkg's source=()
+# cannot reference files outside the PKGBUILD directory).
+_repo="$startdir/../.."
+
+package() {
+  install -Dm755 "$_repo/plugins/lukedaduke.fan/bin/omarchy-fan-daemon" \
+    "$pkgdir/usr/lib/omarchy-fan/omarchy-fan-daemon"
+  install -Dm644 "$startdir/omarchy-fan-daemon.service" \
+    "$pkgdir/usr/lib/systemd/system/omarchy-fan-daemon.service"
+  install -Dm644 "$_repo/plugins/lukedaduke.fan/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

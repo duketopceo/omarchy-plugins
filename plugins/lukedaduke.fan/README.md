@@ -19,42 +19,54 @@ omarchy plugin enable lukedaduke.fan
 - Fan modes: auto, low, medium, high, plus a user-editable custom curve
 - `omarchy-fan-daemon` runs the auto/custom curves and drives fan hwmon (`fan*_target` on Apple Silicon `macsmc_hwmon`, `pwm*` on `dell_smm`)
 
-## Fan daemon setup
+## Fan helper setup
 
-Fan control is applied by `bin/omarchy-fan-daemon`, which must run as
-root to write `/sys/class/hwmon/*/fan*_target` / `pwm*`. The panel is
-**telemetry-only until the operator explicitly chooses a fan mode**. A mode
-change requests the system authorization helper (`/usr/bin/pkexec`); it never
-reads a stored sudo password or pipes a password to `sudo`. The authorized
-helper installs the shipped `omarchy-fan-daemon.service` and starts it.
+Fan control is applied by the **`omarchy-fan-helper`** package, a root
+service that runs `/usr/lib/omarchy-fan/omarchy-fan-daemon` (packaged from
+`bin/omarchy-fan-daemon`). The plugin never installs, starts, or elevates
+anything: it reads the helper's status from `/run/omarchy-fan/status.json`
+and, when the helper is missing or older than the version the panel expects,
+shows "install/update the omarchy-fan-helper package". Until then the panel
+is telemetry-only.
 
-If the authorization helper is unavailable, the panel remains read-only and
-shows the setup failure instead of attempting an implicit elevation. The
-umbrella repository does not install a system service as a side effect of
-opening the panel.
-
-To install it by hand instead:
+Build and install the package from the umbrella repository
+([`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins)):
 
 ```bash
-/usr/bin/pkexec ~/.config/omarchy/plugins/lukedaduke.fan/bin/omarchy-fan-daemon-start
+cd packaging/omarchy-fan-helper && yay -Bi .
+sudo systemctl enable --now omarchy-fan-daemon.service
 ```
 
-The daemon polls `$XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode`
-(written by `bin/omarchy-fan-set`) every 2 s and applies the matching
-curve/preset. On hardware with no daemon-driveable fan target, the widget
-remains telemetry-only even if a daemon heartbeat exists: stats and fan RPM
-still render, the mode badge shows `READ`, and the preset buttons are
-disabled.
+Installing the package replaces a hand-installed
+`/etc/systemd/system/omarchy-fan-daemon.service` that ran the daemon from a
+user-owned plugin folder, and starts the packaged unit in its place.
 
-To remove fan control, stop and disable `omarchy-fan-daemon.service`, remove
-its unit file, and remove the plugin. Removing the plugin does not delete
-user fan history or unrelated system services.
+How it behaves:
+
+- The helper polls `$XDG_RUNTIME_DIR/omarchy-fan/current_fan_mode` (written by
+  `bin/omarchy-fan-set`) every 2 s and applies the silent auto curve, a fixed
+  preset, or the custom curve. It only reads from the user runtime directory.
+- Fixed presets (low/med/high) need a live shell: the panel writes
+  `$XDG_RUNTIME_DIR/omarchy-fan/heartbeat` every 30 s (no process spawn), and a
+  preset older than 120 s without a heartbeat falls back to the auto curve.
+  Screen lock does not stop the heartbeat.
+- Whenever the helper stops, crashes, or is removed, the fans go back to
+  firmware control (`macsmc_hwmon` `fan_control=N`, `dell_smm`
+  `pwmN_enable=2`).
+- Control is offered only when the fan targets are actually writable; otherwise
+  the badge shows `READ` and the mode buttons are hidden.
+- The helper never writes the ACPI platform profile; power-profiles-daemon
+  owns power profiles.
+
+To remove fan control, remove the `omarchy-fan-helper` package (it stops the
+service and hands the fans back). Removing the plugin does not delete user fan
+history or unrelated system services.
 
 ## Data and privacy
 
 The plugin reads local hardware telemetry and writes only the local fan-mode
 request/curve state. It sends no telemetry, account data, or credentials to a
-network service. Authorization is local to the system policy agent.
+network service. The plugin requests no authorization; fan writes happen in the packaged helper.
 
 ### GPU telemetry on Apple Silicon (Asahi)
 
@@ -82,14 +94,14 @@ automatically — the probe is already in place.
 - **x** — kill selected process
 - **Esc** — close panel
 
-The custom curve is editable from the panel when the daemon is running.
+The custom curve is editable from the panel when the helper is installed.
 
 ## Requirements
 
 - `python3` (all helpers are Python; the panel execs `/usr/bin/python3`)
 - A Linux laptop with `hwmon` thermal/fan sensors
 - For fan control: `macsmc_hwmon` (Apple Silicon) or `dell_smm` fan
-  targets plus `pkexec` to install/start the daemon (see above)
+  targets plus the `omarchy-fan-helper` package (see above)
 - Optional: `btop` + `omarchy-launch-or-focus-tui` for the middle-click
   launcher
 

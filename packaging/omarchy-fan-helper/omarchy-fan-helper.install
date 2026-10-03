@@ -1,0 +1,21 @@
+# omarchy-fan-helper install hooks.
+
+post_install() {
+  # Replaces a hand-installed /etc/systemd/system/omarchy-fan-daemon.service
+  # whose ExecStart runs from a user-owned path (the old pkexec installer),
+  # hands the fans back, and starts the packaged unit in its place.
+  /usr/lib/omarchy-fan/omarchy-fan-daemon migrate-legacy-unit
+}
+
+post_upgrade() {
+  /usr/lib/omarchy-fan/omarchy-fan-daemon migrate-legacy-unit
+  systemctl daemon-reload
+  systemctl try-restart omarchy-fan-daemon.service
+}
+
+pre_remove() {
+  # Stopping runs ExecStopPost (hand-back); repeat it directly in case the
+  # unit was never running.
+  systemctl disable --now omarchy-fan-daemon.service 2>/dev/null || true
+  /usr/lib/omarchy-fan/omarchy-fan-daemon handback || true
+}
