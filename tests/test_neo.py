@@ -107,6 +107,8 @@ def test_control_rejects_bad_verb_and_bounds_calls(monkeypatch):
                                  for k in mod.UNITS})
     monkeypatch.setattr(mod, "_listening_ports",
                         lambda: {"9211": True, "49337": True, "49338": True})
+    # The post-control status pass would otherwise hit 127.0.0.1:49338.
+    monkeypatch.setattr(mod, "_tab_count", lambda: 3)
     ok = mod._control("restart")
     assert ok["ok"] is True
     assert calls == [["/usr/bin/systemctl", "--user", "restart",
@@ -176,6 +178,8 @@ def test_control_per_unit_restart(monkeypatch):
                                  for k in mod.UNITS})
     monkeypatch.setattr(mod, "_listening_ports",
                         lambda: {"9211": True, "49337": True, "49338": True})
+    # The post-control status pass would otherwise hit 127.0.0.1:49338.
+    monkeypatch.setattr(mod, "_tab_count", lambda: 3)
     res = mod._control("restart", "shim")
     assert res["ok"] is True
     assert res["action"] == "restart:shim"

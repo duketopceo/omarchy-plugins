@@ -178,7 +178,10 @@ Panel {
   function catalogSubtitle() {
     if (root.catalogRefreshedAt === "") return "upstream catalog not fetched yet"
     var s = "upstream refreshed " + root.relTime(root.catalogRefreshedAt)
-    // Mirrors catalogStaleAfterS in Service.qml (7d auto-refresh).
+    // Mirrors catalogStaleAfterS in Service.qml (7d auto-refresh). No ETA
+    // when the user opted out, because the service will never refresh.
+    if (ls.loaded && ls.entry && ls.entry.autoCatalogRefresh === false)
+      return s + " · auto-refresh off"
     var t = Date.parse(String(root.catalogRefreshedAt))
     if (isFinite(t)) {
       var eta = 7 * 86400 - Math.max(0, Math.round((Date.now() - t) / 1000))

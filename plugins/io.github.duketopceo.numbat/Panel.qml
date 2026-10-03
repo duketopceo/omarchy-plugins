@@ -76,7 +76,12 @@ Panel {
     })
   }
 
+  readonly property string rotateCommand: "mv ~/.numbat/records.ndjson ~/.numbat/records.ndjson.old"
+
   function markPanelSeen() {
+    // Before settings load (or after unparseable JSON) the entry is empty, and
+    // writing it would drop toastMinSeverity/toastCooldownS.
+    if (!ls.loaded) return
     var cur = ls.entry
     var entry = {}
     if (cur && typeof cur === "object" && !Array.isArray(cur)) {
@@ -87,7 +92,7 @@ Panel {
     if (root.bar && root.bar.shell
         && typeof root.bar.shell.updateEntryInline === "function") {
       try { root.bar.shell.updateEntryInline(root.moduleName, entry) }
-      catch (e) {}
+      catch (e) { console.warn("numbat: could not persist lastPanelSeen: " + e) }
     }
   }
 
@@ -1113,10 +1118,23 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: Quickshell.execDetached(
-              ["/usr/bin/wl-copy", "--",
-               "mv ~/.numbat/records.ndjson ~/.numbat/records.ndjson.old"])
+              ["/usr/bin/wl-copy", "--", root.rotateCommand])
           }
         }
+      }
+
+      // Selectable fallback for when wl-copy is missing or the copy fails.
+      TextEdit {
+        visible: root.recordsRotHint
+        width: parent.width
+        text: root.rotateCommand
+        textFormat: TextEdit.PlainText
+        readOnly: true
+        selectByMouse: true
+        wrapMode: TextEdit.WrapAnywhere
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
       }
 
       // STREAMED = records.ndjson (--emit all hooks) is the live feed;
