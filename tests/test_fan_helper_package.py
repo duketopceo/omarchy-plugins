@@ -168,5 +168,21 @@ def test_panel_heartbeat_is_a_spawn_free_filewrite() -> None:
     assert timer, "heartbeat Timer missing"
     body = timer.group(1)
     assert "interval: 30000" in body
+    assert re.search(r"running: root\.heartbeatPath\.length > 0 && root\.fanControl", body)
     assert "heartbeatFile.setText(" in panel
     assert "execDetached" not in body and "Process" not in body
+
+
+def test_panel_pending_mode_guard_hint_and_auto_reset() -> None:
+    panel = PANEL.read_text()
+    read = re.search(r"function readHelperStatus\(.*?\n  \}\n", panel, re.S)
+    assert read, "readHelperStatus missing"
+    assert "pendingMode" in read.group(0) and "pendingUntil" in read.group(0)
+    assert re.search(r"helperModeActive && root\.pendingMode\.length === 0", read.group(0))
+    for fn in ("setMode", "setCustom"):
+        body = re.search(r"function %s\(.*?\n  \}\n" % fn, panel, re.S).group(0)
+        assert "pendingUntil = Date.now()" in body
+    assert "systemctl enable --now omarchy-fan-daemon.service" in panel
+    # auto reset stays reachable when the helper exists but fanControl is false.
+    assert 'mode === "auto" && root.helperState !== "missing"' in panel
+    assert 'root.setMode("auto")' in panel

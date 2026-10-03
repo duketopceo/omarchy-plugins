@@ -50,6 +50,10 @@ Panel {
   property string helperVersion: ""
   property bool helperControllable: false
   property string helperMode: ""
+  // A mode the user just requested; the helper status lags by up to one tick,
+  // so readHelperStatus must not revert currentMode until it catches up.
+  property string pendingMode: ""
+  property real pendingUntil: 0
   readonly property bool fanControl: root.helperState === "ok" && root.helperControllable
   readonly property bool helperModeActive: root.helperState === "ok" && root.helperMode.length > 0
   property int selectedProc: 0
@@ -113,13 +117,15 @@ Panel {
     root.helperState = root.helperVersion === root.expectedHelperVersion ? "ok" : "outdated"
     root.helperControllable = data.controllable === true
     root.helperMode = clipStr(data.mode, 24).trim()
-    if (root.helperModeActive)
+    if (root.pendingMode.length > 0 && (root.helperMode === root.pendingMode || Date.now() > root.pendingUntil))
+      root.pendingMode = ""
+    if (root.helperModeActive && root.pendingMode.length === 0)
       root.currentMode = root.helperMode
   }
 
   function helperHint() {
     if (root.helperState === "missing")
-      return "Fan control: install the omarchy-fan-helper package"
+      return "Fan control: install the omarchy-fan-helper package and run 'systemctl enable --now omarchy-fan-daemon.service'"
     if (root.helperState === "outdated")
       return "Fan control: update the omarchy-fan-helper package (have " + (root.helperVersion || "?") + ", need " + root.expectedHelperVersion + ")"
     if (!root.helperControllable)
@@ -128,9 +134,13 @@ Panel {
   }
 
   function setMode(mode) {
-    if (!mode || !root.fanControl)
+    // "auto" is always safe to write, so it bypasses the fanControl guard
+    // whenever a helper is present (e.g. version drift with a pinned preset).
+    if (!mode || !(root.fanControl || (mode === "auto" && root.helperState !== "missing")))
       return
     currentMode = mode
+    root.pendingMode = mode
+    root.pendingUntil = Date.now() + 6000
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", mode])
     refreshTimer.restart()
   }
@@ -139,6 +149,8 @@ Panel {
     if (!root.fanControl)
       return
     currentMode = "custom"
+    root.pendingMode = "custom"
+    root.pendingUntil = Date.now() + 6000
     customName = name
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", "custom", name])
     refreshTimer.restart()
@@ -147,13 +159,14 @@ Panel {
   function cycleMode() {
     if (!root.fanControl)
       return
-    if (currentMode === "auto")
+    var from = root.pendingMode.length > 0 ? root.pendingMode : currentMode
+    if (from === "auto")
       setMode("low")
-    else if (currentMode === "low")
+    else if (from === "low")
       setMode("med")
-    else if (currentMode === "med")
+    else if (from === "med")
       setMode("high")
-    else if (currentMode === "high")
+    else if (from === "high")
       setMode("custom")
     else
       setMode("auto")
@@ -383,7 +396,7 @@ Panel {
   Timer {
     id: heartbeatTimer
     interval: 30000
-    running: root.heartbeatPath.length > 0
+    running: root.heartbeatPath.length > 0 && root.fanControl
     repeat: true
     triggeredOnStart: true
     onTriggered: heartbeatFile.setText(String(Math.floor(Date.now() / 1000)))
@@ -794,6 +807,28 @@ Panel {
           wrapMode: Text.Wrap
           color: root.fanControl ? root.muted : root.accent
           font.pixelSize: Style.font.caption
+        }
+        Rectangle {
+          visible: !root.fanControl && root.helperState !== "missing"
+          width: parent.width
+          height: Style.space(34)
+          radius: Style.space(6)
+          color: "transparent"
+          border.color: root.fg
+          border.width: 1
+          Text {
+            anchors.centerIn: parent
+            text: "Reset to auto"
+            textFormat: Text.PlainText
+            color: root.fg
+            font.bold: true
+            font.pixelSize: Style.font.caption
+          }
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.setMode("auto")
+          }
         }
         Row {
           width: parent.width

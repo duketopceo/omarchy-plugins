@@ -424,7 +424,7 @@ def test_stale_heartbeat_expires_fixed_preset(tmp_path: Path) -> None:
     h.tick()
     assert status(tmp_path)["mode"] == "auto"
     assert fan_control_param(tmp_path) == "N"      # auto curve floor, not HIGH
-    assert (hwmon / "fan1_target").read_text() == "0"
+    assert (hwmon / "fan1_target").read_text().strip() == "0"
 
 
 def test_missing_heartbeat_expires_fixed_preset(tmp_path: Path) -> None:
@@ -606,3 +606,299 @@ def test_setter_refreshes_heartbeat_with_mode(tmp_path: Path, monkeypatch) -> No
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
     setter.write_mode("high")
     assert (tmp_path / "omarchy-fan" / "heartbeat").is_file()
+
+
+# --- Review fixes: macsmc hand-back order, root guard, curve robustness -----
+
+def reject_targets_when_param_off(daemon, monkeypatch, root: Path) -> list[tuple[str, str]]:
+    """Model macsmc-hwmon: fanN_target writes fail (-EOPNOTSUPP) once fan_control=N."""
+    real = daemon._write_attr
+    log: list[tuple[str, str]] = []
+
+    def kernel(path: Path, value: str) -> bool:
+        path = Path(path)
+        if path.name.endswith("_target") and fan_control_param(root) == "N":
+            log.append((path.name, "rejected"))
+            return False
+        log.append((path.name, value))
+        return real(path, value)
+
+    monkeypatch.setattr(daemon, "_write_attr", kernel)
+    return log
+
+
+def test_hand_back_resets_targets_before_dropping_control(tmp_path: Path, monkeypatch) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_handback_order")
+    hwmon = make_macsmc(tmp_path, fan_control="Y")
+    for name in ("fan1_target", "fan2_target"):
+        (hwmon / name).write_text("4296")
+    log = reject_targets_when_param_off(daemon, monkeypatch, tmp_path)
+    daemon.hand_back("macsmc", hwmon, tmp_path)
+    assert (hwmon / "fan1_target").read_text() == "0"
+    assert (hwmon / "fan2_target").read_text() == "0"
+    assert fan_control_param(tmp_path) == "N"
+    assert ("fan1_target", "rejected") not in log
+
+
+def test_hand_back_reenables_control_to_reset_targets(tmp_path: Path, monkeypatch) -> None:
+    """Param already N but SMC still manual: flip Y, write 0, flip back to N."""
+    daemon = load_daemon("omarchy_fan_daemon_handback_reenable")
+    hwmon = make_macsmc(tmp_path, fan_control="N")
+    for name in ("fan1_target", "fan2_target"):
+        (hwmon / name).write_text("4296")
+    reject_targets_when_param_off(daemon, monkeypatch, tmp_path)
+    daemon.hand_back("macsmc", hwmon, tmp_path)
+    assert (hwmon / "fan1_target").read_text() == "0"
+    assert (hwmon / "fan2_target").read_text() == "0"
+    assert fan_control_param(tmp_path) == "N"
+
+
+def test_macsmc_floor_resets_targets_before_dropping_control(tmp_path: Path, monkeypatch) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_floor_order")
+    hwmon = make_macsmc(tmp_path, fan_control="Y")
+    for name in ("fan1_target", "fan2_target"):
+        (hwmon / name).write_text("3000")
+    reject_targets_when_param_off(daemon, monkeypatch, tmp_path)
+    daemon.set_fan_speed("macsmc", hwmon, 0, root=tmp_path)
+    assert (hwmon / "fan1_target").read_text() == "0"
+    assert (hwmon / "fan2_target").read_text() == "0"
+    assert fan_control_param(tmp_path) == "N"
+
+
+def _root_guard_daemon(monkeypatch, user_owned: bool):
+    daemon = load_daemon("omarchy_fan_daemon_root_guard")
+    calls: list[str] = []
+    monkeypatch.setattr(daemon.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(daemon, "_user_owned", lambda *_a: user_owned)
+    monkeypatch.setattr(daemon.FanHelper, "release_fans", lambda self: calls.append("release"))
+    monkeypatch.setattr(daemon, "run_loop", lambda helper: calls.append("run_loop"))
+    monkeypatch.setattr(daemon, "migrate_legacy_unit", lambda *a, **k: calls.append("migrate") or True)
+    return daemon, calls
+
+
+def test_root_from_user_owned_path_refuses_after_hand_back(monkeypatch, capsys) -> None:
+    for argv in (["--uid", "1000"], ["run"], ["handback"], ["migrate-legacy-unit"]):
+        daemon, calls = _root_guard_daemon(monkeypatch, user_owned=True)
+        rc = daemon.main(argv)
+        assert rc != 0, argv
+        assert calls == ["release"], argv
+        assert "refusing to run as root from a user-owned path" in capsys.readouterr().err
+
+
+def test_root_from_package_path_proceeds(monkeypatch) -> None:
+    daemon, calls = _root_guard_daemon(monkeypatch, user_owned=False)
+    assert daemon.main(["--uid", "1000"]) == 0
+    assert calls == ["run_loop"]
+
+
+class FakePw:
+    pw_dir = "/home/tester"
+
+
+def fake_home(monkeypatch, root: Path) -> Path:
+    import pwd
+    monkeypatch.setattr(pwd, "getpwuid", lambda _uid: FakePw())
+    cdir = root / "home/tester/.config/omarchy"
+    cdir.mkdir(parents=True, exist_ok=True)
+    return cdir
+
+
+def test_overflowing_custom_curve_falls_back_to_default(tmp_path: Path, monkeypatch) -> None:
+    make_macsmc(tmp_path)
+    set_temp(tmp_path, 70)
+    (fake_home(monkeypatch, tmp_path) / "fan_curve.json").write_text("[[1e400, 1]]")
+    request_mode(tmp_path, "custom", heartbeat_age=1)
+    daemon, h = helper(tmp_path)
+    assert daemon.load_curve(os.getuid(), tmp_path) == daemon.DEFAULT_CURVE
+    h.startup()
+    assert h.tick() == "custom"
+
+
+def test_custom_curve_points_are_clamped(tmp_path: Path, monkeypatch) -> None:
+    (fake_home(monkeypatch, tmp_path) / "fan_curve.json").write_text("[[-40, -5], [500, 999]]")
+    daemon = load_daemon("omarchy_fan_daemon_clamp")
+    assert daemon.load_curve(os.getuid(), tmp_path) == [[0, 0], [120, 255]]
+
+
+def test_run_loop_survives_a_failing_tick(monkeypatch, capsys) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_loop")
+    events: list[str] = []
+
+    class Helper:
+        ticks = 0
+
+        def startup(self):
+            events.append("startup")
+
+        def tick(self):
+            self.ticks += 1
+            if self.ticks == 1:
+                raise RuntimeError("boom")
+            raise SystemExit(0)
+
+        def shutdown(self):
+            events.append("shutdown")
+
+    monkeypatch.setattr(daemon.signal, "signal", lambda *_a: None)
+    monkeypatch.setattr(daemon.time, "sleep", lambda _s: None)
+    h = Helper()
+    try:
+        daemon.run_loop(h)
+    except SystemExit:
+        pass
+    assert h.ticks == 2
+    assert events == ["startup", "shutdown"]
+    assert len(capsys.readouterr().err.strip().splitlines()) == 1
+
+
+def rpm1(pwm: int) -> int:
+    return round(1499 + (4296 - 1499) * pwm / 255)
+
+
+def test_preset_expiry_falls_gradually(tmp_path: Path) -> None:
+    for celsius in (50, 70):
+        root = tmp_path / str(celsius)
+        hwmon = make_macsmc(root)
+        set_temp(root, celsius)
+        rdir = request_mode(root, "high", heartbeat_age=1)
+        daemon, h = helper(root)
+        h.startup()
+        h.tick()
+        assert (hwmon / "fan1_target").read_text() == "4296"
+        stamp = time.time() - 150
+        os.utime(rdir / "heartbeat", (stamp, stamp))
+        assert h.tick() == "auto"
+        assert int((hwmon / "fan1_target").read_text()) >= rpm1(255 - daemon.PWM_FALL_STEP)
+
+
+# --- Descriptor guards (fixture trees) --------------------------------------
+
+def test_mode_file_symlink_is_ignored(tmp_path: Path) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    rdir = user_runtime(tmp_path)
+    (tmp_path / "elsewhere").write_text("high")
+    (rdir / "current_fan_mode").symlink_to(tmp_path / "elsewhere")
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "auto"
+
+
+def test_runtime_dir_symlink_is_ignored(tmp_path: Path) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "current_fan_mode").write_text("high")
+    (tmp_path / f"run/user/{os.getuid()}").mkdir(parents=True)
+    (tmp_path / f"run/user/{os.getuid()}/omarchy-fan").symlink_to(real)
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "auto"
+
+
+def test_foreign_owned_runtime_dir_is_ignored(tmp_path: Path) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    other = os.getuid() + 1
+    rdir = user_runtime(tmp_path, other)   # owned by us, not by ``other``
+    (rdir / "current_fan_mode").write_text("high")
+    (rdir / "heartbeat").write_text("1")
+    assert daemon.get_requested_mode(other, tmp_path) == "auto"
+    assert daemon.heartbeat_age(other, tmp_path) is None
+
+
+def _foreign_regular_files(daemon, monkeypatch) -> None:
+    """Report every regular file as owned by someone else (dirs stay ours)."""
+    import stat as stat_mod
+    real_fstat = os.fstat
+
+    class Foreign:
+        def __init__(self, st):
+            self._st = st
+            self.st_uid = st.st_uid + 1
+
+        def __getattr__(self, name):
+            return getattr(self._st, name)
+
+    def fstat(fd):
+        st = real_fstat(fd)
+        return Foreign(st) if stat_mod.S_ISREG(st.st_mode) else st
+
+    monkeypatch.setattr(daemon.os, "fstat", fstat)
+
+
+def test_foreign_owned_files_are_ignored(tmp_path: Path, monkeypatch) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard_foreign")
+    rdir = request_mode(tmp_path, "high", heartbeat_age=1)
+    (fake_home(monkeypatch, tmp_path) / "fan_curve.json").write_text("[[0, 10], [100, 20]]")
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "high"   # sanity
+    _foreign_regular_files(daemon, monkeypatch)
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "auto"
+    assert daemon.heartbeat_age(os.getuid(), tmp_path) is None
+    assert daemon.load_curve(os.getuid(), tmp_path) == daemon.DEFAULT_CURVE
+    assert rdir.is_dir()
+
+
+def test_oversized_mode_file_is_ignored(tmp_path: Path) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    rdir = user_runtime(tmp_path)
+    (rdir / "current_fan_mode").write_text("high" + " " * 70)
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "auto"
+
+
+def test_heartbeat_symlink_is_ignored(tmp_path: Path) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    rdir = user_runtime(tmp_path)
+    (tmp_path / "beat").write_text("1")
+    (rdir / "heartbeat").symlink_to(tmp_path / "beat")
+    assert daemon.heartbeat_age(os.getuid(), tmp_path) is None
+
+
+def test_fan_curve_symlink_and_oversize_are_ignored(tmp_path: Path, monkeypatch) -> None:
+    daemon = load_daemon("omarchy_fan_daemon_guard")
+    cdir = fake_home(monkeypatch, tmp_path)
+    curve = "[[0, 10], [100, 20]]"
+    (cdir / "fan_curve.json").write_text(curve)
+    assert daemon.load_curve(os.getuid(), tmp_path) == [[0, 10], [100, 20]]   # sanity
+    (cdir / "fan_curve.json").unlink()
+    (tmp_path / "curve.json").write_text(curve)
+    (cdir / "fan_curve.json").symlink_to(tmp_path / "curve.json")
+    assert daemon.load_curve(os.getuid(), tmp_path) == daemon.DEFAULT_CURVE
+    (cdir / "fan_curve.json").unlink()
+    (cdir / "fan_curve.json").write_text(curve + " " * 70_000)
+    assert daemon.load_curve(os.getuid(), tmp_path) == daemon.DEFAULT_CURVE
+
+
+def test_custom_mode_follows_fixture_curve(tmp_path: Path, monkeypatch) -> None:
+    """A flat-zero user curve at 70C floors the fans; AUTO/DEFAULT would ramp."""
+    hwmon = make_macsmc(tmp_path, fan_control="Y")
+    for name in ("fan1_target", "fan2_target"):
+        (hwmon / name).write_text("3000")
+    set_temp(tmp_path, 70)
+    (fake_home(monkeypatch, tmp_path) / "fan_curve.json").write_text("[[0, 0], [120, 0]]")
+    request_mode(tmp_path, "custom", heartbeat_age=None)
+    _, h = helper(tmp_path)
+    h.startup()
+    assert h.tick() == "custom"
+    assert fan_control_param(tmp_path) == "N"
+    assert (hwmon / "fan1_target").read_text() == "0"
+
+
+def test_foreign_owned_dirs_are_ignored(tmp_path: Path, monkeypatch) -> None:
+    """Directory owner check alone: files look ours, the dirs do not."""
+    import stat as stat_mod
+    daemon = load_daemon("omarchy_fan_daemon_guard_dirs")
+    request_mode(tmp_path, "high", heartbeat_age=1)
+    (fake_home(monkeypatch, tmp_path) / "fan_curve.json").write_text("[[0, 10], [100, 20]]")
+    real_fstat = os.fstat
+
+    class Foreign:
+        def __init__(self, st):
+            self._st = st
+            self.st_uid = st.st_uid + 1
+
+        def __getattr__(self, name):
+            return getattr(self._st, name)
+
+    def fstat(fd):
+        st = real_fstat(fd)
+        return Foreign(st) if stat_mod.S_ISDIR(st.st_mode) else st
+
+    monkeypatch.setattr(daemon.os, "fstat", fstat)
+    assert daemon.get_requested_mode(os.getuid(), tmp_path) == "auto"
+    assert daemon.heartbeat_age(os.getuid(), tmp_path) is None
+    assert daemon.load_curve(os.getuid(), tmp_path) == daemon.DEFAULT_CURVE

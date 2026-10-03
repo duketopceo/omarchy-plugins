@@ -215,15 +215,32 @@ def is_controllable(hw_type: str, hwmon: Path | None, root: Path = Path("/")) ->
     return True
 
 
+def _macsmc_release(hwmon: Path | None, root: Path) -> None:
+    """Put the SMC fans back in automatic mode (best effort).
+
+    macsmc-hwmon rejects fanN_target writes with -EOPNOTSUPP once fan_control
+    is N, and a target of 0 written while it is Y is the only call that sets the
+    SMC fan mode back to automatic. So: enable control, zero every target, then
+    drop control.
+    """
+    param = _under(root, MACSMC_PARAM)
+    if param.is_file():
+        try:
+            current = param.read_text().strip()
+        except OSError:
+            current = ""
+        if current != "Y":
+            _write_attr(param, "Y")
+    for target in fan_targets("macsmc", hwmon):
+        _write_attr(target, "0")
+    if param.is_file():
+        _write_attr(param, "N")
+
+
 def hand_back(hw_type: str, hwmon: Path | None, root: Path = Path("/")) -> None:
     """Return the fans to firmware control."""
     if hw_type == "macsmc":
-        # Sequence: drop the override, then clear the manual targets (best effort).
-        param = _under(root, MACSMC_PARAM)
-        if param.is_file():
-            _write_attr(param, "N")
-        for target in fan_targets(hw_type, hwmon):
-            _write_attr(target, "0")
+        _macsmc_release(hwmon, root)
     elif hw_type == "dell" and hwmon is not None:
         for enable in sorted(hwmon.glob("pwm[0-9]_enable")):
             _write_attr(enable, "2")
@@ -235,18 +252,19 @@ def set_fan_speed(hw_type: str, hwmon: Path | None, pwm_val: int, root: Path = P
 
     if hw_type == "macsmc":
         ctrl_param = _under(root, MACSMC_PARAM)
-        if ctrl_param.is_file():
-            try:
-                want = "N" if pwm_val == 0 else "Y"
-                if ctrl_param.read_text().strip() != want:
-                    ctrl_param.write_text(want)
-            except OSError:
-                pass
+        try:
+            ctrl = ctrl_param.read_text().strip() if ctrl_param.is_file() else None
+        except OSError:
+            ctrl = None
 
         if pwm_val == 0:
-            for target_name in ("fan1_target", "fan2_target"):
-                _write_attr(hwmon / target_name, "0")
+            # Floor: firmware owns the fans. Already released when control is off.
+            if ctrl != "N":
+                _macsmc_release(hwmon, root)
             return
+
+        if ctrl is not None and ctrl != "Y":
+            _write_attr(ctrl_param, "Y")
 
         def _get_limit(p: Path, default: int) -> int:
             try:
@@ -383,8 +401,10 @@ def load_curve(uid: int | None = None, root: Path = Path("/")) -> list[list[int]
         try:
             data = json.loads(os.read(ffd, 65536).decode("utf-8", errors="replace"))
             if isinstance(data, list) and all(isinstance(p, list) and len(p) == 2 for p in data):
-                return [[int(p[0]), int(p[1])] for p in data]
-        except (OSError, ValueError, TypeError):
+                return [
+                    [max(0, min(120, int(p[0]))), max(0, min(255, int(p[1])))] for p in data
+                ]
+        except (OSError, ValueError, TypeError, OverflowError, RecursionError):
             pass
         finally:
             os.close(ffd)
@@ -516,6 +536,8 @@ class FanHelper:
 
         if mode in PRESET_PWM:
             pwm = PRESET_PWM[mode]
+            # Keep the smoother in step so an expiring preset falls gradually.
+            self.smoother.pwm = pwm
         elif mode == "custom":
             pwm = self.smoother.slew_pwm(curve_pwm(temp, load_curve(uid, self.root)))
         else:
@@ -601,7 +623,10 @@ def run_loop(helper: FanHelper) -> None:
     helper.startup()
     try:
         while True:
-            helper.tick()
+            try:
+                helper.tick()
+            except Exception as exc:  # one bad tick must not crash-loop the unit
+                print(f"omarchy-fan-daemon: tick failed: {exc!r}", file=sys.stderr)
             time.sleep(TICK_SECONDS)
     finally:
         helper.shutdown()
@@ -615,6 +640,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--uid", type=int, default=None, help="desktop user to follow")
     args = parser.parse_args(argv)
     root = Path(args.root)
+
+    # A root helper must not run from a path its desktop user can rewrite (a
+    # legacy hand-installed unit pointing into the plugin checkout).
+    if os.geteuid() == 0 and root == Path("/") and _user_owned(os.path.realpath(__file__), root):
+        FanHelper(root=root).release_fans()
+        print("omarchy-fan-daemon: refusing to run as root from a user-owned path; "
+              "install the omarchy-fan-helper package", file=sys.stderr)
+        return 78
 
     if args.command == "handback":
         FanHelper(root=root).release_fans()
