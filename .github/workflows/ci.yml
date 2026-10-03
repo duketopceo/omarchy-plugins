@@ -23,7 +23,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install test deps
-        run: python -m pip install --quiet pytest
+        run: python -m pip install --quiet pytest ruff shellcheck-py
+
+      - name: Install qmllint
+        run: sudo apt-get install -y --no-install-recommends qt6-declarative-dev-tools || echo "qmllint unavailable; QML syntax check will skip"
 
       - name: Validate manifests
         run: python scripts/validate-manifests.py
@@ -36,6 +39,21 @@ jobs:
 
       - name: Check release readiness
         run: python scripts/check-release-readiness.py
+
+      - name: Check shared library sync
+        run: python scripts/sync-shared.py --check
+
+      - name: Check scorecard
+        run: python scripts/check-scorecard.py
+
+      - name: Check QML syntax
+        run: python scripts/check-qml-syntax.py
+
+      - name: Ruff (syntax and undefined names)
+        run: ruff check --select E9,F63,F7,F82 scripts shared tests plugins
+
+      - name: Shellcheck (errors)
+        run: shellcheck --severity=error $(grep -rlE '^#!.*\b(ba)?sh\b' scripts plugins packaging 2>/dev/null | grep -v '\.py$')
 
       - name: Run tests
         run: python -m pytest tests/ -q
