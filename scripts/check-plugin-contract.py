@@ -21,6 +21,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PLUGIN_ROOT = ROOT / "plugins"
 TEXTUAL_SUFFIXES = {".qml", ".py", ".sh", ".bash", ".js", ".mjs", ".json", ".md"}
 SKIP_DIRS = {".git", "__pycache__", "node_modules", "target", "build", "dist"}
+# Plain HTTP is allowed only to the loopback interface (local sidecars); the
+# host must end right after the address so lookalike domains still fail.
+LOOPBACK_HTTP = re.compile(r"http://(?:127\.0\.0\.1|\[::1\])(?=[:/'\"\s]|$)")
 
 
 def _line_number(source: str, offset: int) -> int:
@@ -165,6 +168,8 @@ def _scan_python(path: Path, plugin_root: Path, source: str) -> list[dict[str, A
             )
         )
     for match in re.finditer(r"http://", source):
+        if LOOPBACK_HTTP.match(source, match.start()):
+            continue
         findings.append(
             _finding(
                 path,
