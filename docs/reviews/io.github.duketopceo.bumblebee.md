@@ -40,3 +40,36 @@ Reviewed: 5beb460 · 2026-09-17 · verdict: SHIP-WITH-FIXES
 - Untrusted data cleaned end-to-end: `_clean` strips control chars and clips every emitted string; every QML Text is `Text.PlainText` (27/27) with payload-size caps before JSON.parse; zero hardcoded hex colors — palette is `Color.*`/`Style.*` + alpha fills only
 - Watermark-diff design: silent first-observation baseline, failed scans don't advance the watermark on the `--force` path, max-3 toast queue with overflow trim, click-through Overlay-layer windows on every output
 - Helper↔panel contract documented at the top of both helpers and it matches what the QML reads; injectable `run`/`fetch`/`home`/`now` seams backed by a real, passing test suite
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "io.github.duketopceo.bumblebee",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```

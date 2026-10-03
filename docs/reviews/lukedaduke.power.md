@@ -33,3 +33,36 @@ Reviewed: b9f06df · 2026-09-17 · verdict: SHIP-WITH-FIXES
 - All dynamic QML `Text` sinks set `textFormat: Text.PlainText`; every stdout collector enforces a byte cap before parsing (Panel.qml:241-299).
 - Helper↔panel contract verified against the real `/usr/bin/omarchy-*` scripts: `percentage/state/rate/size/time/cycles/threshold` keys, `name\t0|1` profile rows, and `setProfile` argv all match.
 - Stale-data guards keep the UI stable across plug/unplug transients (Panel.qml:168-189); no hardcoded colors — all `Color`/`Style`/`bar.foreground`-derived.
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "lukedaduke.power",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```

@@ -97,3 +97,10 @@ has the review's only injection-class finding (agents rich-text).
   detection) — reconcile before the next fan publish.
 - pytest isn't installed system-wide; reviewers used `uvx --with pytest` or
   static review. Umbrella suite status: 125 tests green as of v0.2.0 work.
+
+## Scorecard
+
+The per-plugin 11/10 checklist, spawn budgets and gate semantics live in
+[`../SCORECARD.md`](../SCORECARD.md); each surviving plugin's status is the
+`scorecard` block at the end of its review file, checked by
+`scripts/check-scorecard.py`.
