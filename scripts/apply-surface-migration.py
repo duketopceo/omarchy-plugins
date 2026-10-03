@@ -57,26 +57,31 @@ def _direct_ids(config: Mapping[str, Any]) -> set[str]:
 
 
 def _retiring_ids() -> set[str]:
-    """Retiring list from docs/SCORECARD.md, via the planner's reader."""
+    """Retiring list from docs/SCORECARD.md via the planner's reader; any
+    failure to read it stops the apply (fail closed)."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "plan_surface_migration", ROOT / "scripts" / "plan-surface-migration.py")
     if spec is None or spec.loader is None:
-        return set()
+        raise RuntimeError("cannot load the migration planner for the retiring list")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.retiring_ids()
+    try:
+        return module.retiring_ids()
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _merged_entries(desired_entries: list[Any], current_by_id: Mapping[str, Mapping[str, Any]]) -> list[Any]:
-    """Desired entries in desired order, each keeping the live entry's inline
-    settings (watermarks, mute lists, tray order) when the id is retained."""
+    """Desired entries in desired order. A retained id keeps the live entry's
+    inline settings (watermarks, mute lists, tray order); the snapshot only
+    fills keys the live entry lacks."""
     out = []
     for entry in desired_entries:
         if isinstance(entry, Mapping) and isinstance(entry.get("id"), str) and entry["id"] in current_by_id:
-            merged = dict(current_by_id[entry["id"]])
-            merged.update(entry)
+            merged = copy.deepcopy(dict(entry))
+            merged.update(copy.deepcopy(dict(current_by_id[entry["id"]])))
             out.append(merged)
         else:
             out.append(copy.deepcopy(entry))
@@ -99,10 +104,14 @@ def _merge_bar(current: Mapping[str, Any], desired_bar: Mapping[str, Any]) -> di
 def _merge_plugins(current: Mapping[str, Any], desired_plugins: Any) -> Any:
     if not isinstance(desired_plugins, list):
         return copy.deepcopy(desired_plugins)
-    live = current.get("plugins")
-    by_id = {e["id"]: e for e in (live if isinstance(live, list) else [])
-             if isinstance(e, Mapping) and isinstance(e.get("id"), str)}
-    return _merged_entries(desired_plugins, by_id)
+    live = current.get("plugins") if isinstance(current.get("plugins"), list) else []
+    by_id = {e["id"]: e for e in live if isinstance(e, Mapping) and isinstance(e.get("id"), str)}
+    merged = _merged_entries(desired_plugins, by_id)
+    # A live entry the snapshot lacks is never dropped (it may carry settings).
+    desired_ids = {e.get("id") for e in desired_plugins if isinstance(e, Mapping)}
+    merged.extend(copy.deepcopy(e) for e in live
+                  if isinstance(e, Mapping) and e.get("id") not in desired_ids)
+    return merged
 
 
 def _plan(current: Mapping[str, Any], desired: Mapping[str, Any]) -> dict[str, Any]:
@@ -211,7 +220,9 @@ def apply_migration(
     updated = copy.deepcopy(current)
     if "bar" in desired:
         updated["bar"] = _merge_bar(current, desired["bar"])
-    if "disabledPlugins" in desired:
+    # The live disable list is the user's choice (e.g. whether the lock
+    # screen runs); a stale snapshot never re-disables anything.
+    if "disabledPlugins" in desired and "disabledPlugins" not in current:
         updated["disabledPlugins"] = desired["disabledPlugins"]
     if "plugins" in desired:
         updated["plugins"] = _merge_plugins(current, desired["plugins"])

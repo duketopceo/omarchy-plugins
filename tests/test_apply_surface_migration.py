@@ -168,3 +168,62 @@ def test_apply_refuses_to_place_a_retired_plugin(tmp_path: Path) -> None:
     else:
         raise AssertionError("apply placed a retired plugin")
     assert current.read_bytes() == before
+
+
+def _apply(module, tmp_path: Path, current: dict, desired: dict) -> dict:
+    cur = tmp_path / "shell.json"
+    des = tmp_path / "desired.json"
+    cur.write_text(json.dumps(current))
+    des.write_text(json.dumps(desired))
+    module.apply_migration(current_path=cur, desired_path=des,
+                           backup_root=tmp_path / "backups", rescan=lambda: None)
+    return json.loads(cur.read_text())
+
+
+def test_live_inline_settings_win_over_the_snapshot(tmp_path: Path) -> None:
+    module = load_module()
+    out = _apply(module, tmp_path,
+                 {"bar": {"layout": {"right": [{"id": "io.github.tyrichards.tray", "order": ["new"]}]}}},
+                 {"bar": {"layout": {"right": [{"id": "io.github.tyrichards.tray", "order": ["old"],
+                                                "widgets": ["w"]}]}}})
+    entry = out["bar"]["layout"]["right"][0]
+    assert entry["order"] == ["new"]          # live wins
+    assert entry["widgets"] == ["w"]          # snapshot fills a missing key
+
+
+def test_apply_keeps_the_live_disabled_plugins_list(tmp_path: Path) -> None:
+    module = load_module()
+    out = _apply(module, tmp_path,
+                 {"bar": {"layout": {"right": []}}, "disabledPlugins": ["omarchy.clock"]},
+                 {"bar": {"layout": {"right": []}}, "disabledPlugins": ["omarchy.lock", "omarchy.clock"]})
+    assert out["disabledPlugins"] == ["omarchy.clock"]
+
+
+def test_apply_never_drops_a_live_plugins_entry(tmp_path: Path) -> None:
+    module = load_module()
+    out = _apply(module, tmp_path,
+                 {"bar": {"layout": {"right": []}}, "plugins": [{"id": "a"}, {"id": "wisp", "x": 1}]},
+                 {"bar": {"layout": {"right": []}}, "plugins": [{"id": "a"}]})
+    assert [p["id"] for p in out["plugins"]] == ["a", "wisp"]
+    assert out["plugins"][1]["x"] == 1
+
+
+def test_apply_fails_closed_without_a_readable_retiring_list(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    def broken():
+        raise RuntimeError("docs/SCORECARD.md has no readable retiring list")
+    monkeypatch.setattr(module, "_retiring_ids", broken)
+    cur = tmp_path / "shell.json"
+    cur.write_text(json.dumps({"bar": {"layout": {"right": []}}}))
+    des = tmp_path / "desired.json"
+    des.write_text(json.dumps({"bar": {"layout": {"right": [{"id": "x"}]}}}))
+    before = cur.read_bytes()
+    try:
+        module.apply_migration(current_path=cur, desired_path=des,
+                               backup_root=tmp_path / "backups", rescan=lambda: None)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("apply ran without a retiring list")
+    assert cur.read_bytes() == before
+    assert not (tmp_path / "backups").exists()

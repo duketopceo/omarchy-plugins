@@ -9,7 +9,6 @@
     "screensaver": 480
   },
   "disabledPlugins": [
-    "omarchy.lock",
     "omarchy.clock",
     "omarchy.tray",
     "omarchy.monitor",
@@ -158,9 +157,6 @@
   },
   "plugins": [
     {
-      "id": "io.github.sirjul1337.lock-explorer"
-    },
-    {
       "id": "crmne.hyprmoncfg"
     },
     {
@@ -177,6 +173,9 @@
     },
     {
       "id": "io.github.idr4n.clipboard-plus"
+    },
+    {
+      "id": "io.github.duketopceo.wisp"
     }
   ]
 }

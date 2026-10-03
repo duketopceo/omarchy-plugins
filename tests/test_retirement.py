@@ -92,3 +92,35 @@ def test_planner_reports_retired_ids_it_removes() -> None:
 def test_planner_reads_the_retiring_list_from_the_scorecard() -> None:
     planner = _load("plan-surface-migration")
     assert planner.retiring_ids() == set(RETIRED)
+
+
+@pytest.mark.parametrize("plugin", sorted(RETIRED))
+def test_stub_module_name_matches_its_plugin_id(plugin: str) -> None:
+    stub = (ROOT / "plugins" / plugin / "Stub.qml").read_text()
+    assert f'moduleName: "{plugin}"' in stub
+    assert "dimmed: true" in stub
+
+
+def test_retiring_ids_raise_when_the_scorecard_is_unreadable(tmp_path: Path) -> None:
+    planner = _load("plan-surface-migration")
+    with pytest.raises(ValueError):
+        planner.retiring_ids(tmp_path / "missing.md")
+    bad = tmp_path / "SCORECARD.md"
+    bad.write_text("# s\n\n```scorecard-config\n{not json\n```\n")
+    with pytest.raises(ValueError):
+        planner.retiring_ids(bad)
+
+
+def test_desired_file_mirrors_live_plugin_lists() -> None:
+    desired = json.loads((ROOT / "machine" / "bar-layout.json").read_text())
+    assert "omarchy.lock" not in desired.get("disabledPlugins", [])
+    assert "io.github.duketopceo.wisp" in [p["id"] for p in desired.get("plugins", [])]
+
+
+def test_planner_cli_exits_2_on_retired_placement(tmp_path: Path) -> None:
+    planner = _load("plan-surface-migration")
+    cur = tmp_path / "c.json"
+    des = tmp_path / "d.json"
+    cur.write_text(json.dumps({"bar": {"layout": {"right": []}}}))
+    des.write_text(json.dumps({"bar": {"layout": {"right": [{"id": "lukedaduke.agents"}]}}}))
+    assert planner.main(["--current", str(cur), "--desired", str(des)]) == 2

@@ -97,6 +97,7 @@ def _check_plugin(
     catalog_entry: dict[str, Any] | None,
     ci_text: str,
     tracked_files: set[str] | None,
+    skip_catalog: bool = False,
 ) -> list[str]:
     errors: list[str] = []
     manifest_path = plugin / "manifest.json"
@@ -123,7 +124,9 @@ def _check_plugin(
         for kind, relative in entry_points.items():
             if not (plugin / str(relative)).is_file():
                 errors.append(f"{plugin.name}: missing entry point {kind}")
-    if catalog_entry is None:
+    if skip_catalog:
+        pass
+    elif catalog_entry is None:
         errors.append(f"{plugin.name}: missing catalog entry")
     else:
         if str(catalog_entry.get("version")) != str(manifest.get("version")):
@@ -142,18 +145,19 @@ def _check_plugin(
 
 def _retiring(repo_root: Path) -> set[str]:
     """Plugins docs/SCORECARD.md lists as retiring: stub releases that are no
-    longer catalogued, so they skip the catalog parity checks."""
-    try:
-        text = (repo_root / "docs" / "SCORECARD.md").read_text()
-    except OSError:
+    longer catalogued, so they skip the catalog parity checks. Read through
+    the migration planner's reader; unreadable means none are exempt."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "plan_surface_migration", ROOT / "scripts" / "plan-surface-migration.py")
+    if spec is None or spec.loader is None:
         return set()
-    import re
-    match = re.search(r"```scorecard-config\n(.*?)\n```", text, re.S)
-    if not match:
-        return set()
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     try:
-        return {str(i) for i in json.loads(match.group(1)).get("retiring", [])}
-    except (ValueError, AttributeError):
+        return module.retiring_ids(repo_root / "docs" / "SCORECARD.md")
+    except ValueError:
         return set()
 
 
@@ -189,9 +193,9 @@ def check_tree(
             continue
         if plugin_id and plugin.name != plugin_id:
             continue
-        retired = plugin.name in retiring and plugin.name not in catalog_by_id
-        errors.extend(e for e in _check_plugin(plugin, catalog_by_id.get(plugin.name), ci_text, tracked_files)
-                      if not (retired and "catalog" in e))
+        skip_catalog = plugin.name in retiring and plugin.name not in catalog_by_id
+        errors.extend(_check_plugin(plugin, catalog_by_id.get(plugin.name), ci_text, tracked_files,
+                                    skip_catalog=skip_catalog))
     if plugin_id and not any(plugin.name == plugin_id for plugin in plugin_root.iterdir() if plugin.is_dir()):
         errors.append(f"plugin not found: {plugin_id}")
     if shared_root is not None:

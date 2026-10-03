@@ -16,19 +16,28 @@ ROOT = Path(__file__).resolve().parents[1]
 SCORECARD = ROOT / "docs" / "SCORECARD.md"
 
 
-def retiring_ids(scorecard: Path = SCORECARD) -> set[str]:
-    """Plugin ids docs/SCORECARD.md lists as retiring; never placed again."""
+def retiring_ids(scorecard: Path | None = None) -> set[str]:
+    """Plugin ids docs/SCORECARD.md lists as retiring; never placed again.
+
+    Raises ValueError when the list cannot be read, so the placement guard
+    fails closed instead of silently allowing a retired plugin back.
+    """
+    path = scorecard if scorecard is not None else SCORECARD
     try:
-        text = scorecard.read_text()
-    except OSError:
-        return set()
+        text = path.read_text()
+    except OSError as exc:
+        raise ValueError(f"cannot read retiring list from {path.name}: {exc}") from exc
     match = re.search(r"```scorecard-config\n(.*?)\n```", text, re.S)
     if not match:
-        return set()
+        raise ValueError(f"{path.name} has no scorecard-config block")
     try:
-        return {str(i) for i in json.loads(match.group(1)).get("retiring", [])}
-    except (ValueError, AttributeError):
-        return set()
+        config = json.loads(match.group(1))
+    except ValueError as exc:
+        raise ValueError(f"{path.name} scorecard-config is not valid JSON: {exc}") from exc
+    retiring = config.get("retiring", []) if isinstance(config, dict) else None
+    if not isinstance(retiring, list):
+        raise ValueError(f"{path.name} scorecard-config has no retiring list")
+    return {str(i) for i in retiring}
 
 
 def _direct_bar_ids(config: Mapping[str, Any]) -> set[str]:

@@ -7,7 +7,7 @@ Inherits from [luke-agents/AGENTS.md](https://github.com/duketopceo/luke-agents/
 
 ## What This Repo Does
 
-Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: hardware/fan, market ticker, extra-provider agent usage, a hardware topology radar, and an OLED nightstand overlay. Source of truth for `lukedaduke.*` plugins. Live install is a symlink into `~/.config/omarchy/plugins/`.
+Luke's personal Omarchy shell plugins (Quickshell QML) for the laptop bar: fan control, power and battery history, a hardware topology radar, an OLED nightstand overlay, and the Perplexity tool trio (bumblebee, numbat, pplx) plus neo. connections, ticker and agents are retired (notice-only stubs). Source of truth for `lukedaduke.*` plugins. Live install is a copy from `main` (`scripts/install.sh --copy`); develop with `--link` from a separate worktree.
 
 ## Key Files
 
