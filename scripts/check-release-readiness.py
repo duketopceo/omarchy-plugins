@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
@@ -16,6 +17,33 @@ ROOT = Path(__file__).resolve().parents[1]
 HOST_PATH_RE = re.compile(r"(?<![A-Za-z0-9_])/(?:home|Users|tmp|private/tmp)/")
 GENERATED_NAMES = {"__pycache__", "node_modules", "target", "build", "dist"}
 TEXT_SUFFIXES = {".qml", ".py", ".sh", ".bash", ".js", ".mjs", ".json", ".md", ".yml", ".yaml", ".toml"}
+
+
+def _load_sync_shared() -> Any:
+    script = Path(__file__).resolve().with_name("sync-shared.py")
+    spec = importlib.util.spec_from_file_location("sync_shared", script)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"unable to load {script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _check_shared(plugin_root: Path, shared_root: Path, plugin_id: str | None) -> list[str]:
+    """Every shared/consumers.txt plugin carries an exact copy of shared/."""
+    sync = _load_sync_shared()
+    repo = shared_root.parent
+    errors: list[str] = []
+    for consumer in sync.read_consumers(repo):
+        if plugin_id and consumer != plugin_id:
+            continue
+        if not (plugin_root / consumer).is_dir():
+            errors.append(f"{consumer}: shared consumer has no plugin directory")
+            continue
+        for src, dest in sync.active_targets(repo):
+            for problem in sync.compare_dir(repo, plugin_root / consumer / dest, src):
+                errors.append(f"{consumer}: shared library drift: {problem}")
+    return errors
 
 
 def _read_json(path: Path) -> Any:
@@ -118,6 +146,7 @@ def check_tree(
     ci_path: Path | None = None,
     plugin_id: str | None = None,
     tracked_files: set[str] | None = None,
+    shared_root: Path | None = None,
 ) -> list[str]:
     try:
         catalog = _read_json(catalog_path)
@@ -145,6 +174,8 @@ def check_tree(
         errors.extend(_check_plugin(plugin, catalog_by_id.get(plugin.name), ci_text, tracked_files))
     if plugin_id and not any(plugin.name == plugin_id for plugin in plugin_root.iterdir() if plugin.is_dir()):
         errors.append(f"plugin not found: {plugin_id}")
+    if shared_root is not None:
+        errors.extend(_check_shared(plugin_root, shared_root, plugin_id))
     return errors
 
 
@@ -153,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--plugin-root", type=Path, default=ROOT / "plugins")
     parser.add_argument("--catalog", type=Path, default=ROOT / "catalog.json")
     parser.add_argument("--ci", type=Path, default=ROOT / ".github/workflows/ci.yml")
+    parser.add_argument("--shared", type=Path, default=ROOT / "shared")
     parser.add_argument("--plugin-id")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
@@ -162,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         args.ci,
         args.plugin_id,
         tracked_files=_tracked_files(args.plugin_root),
+        shared_root=args.shared,
     )
     if args.format == "json":
         print(json.dumps({"ok": not errors, "errors": errors}, indent=2))

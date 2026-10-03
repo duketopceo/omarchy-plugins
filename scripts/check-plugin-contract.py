@@ -24,6 +24,72 @@ SKIP_DIRS = {".git", "__pycache__", "node_modules", "target", "build", "dist"}
 # Plain HTTP is allowed only to the loopback interface (local sidecars); the
 # host must end right after the address so lookalike domains still fail.
 LOOPBACK_HTTP = re.compile(r"http://(?:127\.0\.0\.1|\[::1\])(?=[:/'\"\s]|$)")
+# Vendored shared libraries (scripts/sync-shared.py) are checked against
+# shared/ instead; estate rules skip them.
+VENDORED_PARTS = {"lib", "_omplug"}
+# Estate rules (plan U7) warn by default and become errors for plugins that
+# have adopted the shared library (listed in shared/consumers.txt).
+CONSUMERS_FILE = ROOT / "shared" / "consumers.txt"
+
+
+def _estate(severity_strict: bool) -> str:
+    return "error" if severity_strict else "warning"
+
+
+def shared_consumers(path: Path | None = None) -> set[str]:
+    path = path if path is not None else CONSUMERS_FILE
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return set()
+    return {line.split("#", 1)[0].strip() for line in lines if line.split("#", 1)[0].strip()}
+
+
+def _service_entries(plugin_root: Path) -> set[str]:
+    try:
+        manifest = json.loads((plugin_root / "manifest.json").read_text())
+    except (OSError, ValueError):
+        return set()
+    entry = (manifest.get("entryPoints") or {}).get("service")
+    return {str(entry)} if isinstance(entry, str) else set()
+
+
+def _scan_qml_estate(path: Path, plugin_root: Path, source: str, strict: bool) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    severity = _estate(strict)
+    rel = path.relative_to(plugin_root).as_posix()
+    is_service = rel in _service_entries(plugin_root)
+    if re.search(r"\bProcess\s*\{", source):
+        if not is_service:
+            for offset, block in _blocks(source, "Timer"):
+                running = re.search(r"\brunning\s*:\s*([^;\n]+)", block)
+                repeats = re.search(r"\brepeat\s*:\s*true", block)
+                if repeats and running and running.group(1).strip() == "true":
+                    findings.append(_finding(path, plugin_root, source, offset, "ungated-poll",
+                        "repeating Timer in a file that runs a Process must bind running: to the VisibilityGate", severity))
+        for match in re.finditer(r"\bProcess\s*\{", source):
+            findings.append(_finding(path, plugin_root, source, match.start(), "raw-process",
+                "wrap helper execs in lib/DeadlineProcess (deadline + group kill + ProcEnv)", severity))
+    for match in re.finditer(r"\b\w+\.pid\b", source):
+        findings.append(_finding(path, plugin_root, source, match.start(), "process-pid",
+            "Quickshell Process exposes processId; .pid is undefined, so the group kill never runs", severity))
+    for match in re.finditer(r"\bexecDetached\s*\(", source):
+        findings.append(_finding(path, plugin_root, source, match.start(), "exec-detached-env",
+            "execDetached inherits the full shell environment; use a Process with ProcEnv", severity))
+    for match in re.finditer(r"\btarget\s*:\s*[\"']omarchy\.", source):
+        findings.append(_finding(path, plugin_root, source, match.start(), "reserved-ipc",
+            "IPC targets must not use the reserved omarchy.* namespace", severity))
+    return findings
+
+
+def _scan_python_estate(path: Path, plugin_root: Path, source: str, strict: bool) -> list[dict[str, Any]]:
+    if not re.search(r"if\s+__name__\s*==\s*[\"']__main__[\"']", source):
+        return []
+    if re.search(r"\bsignal\.alarm\s*\(", source):
+        return []
+    match = re.search(r"if\s+__name__", source)
+    return [_finding(path, plugin_root, source, match.start() if match else 0, "helper-alarm",
+        "helpers must set a signal.alarm backstop shorter than the panel deadline", _estate(strict))]
 
 
 def _line_number(source: str, offset: int) -> int:
@@ -229,21 +295,40 @@ def _files(plugin_root: Path) -> Iterable[Path]:
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        if path.suffix.lower() in TEXTUAL_SUFFIXES:
+        if path.suffix.lower() in TEXTUAL_SUFFIXES or is_python_script(path):
             yield path
 
 
-def scan_plugin(plugin_root: Path) -> list[dict[str, Any]]:
+def is_python_script(path: Path) -> bool:
+    """An extensionless helper with a python shebang (e.g. bin/standby-data)."""
+    if path.suffix:
+        return False
+    try:
+        with path.open("rb") as handle:
+            first = handle.readline(200)
+    except OSError:
+        return False
+    return first.startswith(b"#!") and b"python" in first
+
+
+def scan_plugin(plugin_root: Path, strict_estate: bool | None = None) -> list[dict[str, Any]]:
+    if strict_estate is None:
+        strict_estate = plugin_root.name in shared_consumers()
     findings: list[dict[str, Any]] = []
     for path in _files(plugin_root):
         try:
             source = path.read_text()
         except (OSError, UnicodeDecodeError):
             continue
+        vendored = bool(VENDORED_PARTS & set(path.relative_to(plugin_root).parts[:-1]))
         if path.suffix == ".qml":
             findings.extend(_scan_qml(path, plugin_root, source))
-        elif path.suffix == ".py":
+            if not vendored:
+                findings.extend(_scan_qml_estate(path, plugin_root, source, strict_estate))
+        elif path.suffix == ".py" or is_python_script(path):
             findings.extend(_scan_python(path, plugin_root, source))
+            if not vendored:
+                findings.extend(_scan_python_estate(path, plugin_root, source, strict_estate))
         elif path.suffix in {".sh", ".bash"}:
             findings.extend(_scan_shell(path, plugin_root, source))
     return findings

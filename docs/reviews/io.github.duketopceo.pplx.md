@@ -38,3 +38,36 @@ Reviewed: b85240f · 2026-09-18 · verdict: SHIP
 - Contract fit is exact: every emitted key (`ok/needs_key/installed/hits/error/elapsed_ms`, `installed/authed/copy_available/history`, `ok/history/error`) is consumed; `AUTHENTICATION`→`needs_key` matches the real upstream error codes; delete emits the fresh list so the panel self-heals on any error path; history re-polls on tab open and after each successful search
 - Honest UX states: CHECKING / NOT INSTALLED / NO KEY / READY plus guided setup panes, copy button hidden when `wl-copy` is absent, elapsed-ms and hit-count reporting, brand attribution footer
 - Real-world verified: journal exists at `~/.local/state/omarchy/pplx/history.json` at mode 0600 with well-formed entries from live searches
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "io.github.duketopceo.pplx",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```

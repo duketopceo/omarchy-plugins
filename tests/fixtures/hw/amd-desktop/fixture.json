@@ -1,0 +1,6 @@
+{
+  "profile": "amd-desktop",
+  "source": "synthetic",
+  "captured": "2026-10-03",
+  "notes": "Authored from amdgpu + k10temp docs. Desktop: no system battery, no ACPI AC; only a USB-C source supply."
+}

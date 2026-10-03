@@ -137,16 +137,12 @@ def _display_surface(command_runner: CommandRunner) -> dict[str, Any]:
     if monitor_status != "healthy":
         reasons.append("display state unavailable")
 
-    service = _service_check(command_runner, "hyprmoncfgd.service")
-    checks.append(service)
-    optional_failure = service["status"] != "healthy"
-    if optional_failure:
-        reasons.append("optional display manager unavailable")
-
+    # hyprmoncfgd is unmanaged on this host (2026-09-30); the Omarchy monitor
+    # path owns displays, so it is no longer an expected service.
     return {
         "status": "degraded" if reasons else "healthy",
         "reasons": list(dict.fromkeys(reasons)),
-        "optional_failure": optional_failure,
+        "optional_failure": False,
         "checks": checks,
     }
 

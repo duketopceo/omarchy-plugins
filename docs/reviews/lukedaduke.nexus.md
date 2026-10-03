@@ -40,3 +40,36 @@ Reviewed: 82d284e · 2026-09-17 · verdict: SHIP-WITH-FIXES
 - Helper↔panel contract verified both directions: panel reads `ok` + `usb`/`bluetooth`/`network`/`storage`; item keys all emitted (extra keys `id`/`category`/`mac`/`size` unused, harmless). Missing tools (`_tool`→None), bad JSON (`except ValueError`), empty output, and `data.ok` falsy all degrade to empty sections or retained stale data — no crash path.
 - Theme-clean: `qs.Commons` `Color`/`Style`/`Qt.rgba`-derived colors only, zero hardcoded hex (grep-verified); `moduleName`/`ipcTarget` match the manifest id.
 - Read-only probe: the only filesystem access is sysfs reads under `/sys/bus/usb/devices`; no writes, no network surface at all.
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "lukedaduke.nexus",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```

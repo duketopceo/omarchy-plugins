@@ -1,0 +1,6 @@
+{
+  "profile": "asahi-m1max",
+  "source": "live",
+  "captured": "2026-10-03",
+  "notes": "Captured read-only from MacBookPro18,2 (Asahi, kernel 7.1.13) with scripts/capture-hw-fixture.py. macsmc_hwmon exposes fan targets and no CPU temp; battery is macsmc-battery with charge_control thresholds. typec identity never read."
+}

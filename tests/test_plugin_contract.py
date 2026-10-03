@@ -139,3 +139,114 @@ def test_contract_tree_skips_legacy_backup_directories(tmp_path: Path) -> None:
     (backup / "Panel.qml").write_text("Text { text: modelData.name }\n")
 
     assert module.scan_tree(tmp_path) == []
+
+
+# --- estate rules (U7): warnings by default, errors for shared-lib consumers ---
+
+def _plugin(tmp_path: Path, files: dict[str, str], manifest: dict | None = None) -> Path:
+    import json
+    plugin = tmp_path / "demo"
+    plugin.mkdir()
+    (plugin / "manifest.json").write_text(json.dumps(manifest or {
+        "id": "demo", "kinds": ["bar-widget"], "entryPoints": {"barWidget": "Panel.qml"}}))
+    for rel, text in files.items():
+        path = plugin / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    return plugin
+
+
+def _rules(findings: list[dict]) -> dict[str, str]:
+    return {f["rule"]: f["severity"] for f in findings}
+
+
+UNGATED = """import QtQuick
+import Quickshell.Io
+Item {
+  Process { id: p; command: ["/usr/bin/true"] }
+  Timer { interval: 5000; running: true; repeat: true; onTriggered: p.running = true }
+}
+"""
+
+
+def test_ungated_polling_timer_is_flagged(tmp_path: Path) -> None:
+    module = load_module()
+    plugin = _plugin(tmp_path, {"Panel.qml": UNGATED})
+    assert _rules(module.scan_plugin(plugin)).get("ungated-poll") == "warning"
+
+
+def test_polling_timer_bound_to_visibility_gate_passes(tmp_path: Path) -> None:
+    module = load_module()
+    gated = UNGATED.replace("running: true;", "running: gate.visible;")
+    plugin = _plugin(tmp_path, {"Panel.qml": gated})
+    assert "ungated-poll" not in _rules(module.scan_plugin(plugin))
+
+
+def test_service_entry_may_poll_ungated(tmp_path: Path) -> None:
+    module = load_module()
+    plugin = _plugin(tmp_path, {"Service.qml": UNGATED}, {
+        "id": "demo", "kinds": ["service"], "entryPoints": {"service": "Service.qml"}})
+    assert "ungated-poll" not in _rules(module.scan_plugin(plugin))
+
+
+def test_raw_process_and_pid_are_flagged(tmp_path: Path) -> None:
+    module = load_module()
+    src = UNGATED.replace("onTriggered: p.running = true", "onTriggered: console.log(p.pid)")
+    rules = _rules(module.scan_plugin(_plugin(tmp_path, {"Panel.qml": src})))
+    assert rules.get("raw-process") == "warning"
+    assert rules.get("process-pid") == "warning"
+
+
+def test_vendored_lib_is_not_scanned_for_raw_process(tmp_path: Path) -> None:
+    module = load_module()
+    lib = "import Quickshell.Io\nProcess { id: proc; property Process killer: Process {} }\n"
+    plugin = _plugin(tmp_path, {"lib/DeadlineProcess.qml": lib})
+    assert "raw-process" not in _rules(module.scan_plugin(plugin))
+
+
+def test_exec_detached_is_flagged(tmp_path: Path) -> None:
+    module = load_module()
+    src = 'import Quickshell\nItem { Component.onCompleted: Quickshell.execDetached(["/usr/bin/xdg-open", "x"]) }\n'
+    assert _rules(module.scan_plugin(_plugin(tmp_path, {"Panel.qml": src}))).get("exec-detached-env") == "warning"
+
+
+def test_reserved_ipc_target_is_flagged(tmp_path: Path) -> None:
+    module = load_module()
+    src = 'import Quickshell.Io\nIpcHandler { target: "omarchy.power" }\n'
+    assert _rules(module.scan_plugin(_plugin(tmp_path, {"Panel.qml": src}))).get("reserved-ipc") == "warning"
+
+
+def test_helper_without_alarm_is_flagged(tmp_path: Path) -> None:
+    module = load_module()
+    helper = 'import json\n\ndef main():\n    print(json.dumps({}))\n\nif __name__ == "__main__":\n    main()\n'
+    plugin = _plugin(tmp_path, {"bin/probe.py": helper})
+    assert _rules(module.scan_plugin(plugin)).get("helper-alarm") == "warning"
+    with_alarm = helper.replace("def main():", "import signal\n\ndef main():\n    signal.alarm(8)")
+    (plugin / "bin" / "probe.py").write_text(with_alarm)
+    assert "helper-alarm" not in _rules(module.scan_plugin(plugin))
+
+
+def test_estate_rules_are_errors_for_shared_lib_consumers(tmp_path: Path) -> None:
+    module = load_module()
+    plugin = _plugin(tmp_path, {"Panel.qml": UNGATED})
+    rules = _rules(module.scan_plugin(plugin, strict_estate=True))
+    assert rules.get("ungated-poll") == "error"
+    assert rules.get("raw-process") == "error"
+
+
+def test_extensionless_python_helper_is_scanned(tmp_path: Path) -> None:
+    module = load_module()
+    helper = '#!/usr/bin/python3\nimport json\n\nif __name__ == "__main__":\n    print(json.dumps({}))\n'
+    plugin = _plugin(tmp_path, {"bin/standby-data": helper})
+    assert _rules(module.scan_plugin(plugin)).get("helper-alarm") == "warning"
+
+
+def test_consumers_file_turns_estate_rules_into_errors(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    plugin = _plugin(tmp_path, {"Panel.qml": UNGATED})
+    consumers = tmp_path / "consumers.txt"
+    consumers.write_text("# opt-in\ndemo\n")
+    monkeypatch.setattr(module, "CONSUMERS_FILE", consumers)
+    rules = _rules(module.scan_plugin(plugin))
+    assert rules.get("ungated-poll") == "error"
+    assert rules.get("raw-process") == "error"

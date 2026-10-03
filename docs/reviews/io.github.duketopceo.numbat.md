@@ -36,3 +36,36 @@ Reviewed: e744b54 · 2026-09-17 · verdict: SHIP-WITH-FIXES
 - Toast storm prevention done right: stat-only 5s tail verb, persisted `lastSeenFinding` watermark with silent first-poll baseline, max-3 bounded stack, coalesced probe reruns
 - Zero network surface, zero secrets, observe-only by contract (never runs `hook install`, never writes under `~/.numbat`)
 - Injectable seams (`tool`/`run`/`numbat_home`/`state_dir`/`now`) backed by a real test suite
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "io.github.duketopceo.numbat",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```

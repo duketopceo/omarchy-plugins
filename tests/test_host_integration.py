@@ -39,8 +39,6 @@ def runner_for(overrides: dict[str, tuple[int, str]] | None = None):
             return 0, "active\n"
         if "hyprctl monitors" in key:
             return 0, "Monitor eDP-1: 1920x1200\n"
-        if "hyprmoncfgd.service" in key:
-            return 0, "active\n"
         return 127, ""
 
     return run
@@ -95,3 +93,21 @@ def test_missing_input_devices_are_reported_as_degraded(tmp_path: Path) -> None:
     assert result["overall"] == "degraded"
     assert result["surfaces"]["input"]["status"] == "degraded"
     assert "input devices unavailable" in result["surfaces"]["input"]["reasons"]
+
+
+def test_display_surface_does_not_require_hyprmoncfgd(tmp_path: Path) -> None:
+    module = load_module()
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    (input_root / "event0").write_text("")
+    base = runner_for()
+
+    def run(argv, timeout=2.0):
+        if "hyprmoncfgd" in " ".join(argv):
+            return 3, "inactive\n"
+        return base(argv, timeout)
+
+    result = module.check_host_integration(command_runner=run, input_root=input_root, architecture="aarch64")
+    display = result["surfaces"]["display"] if "surfaces" in result else result["display"]
+    assert display["status"] == "healthy"
+    assert not any("hyprmoncfgd" in c["name"] for c in display["checks"])

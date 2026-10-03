@@ -1,0 +1,6 @@
+{
+  "profile": "empty",
+  "source": "synthetic",
+  "captured": "2026-10-03",
+  "notes": "No hwmon, power_supply or drm exposed (VM or container). Directory kept via .gitkeep."
+}

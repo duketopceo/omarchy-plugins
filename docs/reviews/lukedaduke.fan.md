@@ -38,3 +38,36 @@ Reviewed: 3c85c92 · 2026-09-17 · verdict: SHIP-WITH-FIXES
 - All untrusted strings pass `clipStr` (control chars + `<>` stripped, length-capped) before reaching `Text` sinks; nearly every `Text` is `PlainText`; numeric fields are individually clamped (Panel.qml:105-110,166-241).
 - `kill_proc.py` refuses `pid <= 1` and the panel re-guards it; `omarchy-fan-set` maps any unrecognized argv to `auto` (fail-safe default).
 - No network, no secrets, no hardcoded colors — all `Color`/`Style`/`bar.foreground`-derived.
+
+## Scorecard
+
+See docs/SCORECARD.md for semantics.
+
+```scorecard
+{
+  "plugin": "lukedaduke.fan",
+  "criteria": {
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
+    "fixture_tests": "pending",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
+    "readme_claims": "pending"
+  },
+  "manual": {
+    "spawn_measurement": {
+      "value": null,
+      "date": null
+    },
+    "asahi_pass": {
+      "date": null
+    },
+    "x86_64_pass": {
+      "date": null
+    }
+  },
+  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+}
+```
