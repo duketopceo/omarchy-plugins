@@ -46,7 +46,7 @@ def test_deadline_process_uses_process_id_and_a_clean_killer() -> None:
     assert "processId" in body
     assert not re.search(r"\bproc\.pid\b", body)
     assert "execDetached" not in body
-    assert "helperAlarmS" in body
+    assert "if (proc.running) return false" in body
     assert '"/usr/bin/kill", "-KILL", "--"' in body
 
 
@@ -83,6 +83,7 @@ import "lib"
 ShellRoot {
   id: top
   property string out: Quickshell.env("QSLIB_OUT")
+  property var secondStart: null
   PluginRoot { id: pr; url: "file:///tmp/my%20plugin/" }
   ProcEnv { id: pe; extra: ({ "OPENROUTER_API_KEY": "x", "MY_FLAG": "1" }) }
   StaleLabel { id: sl; intervalMs: 1000 }
@@ -91,7 +92,10 @@ ShellRoot {
     command: ["/usr/bin/sh", "-c", "/usr/bin/env > " + top.out + ".env"]
     environment: pe.env
     deadlineMs: 5000
-    onExited: slowProc.start()
+    onExited: {
+      slowProc.start()
+      top.secondStart = slowProc.start()
+    }
   }
   DeadlineProcess {
     id: slowProc
@@ -100,8 +104,11 @@ ShellRoot {
     deadlineMs: 800
     onExited: {
       sl.lastGoodMs = Date.now() - 5000; sl.nowMs = Date.now(); sl.failures = 3
+      var fast = sl.nextDelayMs, stale = sl.stale, age = sl.ageText
+      sl.intervalMs = 120000; sl.failures = 1
       writer.setText(JSON.stringify({ root: pr.path, timedOut: slowProc.timedOut,
-        stale: sl.stale, age: sl.ageText, nextDelay: sl.nextDelayMs }))
+        stale: stale, age: age, nextDelay: fast, slowDelay: sl.nextDelayMs,
+        secondStart: top.secondStart }))
       quitTimer.start()
     }
   }
@@ -133,6 +140,8 @@ def test_live_components_offscreen(tmp_path: Path) -> None:
     assert result["timedOut"] is True
     assert result["stale"] is True and result["age"] == "5s ago"
     assert result["nextDelay"] == 8000
+    assert result["slowDelay"] == 120000  # backoff never undercuts the interval
+    assert result["secondStart"] is False  # no deadline re-arm while running
     env_seen = out.with_suffix(".env").read_text()
     assert "leak-check" not in env_seen and "OPENROUTER" not in env_seen
     assert "PATH=/usr/bin:/bin:/usr/sbin:/sbin\n" in env_seen

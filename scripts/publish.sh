@@ -55,17 +55,23 @@ is_shared_consumer() {
   sed 's/#.*//; s/[[:space:]]//g' "$UMBRELLA/shared/consumers.txt" | grep -qxF "$1"
 }
 
-# Re-check the vendored shared library inside the split output itself.
+# Re-check every vendored shared library inside the split output itself:
+# Python in bin/_omplug and, when shared/qml exists, QML in lib/.
 check_split_shared() {
-  local split="$1" tmp rc=0
-  tmp=$(mktemp -d)
-  if git archive "$split" bin/_omplug 2>/dev/null | tar -x -C "$tmp"; then
-    python3 "$SYNC_SHARED" --check-dir "$tmp/bin/_omplug" || rc=1
-  else
-    echo "  split has no bin/_omplug but plugin is a shared consumer" >&2
-    rc=1
-  fi
-  rm -rf "$tmp"
+  local split="$1" tmp rc=0 pair dest src
+  local pairs=("bin/_omplug:shared/py/_omplug")
+  [[ -d "$UMBRELLA/shared/qml" ]] && pairs+=("lib:shared/qml")
+  for pair in "${pairs[@]}"; do
+    dest="${pair%%:*}" src="${pair#*:}"
+    tmp=$(mktemp -d)
+    if git archive "$split" "$dest" 2>/dev/null | tar -x -C "$tmp"; then
+      python3 "$SYNC_SHARED" --check-dir "$tmp/$dest" --src "$src" || rc=1
+    else
+      echo "  split has no $dest but plugin is a shared consumer" >&2
+      rc=1
+    fi
+    rm -rf "$tmp"
+  done
   return "$rc"
 }
 

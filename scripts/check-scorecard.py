@@ -43,8 +43,17 @@ def _load_contract():
     return module
 
 
-def _evaluate(plugin: str, card: dict[str, Any], config: dict[str, Any], plugin_dir: Path, contract) -> tuple[str, list[str]]:
-    """Return (state, problems). state is pass|pending|fail."""
+def _scan_strict(contract, plugin_dir: Path) -> list[dict[str, Any]]:
+    """Contract findings with estate rules at error severity (a claimed pass
+    must hold to the rules a shared-lib consumer is held to)."""
+    try:
+        return contract.scan_plugin(plugin_dir, strict_estate=True)
+    except TypeError:
+        return contract.scan_plugin(plugin_dir)
+
+
+def _evaluate(plugin: str, card: dict[str, Any], config: dict[str, Any], plugin_dir: Path, contract) -> tuple[str, list[str], list[str]]:
+    """Return (state, problems, pending). state is pass|pending|fail."""
     problems: list[str] = []
     pending: list[str] = []
     criteria = card.get("criteria", {})
@@ -62,7 +71,7 @@ def _evaluate(plugin: str, card: dict[str, Any], config: dict[str, Any], plugin_
     if contract is not None and plugin_dir.is_dir():
         claimed = [k for k in CONTRACT_BACKED if criteria.get(k) == "pass"]
         if claimed:
-            errors = [f for f in contract.scan_plugin(plugin_dir) if f.get("severity", "error") == "error"]
+            errors = [f for f in _scan_strict(contract, plugin_dir) if f.get("severity", "error") == "error"]
             if errors:
                 problems.append(f"{plugin}: {', '.join(claimed)} marked pass but contract checker reports {len(errors)} error(s)")
 
@@ -84,11 +93,14 @@ def _evaluate(plugin: str, card: dict[str, Any], config: dict[str, Any], plugin_
             value = entry.get("value")
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 pending.append(key)
-            elif budget is not None and value > budget:
+            elif budget is None:
+                problems.append(f"{plugin}: no idle spawn budget in SCORECARD.md for a measured rate")
+            elif value > budget:
                 problems.append(f"{plugin}: spawn measurement {value}/min exceeds budget {budget}/min")
+    pending_msgs = [f"{plugin}: pending {k}" for k in pending]
     if problems:
-        return "fail", problems + [f"{plugin}: pending {k}" for k in pending]
-    return ("pending" if pending else "pass"), [f"{plugin}: pending {k}" for k in pending]
+        return "fail", problems, pending_msgs
+    return ("pending" if pending else "pass"), [], pending_msgs
 
 
 def check(
@@ -107,6 +119,7 @@ def check(
     plugin_root = plugin_root or root / "plugins"
     errors: list[str] = []
     states: dict[str, str] = {}
+    estate_total = 0.0
 
     try:
         config = _block(scorecard_doc.read_text(), "scorecard-config")
@@ -142,14 +155,19 @@ def check(
             errors.append(f"{plugin}: no scorecard block in docs/reviews/{plugin}.md")
             states[plugin] = "fail"
             continue
-        state, problems = _evaluate(plugin, card, config, plugin_root / plugin, contract)
+        state, problems, pending = _evaluate(plugin, card, config, plugin_root / plugin, contract)
         states[plugin] = state
-        if state == "fail":
-            errors.extend(p for p in problems if "pending" not in p or release)
-        elif state == "pending" and release:
-            errors.extend(problems)
-        if state == "pending" and release:
-            states[plugin] = "fail"
+        errors.extend(problems)
+        if release:
+            errors.extend(pending)
+            if state == "pending":
+                states[plugin] = "fail"
+        value = ((card.get("manual") or {}).get("spawn_measurement") or {}).get("value")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            estate_total += value
+    estate_budget = config.get("estate_budget")
+    if isinstance(estate_budget, (int, float)) and estate_total > estate_budget:
+        errors.append(f"estate idle spawns {round(estate_total, 2)}/min exceed estate budget {estate_budget}/min")
     return errors, states
 
 

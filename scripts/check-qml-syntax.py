@@ -3,11 +3,13 @@
 
 qmllint also warns about unresolved imports (qs.Commons, Quickshell modules
 exist only inside the Omarchy shell), so only syntax errors fail this check.
-Exits 0 with a notice when qmllint is not installed.
+Exits 0 with a notice when qmllint is not installed, unless REQUIRE_QMLLINT=1
+(set in CI), where a missing qmllint is a failure rather than a silent pass.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -30,6 +32,9 @@ def find_qmllint() -> str | None:
 def main() -> int:
     qmllint = find_qmllint()
     if qmllint is None:
+        if os.environ.get("REQUIRE_QMLLINT") == "1":
+            print("error: qmllint required (REQUIRE_QMLLINT=1) but not installed", file=sys.stderr)
+            return 1
         print("skip: qmllint not installed")
         return 0
     files = sorted((ROOT / "shared" / "qml").glob("*.qml")) + sorted((ROOT / "plugins").glob("*/*.qml"))

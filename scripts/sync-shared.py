@@ -8,7 +8,7 @@ directory and renamed into place, so a half-synced copy never exists.
 
   scripts/sync-shared.py             sync every consumer
   scripts/sync-shared.py --check     exit 1 on any drift or missing copy
-  scripts/sync-shared.py --check-dir DIR
+  scripts/sync-shared.py --check-dir DIR [--src shared/qml]
                                      compare one vendored dir (e.g. extracted
                                      from a subtree split) against shared/
 """
@@ -152,11 +152,13 @@ def main(argv: list[str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--check-dir", type=Path)
+    parser.add_argument("--src", type=Path, default=LIB_SRC,
+                        help="shared source tree --check-dir compares against (default shared/py/_omplug)")
     args = parser.parse_args(argv)
     root = args.root.resolve()
 
     if args.check_dir is not None:
-        problems = compare_dir(root, args.check_dir)
+        problems = compare_dir(root, args.check_dir, args.src)
     elif args.check:
         problems = [p for c in read_consumers(root) for p in check_consumer(root, c)]
     else:

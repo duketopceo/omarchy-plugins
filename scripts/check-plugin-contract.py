@@ -36,7 +36,8 @@ def _estate(severity_strict: bool) -> str:
     return "error" if severity_strict else "warning"
 
 
-def shared_consumers(path: Path = CONSUMERS_FILE) -> set[str]:
+def shared_consumers(path: Path | None = None) -> set[str]:
+    path = path if path is not None else CONSUMERS_FILE
     try:
         lines = path.read_text().splitlines()
     except OSError:
@@ -294,8 +295,20 @@ def _files(plugin_root: Path) -> Iterable[Path]:
             continue
         if any(part in SKIP_DIRS for part in path.parts):
             continue
-        if path.suffix.lower() in TEXTUAL_SUFFIXES:
+        if path.suffix.lower() in TEXTUAL_SUFFIXES or is_python_script(path):
             yield path
+
+
+def is_python_script(path: Path) -> bool:
+    """An extensionless helper with a python shebang (e.g. bin/standby-data)."""
+    if path.suffix:
+        return False
+    try:
+        with path.open("rb") as handle:
+            first = handle.readline(200)
+    except OSError:
+        return False
+    return first.startswith(b"#!") and b"python" in first
 
 
 def scan_plugin(plugin_root: Path, strict_estate: bool | None = None) -> list[dict[str, Any]]:
@@ -312,7 +325,7 @@ def scan_plugin(plugin_root: Path, strict_estate: bool | None = None) -> list[di
             findings.extend(_scan_qml(path, plugin_root, source))
             if not vendored:
                 findings.extend(_scan_qml_estate(path, plugin_root, source, strict_estate))
-        elif path.suffix == ".py":
+        elif path.suffix == ".py" or is_python_script(path):
             findings.extend(_scan_python(path, plugin_root, source))
             if not vendored:
                 findings.extend(_scan_python_estate(path, plugin_root, source, strict_estate))

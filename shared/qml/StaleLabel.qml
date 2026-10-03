@@ -21,9 +21,11 @@ QtObject {
     return Math.round(s / 3600) + "h ago"
   }
   // Delay before the next helper attempt.
+  // Backoff never retries sooner than the normal interval.
   readonly property int nextDelayMs: root.failures <= 0
     ? root.intervalMs
-    : Math.min(60000, root.intervalMs * Math.pow(2, Math.min(root.failures, 10)))
+    : Math.max(root.intervalMs,
+               Math.min(60000, root.intervalMs * Math.pow(2, Math.min(root.failures, 10))))
 
   function markGood() { root.lastGoodMs = Date.now(); root.nowMs = root.lastGoodMs; root.failures = 0 }
   function markFailed() { root.failures = root.failures + 1; root.nowMs = Date.now() }

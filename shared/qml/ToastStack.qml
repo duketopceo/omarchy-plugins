@@ -7,8 +7,9 @@ import qs.Commons
 // Toast policy and stack shared by service plugins (bumblebee, numbat).
 // Pipeline for push(): severity gate -> per-key cooldown -> do-not-disturb ->
 // burst coalescing. Suppression is the caller's watermark business; this only
-// decides what reaches the screen. Overflow beyond maxToasts is queued, never
-// dropped, and drains as cards are dismissed.
+// decides what reaches the screen. Overflow beyond maxToasts waits in a queue
+// of up to maxToasts more rows (the oldest queued rows are dropped past that)
+// and drains as cards are dismissed.
 Item {
   id: root
   width: 0

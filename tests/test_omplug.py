@@ -347,3 +347,27 @@ def test_readers_on_fixture_corpus() -> None:
     assert sysfs.power_supplies(type="Battery", scope="System", root=HW / "no-battery") == []
     keys = [d.key for d in sysfs.hwmon_devices(root=HW / "asahi-m1max") if d.name == "tas2764"]
     assert len(keys) == len(set(keys)) > 1
+
+
+def test_run_escalates_to_sigkill_when_group_ignores_sigterm(tmp_path: Path) -> None:
+    pidfile = tmp_path / "pids"
+    script = f"trap '' TERM; (trap '' TERM; sleep 30) & echo $! > {pidfile}; sleep 30"
+    start = time.monotonic()
+    res = proc.run([proc.tool("sh"), "-c", script], timeout=0.7)
+    assert time.monotonic() - start < 5
+    assert res.error == "timeout"
+    grandchild = int(pidfile.read_text().strip())
+    deadline = time.monotonic() + 2
+    while _alive(grandchild) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(grandchild)
+
+
+def test_read_attr_refuses_a_symlink_into_typec_identity(tmp_path: Path) -> None:
+    ident = tmp_path / "sys" / "class" / "typec" / "port0-partner" / "identity"
+    ident.mkdir(parents=True)
+    (ident / "id_header").write_text("0x1\n")
+    innocent = tmp_path / "sys" / "class" / "hwmon" / "hwmon9"
+    innocent.mkdir(parents=True)
+    (innocent / "name").symlink_to(ident / "id_header")
+    assert sysfs.read_attr(innocent / "name") is None

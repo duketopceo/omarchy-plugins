@@ -232,3 +232,21 @@ def test_estate_rules_are_errors_for_shared_lib_consumers(tmp_path: Path) -> Non
     rules = _rules(module.scan_plugin(plugin, strict_estate=True))
     assert rules.get("ungated-poll") == "error"
     assert rules.get("raw-process") == "error"
+
+
+def test_extensionless_python_helper_is_scanned(tmp_path: Path) -> None:
+    module = load_module()
+    helper = '#!/usr/bin/python3\nimport json\n\nif __name__ == "__main__":\n    print(json.dumps({}))\n'
+    plugin = _plugin(tmp_path, {"bin/standby-data": helper})
+    assert _rules(module.scan_plugin(plugin)).get("helper-alarm") == "warning"
+
+
+def test_consumers_file_turns_estate_rules_into_errors(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    plugin = _plugin(tmp_path, {"Panel.qml": UNGATED})
+    consumers = tmp_path / "consumers.txt"
+    consumers.write_text("# opt-in\ndemo\n")
+    monkeypatch.setattr(module, "CONSUMERS_FILE", consumers)
+    rules = _rules(module.scan_plugin(plugin))
+    assert rules.get("ungated-poll") == "error"
+    assert rules.get("raw-process") == "error"

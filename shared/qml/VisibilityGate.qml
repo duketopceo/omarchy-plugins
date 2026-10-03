@@ -27,6 +27,9 @@ QtObject {
   readonly property bool locked: root.lockService ? root.lockService.locked === true : false
 
   // dpmsStatus comes from Hyprland's monitor JSON; unknown counts as powered.
+  // Hyprland emits no IPC event for DPMS changes, so monitor state is
+  // refreshed on lock changes, on monitor add/remove, and on a slow timer
+  // (a socket request, not a process spawn).
   property int _dpmsTick: 0
   readonly property bool outputPowered: {
     root._dpmsTick
@@ -54,11 +57,22 @@ QtObject {
     target: Hyprland
     function onRawEvent(event) {
       var n = event && event.name ? String(event.name) : ""
-      if (n === "dpms" || n === "monitoradded" || n === "monitorremoved") {
-        Hyprland.refreshMonitors()
-        root._dpmsTick++
-      }
+      if (n === "monitoradded" || n === "monitorremoved" || n === "monitoraddedv2"
+          || n === "monitorremovedv2") root.refreshOutputs()
     }
+  }
+
+  function refreshOutputs() {
+    Hyprland.refreshMonitors()
+    root._dpmsTick++
+  }
+  onLockedChanged: root.refreshOutputs()
+
+  property Timer _outputPoll: Timer {
+    interval: 30000
+    repeat: true
+    running: root.barShown && !root.locked
+    onTriggered: root.refreshOutputs()
   }
   Component.onCompleted: root._was = root.visible
 }

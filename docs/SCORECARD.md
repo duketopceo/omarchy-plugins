@@ -54,7 +54,7 @@ Dated manual items:
 ## Idle spawn budgets
 
 R6: estate total at most 10 spawns/min with every panel closed and the machine
-idle. Per-plugin budgets (sum 4.5/min leaves headroom for Argus):
+idle. Per-plugin budgets (sum 5/min leaves headroom for omarchy-argus; `estate_budget` is enforced against the recorded total):
 
 - fan 1 (daemon/helper tick), power 1 (headless service sampler), nexus 0,
   standby 0, bumblebee 1, numbat 1, pplx 0.5, neo 0.5.

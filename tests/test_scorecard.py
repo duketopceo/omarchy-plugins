@@ -27,10 +27,13 @@ def card(plugin="demo.a", status="pass", x86=DATE, spawn=0.5):
     }
 
 
-def build(tmp_path, catalog_ids, cards, retiring=(), plugin_dirs=None, waivers=None):
+def build(tmp_path, catalog_ids, cards, retiring=(), plugin_dirs=None, waivers=None, budgets=None, estate_budget=None):
     (tmp_path / "docs" / "reviews").mkdir(parents=True)
     (tmp_path / "plugins").mkdir()
-    config = {"budgets": {"demo.a": 1}, "retiring": list(retiring), "waivers": waivers or {}}
+    config = {"budgets": budgets if budgets is not None else {"demo.a": 1},
+              "retiring": list(retiring), "waivers": waivers or {}}
+    if estate_budget is not None:
+        config["estate_budget"] = estate_budget
     (tmp_path / "docs" / "SCORECARD.md").write_text("# s\n\n```scorecard-config\n" + json.dumps(config) + "\n```\n")
     (tmp_path / "catalog.json").write_text(json.dumps({"plugins": [{"id": i} for i in catalog_ids]}))
     for plugin in plugin_dirs if plugin_dirs is not None else catalog_ids:
@@ -129,10 +132,38 @@ def test_contract_cross_check_flags_false_pass(tmp_path):
     assert any("contract checker" in e for e in errors)
 
 
-def test_real_repo_default_mode_exits_zero_all_surviving_pending():
+def test_real_repo_default_mode_exits_zero_with_every_survivor_assessed():
     out = subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True)
     assert out.returncode == 0, out.stderr
     for pid in ("lukedaduke.fan", "lukedaduke.power", "lukedaduke.standby", "lukedaduke.nexus",
                 "io.github.duketopceo.bumblebee", "io.github.duketopceo.numbat",
                 "io.github.duketopceo.pplx", "io.github.duketopceo.neo"):
-        assert f"{pid}: pending" in out.stdout
+        assert f"{pid}: pending" in out.stdout or f"{pid}: pass" in out.stdout
+
+
+def test_numeric_spawn_without_a_budget_fails(tmp_path):
+    root = build(tmp_path, ["demo.a"], {"demo.a": card()}, budgets={})
+    errors, _ = run(root)
+    assert any("no idle spawn budget" in e for e in errors)
+
+
+def test_estate_budget_is_enforced_across_plugins(tmp_path):
+    cards = {"demo.a": card(spawn=0.9), "demo.b": card(plugin="demo.b", spawn=0.9)}
+    root = build(tmp_path, ["demo.a", "demo.b"], cards, budgets={"demo.a": 1, "demo.b": 1}, estate_budget=1.5)
+    errors, _ = run(root)
+    assert any("estate" in e and "1.8" in e for e in errors)
+
+
+def test_exec_discipline_pass_is_checked_with_strict_estate_rules(tmp_path):
+    root = build(tmp_path, ["demo.a"], {"demo.a": card()})
+    seen = {}
+
+    class Contract:
+        @staticmethod
+        def scan_plugin(_, strict_estate=False):
+            seen["strict"] = strict_estate
+            return [{"severity": "error" if strict_estate else "warning", "rule": "process-pid"}]
+
+    errors, _ = mod.check(root=root, contract=Contract)
+    assert seen["strict"] is True
+    assert any("contract checker" in e for e in errors)

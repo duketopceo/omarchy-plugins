@@ -2,22 +2,24 @@ import QtQuick
 import Quickshell.Io
 
 // A Process with a paired kill deadline. When the deadline passes, the whole
-// process group is killed (helpers call setsid), then the direct child.
-// `helperAlarmS` declares the helper's own SIGALRM backstop so the contract
-// checker can assert deadlineMs > helperAlarmS * 1000.
+// process group is killed (helpers call setsid), then the direct child. Keep
+// deadlineMs longer than the helper's own signal.alarm backstop.
 Process {
   id: proc
 
   property int deadlineMs: 10000
-  property int helperAlarmS: 0
   property bool timedOut: false
 
   clearEnvironment: true
 
+  // Returns false without touching the deadline when a run is already in
+  // flight, so a fast poll can never keep pushing back the kill of a hung run.
   function start() {
+    if (proc.running) return false
     proc.timedOut = false
     proc.running = true
     deadline.restart()
+    return true
   }
 
   function groupKill() {

@@ -229,3 +229,37 @@ def test_publish_never_force_pushes() -> None:
     for line in pushes:
         assert "--force" not in line and " -f" not in line
         assert ' "+' not in line and " +" not in line
+
+
+def _vendored_files(drift_qml: bool) -> dict[str, str]:
+    files = {"manifest.json": "{}"}
+    version = (ROOT / "shared" / "VERSION").read_text()
+    for path in (ROOT / "shared" / "py" / "_omplug").glob("*.py"):
+        files[f"bin/_omplug/{path.name}"] = path.read_text()
+    files["bin/_omplug/VERSION"] = version
+    for path in (ROOT / "shared" / "qml").glob("*.qml"):
+        files[f"lib/{path.name}"] = path.read_text()
+    files["lib/VERSION"] = version
+    if drift_qml:
+        files["lib/ProcEnv.qml"] += "// drifted\n"
+    return files
+
+
+def _split_check(repo: Path, split: str) -> subprocess.CompletedProcess:
+    script = f'source "{PUBLISH}"; cd "{repo}"; check_split_shared "$1"'
+    return subprocess.run(["bash", "-c", script, "chk", split], capture_output=True, text=True)
+
+
+def test_split_check_passes_matching_python_and_qml_copies(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    split = _commit_tree(repo, _vendored_files(drift_qml=False), "split")
+    res = _split_check(repo, split)
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+def test_split_check_catches_drifted_qml_lib(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    split = _commit_tree(repo, _vendored_files(drift_qml=True), "split")
+    res = _split_check(repo, split)
+    assert res.returncode != 0
+    assert "ProcEnv.qml" in res.stdout + res.stderr
