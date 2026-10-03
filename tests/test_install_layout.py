@@ -139,3 +139,33 @@ def test_release_validation_reports_a_plugin_directory_without_manifest(tmp_path
     errors = module.validate_install_layout(release_root, release=True)
 
     assert any("missing manifest" in error.lower() for error in errors)
+
+
+def test_copy_install_ignores_third_party_plugins_in_release_check(tmp_path: Path) -> None:
+    destination = tmp_path / "plugins"
+    backup_root = tmp_path / "state" / "backups"
+    # A marketplace plugin we do not own, with a host path our release rule forbids.
+    manifest(destination / "someone.else", "someone.else")
+    (destination / "someone.else" / "Panel.qml").write_text('// "/home/someone/x"\n')
+
+    result = run_installer(destination, backup_root, "--copy")
+
+    assert result.returncode == 0, result.stderr
+    assert (destination / "lukedaduke.fan" / "manifest.json").is_file()
+    assert (destination / "someone.else" / "manifest.json").is_file()
+
+
+def test_release_validation_can_be_limited_to_named_plugins(tmp_path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("validate_manifests", VALIDATE)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    root = tmp_path / "plugins"
+    manifest(root / "ours", "ours")
+    manifest(root / "theirs", "theirs")
+    (root / "theirs" / "Panel.qml").write_text('// "/home/someone/x"\n')
+    (root / "ours" / "Panel.qml").write_text('// "/home/me/x"\n')
+
+    errors = module.validate_install_layout(root, release=True, only={"ours"})
+
+    assert errors == ["ours: release copy contains a host-absolute path"]

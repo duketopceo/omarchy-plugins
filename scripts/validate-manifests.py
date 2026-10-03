@@ -81,8 +81,14 @@ def validate_install_layout(
     release: bool = False,
     allow_symlink: bool = False,
     ignore_legacy_backups: bool = False,
+    only: set[str] | None = None,
 ) -> list[str]:
-    """Validate direct plugin directories under an install root."""
+    """Validate direct plugin directories under an install root.
+
+    ``only`` limits release-copy checks to the named directories, so a copy
+    install is not failed by third-party plugins sharing the discovery root.
+    Manifest and duplicate-id checks still cover every directory.
+    """
     if not root.is_dir():
         return [f"install root is unavailable: {root.name or 'root'}"]
     errors: list[str] = []
@@ -112,7 +118,7 @@ def validate_install_layout(
         ids.setdefault(plugin_id, []).append(directory.name)
         if not allow_symlink and directory.is_symlink():
             errors.append(f"{directory.name}: symlinked plugin directory is not allowed")
-        if release:
+        if release and (only is None or directory.name in only):
             if any(item.is_symlink() for item in directory.rglob("*")):
                 errors.append(f"{directory.name}: release copy contains a symlink")
             if any(_contains_generated_artifact(item) for item in directory.rglob("*")):
@@ -137,6 +143,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--release", action="store_true", help="apply release-copy checks")
     parser.add_argument("--allow-symlink", action="store_true", help="allow linked development directories")
     parser.add_argument("--ignore-legacy-backups", action="store_true", help="ignore *.bak.* directories during preflight")
+    parser.add_argument("--only", action="append", metavar="DIR", help="limit release checks to this plugin directory (repeatable)")
     return parser.parse_args(argv)
 
 
@@ -148,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             release=args.release,
             allow_symlink=args.allow_symlink or not args.release,
             ignore_legacy_backups=args.ignore_legacy_backups,
+            only=set(args.only) if args.only else None,
         )
         if errors:
             for line in errors:

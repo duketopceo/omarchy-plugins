@@ -136,13 +136,17 @@ install_one() {
 }
 
 shopt -s nullglob
+installed=()
 for src in "$SOURCE_PLUGINS"/*; do
   [[ -d "$src" && -f "$src/manifest.json" ]] || continue
   install_one "$src"
+  installed+=(--only "$(basename "$src")")
 done
 
-if [[ "$MODE" == "copy" ]]; then
-  python3 "$VALIDATE" --install-root "$DEST" --release
+# Release checks cover only what this script installed; other plugins in the
+# discovery root belong to other repos and the marketplace.
+if [[ "$MODE" == "copy" && ${#installed[@]} -gt 0 ]]; then
+  python3 "$VALIDATE" --install-root "$DEST" --release "${installed[@]}"
 fi
 
 if [[ "$RESCAN" == "1" ]] && command -v omarchy-shell >/dev/null 2>&1; then
