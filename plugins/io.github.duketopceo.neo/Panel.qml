@@ -154,7 +154,7 @@ Panel {
   // Status worst case is the 3s MCP timeout + one systemctl show — 12s is
   // generous; control verbs can sit through a unit's TimeoutStopSec (15s) so
   // the control deadline clears the helper's own 45s backstop.
-  Timer { id: statusDeadline; interval: 12000; onTriggered: root.groupKill(statusProc) }
+  Timer { id: statusDeadline; interval: 15000; onTriggered: root.groupKill(statusProc) }
   Timer { id: statusTimer; interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
 
   Process {
@@ -189,7 +189,7 @@ Panel {
     onExited: { ctrlDeadline.stop(); root.busy = false }
   }
 
-  Timer { id: ctrlDeadline; interval: 50000; onTriggered: { root.groupKill(ctrlProc); root.busy = false } }
+  Timer { id: ctrlDeadline; interval: 55000; onTriggered: { root.groupKill(ctrlProc); root.busy = false } }
 
   BarIconButton {
     id: button

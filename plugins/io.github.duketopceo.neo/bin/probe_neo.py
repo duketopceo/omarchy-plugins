@@ -38,7 +38,7 @@ import subprocess
 import sys
 import urllib.request
 
-JOB_DEADLINE_S = 45   # control verbs can wait out a unit's TimeoutStopSec
+JOB_DEADLINE_S = 50   # control verbs can wait out a unit's TimeoutStopSec (35s) plus a status pass (13s)
 SYSTEMCTL_TIMEOUT_S = 35
 SYSTEMCTL = "/usr/bin/systemctl"
 UNITS = {  # display key -> unit name

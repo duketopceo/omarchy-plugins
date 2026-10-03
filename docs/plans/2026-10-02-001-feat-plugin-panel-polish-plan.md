@@ -86,7 +86,7 @@ chips; agent dropdown filters the feed.
 - `plugins/io.github.duketopceo.numbat/README.md`
 
 **Approach:** Unseen count = findings with `observed_at` > the persisted
-`lastPanelOpened` watermark (LocalSettings entry key, written on panel
+`lastPanelSeen` watermark (LocalSettings entry key, written on panel
 open — same `updateEntryInline` path as the service watermark). Badge is
 a small themed rect on the glyph, `visible: count > 0`. Severity chip =
 tiny rounded rect + 4-char label, colored via `Color` roles
@@ -269,7 +269,7 @@ variant remains.
 
 - **Subtree drift**: all edits in the umbrella; publish only after the
   PR merges (provenance contract).
-- **LocalSettings write race on `lastPanelOpened`**: same pattern the
+- **LocalSettings write race on `lastPanelSeen`**: same pattern the
   service already uses; panel writes on open are low-frequency —
   acceptable, note it in code comments.
 - **`/json/list` availability**: shim serves it (it proxies CDP HTTP);
