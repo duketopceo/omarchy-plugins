@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import signal
+import subprocess
+import sys
+import time
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
@@ -211,7 +216,7 @@ def test_daemon_does_not_invent_a_target_user(monkeypatch) -> None:
     daemon_path = ROOT / "plugins/lukedaduke.fan/bin/omarchy-fan-daemon"
     daemon = SourceFileLoader("omarchy_fan_daemon_unknown_uid", str(daemon_path)).load_module()
     monkeypatch.delenv("OMARCHY_FAN_UID", raising=False)
-    monkeypatch.delenv("SUDO_UID", raising=False)
+    monkeypatch.delenv("SUDO_UID", raising=False)  # guards that SUDO_UID is ignored
     monkeypatch.setattr(daemon.os, "getuid", lambda: 0)
     monkeypatch.setattr(daemon, "_active_run_user", lambda *_a: None)
 
@@ -220,8 +225,8 @@ def test_daemon_does_not_invent_a_target_user(monkeypatch) -> None:
 
 # --- Fan daemon characterization (fixture sysfs trees) ----------------------
 #
-# These pin the daemon's tuned curve, smoothing and hwmon write behavior so the
-# packaging/hand-back rework cannot silently change what the fans do.
+# These tests characterize the daemon against fixture sysfs trees; each one
+# pins the tuned curve, smoothing and hwmon writes.
 
 DAEMON = FAN_DIR / "bin/omarchy-fan-daemon"
 
@@ -267,11 +272,6 @@ def fan_control_param(root: Path) -> str:
     return (root / "sys/module/macsmc_hwmon/parameters/fan_control").read_text().strip()
 
 
-def write_fans(daemon, monkeypatch, root: Path, hw_type: str, hwmon: Path, pwm: int) -> None:
-    """Drive one hwmon write against the fixture tree rooted at ``root``."""
-    daemon.set_fan_speed(hw_type, hwmon, pwm, root=root)
-
-
 def test_char_auto_curve_points() -> None:
     daemon = load_daemon()
     assert daemon.curve_pwm(35, daemon.AUTO_CURVE) == 0
@@ -294,41 +294,38 @@ def test_char_smoother_ramp_and_deadband() -> None:
     assert s.slew_pwm(97) == 96         # inside the deadband
 
 
-def test_char_macsmc_floor_hands_back(tmp_path: Path, monkeypatch) -> None:
+def test_char_macsmc_floor_hands_back(tmp_path: Path) -> None:
     daemon = load_daemon()
     hwmon = make_macsmc(tmp_path, fan_control="Y")
     (hwmon / "fan1_target").write_text("3000")
-    write_fans(daemon, monkeypatch, tmp_path, "macsmc", hwmon, 0)
+    daemon.set_fan_speed("macsmc", hwmon, 0, root=tmp_path)
     assert fan_control_param(tmp_path) == "N"
     assert (hwmon / "fan1_target").read_text() == "0"
     assert (hwmon / "fan2_target").read_text() == "0"
 
 
-def test_char_macsmc_ramp_targets(tmp_path: Path, monkeypatch) -> None:
+def test_char_macsmc_ramp_targets(tmp_path: Path) -> None:
     daemon = load_daemon()
     hwmon = make_macsmc(tmp_path, fan_control="N")
-    write_fans(daemon, monkeypatch, tmp_path, "macsmc", hwmon, 12)
+    daemon.set_fan_speed("macsmc", hwmon, 12, root=tmp_path)
     assert fan_control_param(tmp_path) == "Y"
     assert (hwmon / "fan1_target").read_text() == "1631"
     assert (hwmon / "fan2_target").read_text() == "1652"
 
 
-def test_char_dell_manual_write(tmp_path: Path, monkeypatch) -> None:
+def test_char_dell_manual_write(tmp_path: Path) -> None:
     daemon = load_daemon()
     hwmon = make_dell(tmp_path)
-    write_fans(daemon, monkeypatch, tmp_path, "dell", hwmon, 200)
+    daemon.set_fan_speed("dell", hwmon, 200, root=tmp_path)
     for n in (1, 2):
         assert (hwmon / f"pwm{n}_enable").read_text() == "1"
         assert (hwmon / f"pwm{n}").read_text() == "200"
 
 
-# --- Packaged helper behavior (U1: hand-back, heartbeat, status) -------------
+# --- Packaged helper behavior: hand-back, heartbeat, status ------------------
 
-import os
-import signal
-import subprocess
-import sys
-import time
+def stat_mode(path: Path) -> int:
+    return path.stat().st_mode & 0o777
 
 
 def user_runtime(root: Path, uid: int | None = None) -> Path:
@@ -416,10 +413,6 @@ def test_status_reports_version_mode_controllable(tmp_path: Path) -> None:
     assert data["mode"] == "auto"
     assert data["controllable"] is True
     assert stat_mode(tmp_path / "run/omarchy-fan/status.json") == 0o644
-
-
-def stat_mode(path: Path) -> int:
-    return path.stat().st_mode & 0o777
 
 
 def test_stale_heartbeat_expires_fixed_preset(tmp_path: Path) -> None:

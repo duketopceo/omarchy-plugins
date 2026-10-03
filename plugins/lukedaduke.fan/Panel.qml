@@ -51,6 +51,7 @@ Panel {
   property bool helperControllable: false
   property string helperMode: ""
   readonly property bool fanControl: root.helperState === "ok" && root.helperControllable
+  readonly property bool helperModeActive: root.helperState === "ok" && root.helperMode.length > 0
   property int selectedProc: 0
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
@@ -112,7 +113,7 @@ Panel {
     root.helperState = root.helperVersion === root.expectedHelperVersion ? "ok" : "outdated"
     root.helperControllable = data.controllable === true
     root.helperMode = clipStr(data.mode, 24).trim()
-    if (root.helperState === "ok" && root.helperMode.length > 0)
+    if (root.helperModeActive)
       root.currentMode = root.helperMode
   }
 
@@ -246,7 +247,7 @@ Panel {
           }
           root.fetchError = ""
           // The helper's effective mode wins: an expired preset shows as auto.
-          if (data.fan_mode && !(root.helperState === "ok" && root.helperMode.length > 0))
+          if (data.fan_mode && !root.helperModeActive)
             root.currentMode = clipStr(data.fan_mode, 24).trim()
           if (data.cpu_name)
             root.cpuName = clipStr(data.cpu_name)
@@ -791,7 +792,7 @@ Panel {
           text: root.helperHint()
           textFormat: Text.PlainText
           wrapMode: Text.Wrap
-          color: root.helperState === "ok" && root.helperControllable ? root.muted : root.accent
+          color: root.fanControl ? root.muted : root.accent
           font.pixelSize: Style.font.caption
         }
         Row {
