@@ -41,8 +41,21 @@ Panel {
   // Last stderr chunk from the stats helper — appended to fetchError when
   // the process exits non-zero so a crash carries diagnostics.
   property string statsStderr: ""
-  property bool fanControl: false
-  property bool daemonRunning: false
+  // Fan control is owned by the omarchy-fan-helper package (root, from
+  // /usr/lib/omarchy-fan). The plugin never installs or elevates it: it only
+  // reads the helper's status and asks for a package install/update.
+  readonly property string expectedHelperVersion: "1.0.0"
+  // "missing" | "outdated" | "ok"
+  property string helperState: "missing"
+  property string helperVersion: ""
+  property bool helperControllable: false
+  property string helperMode: ""
+  // A mode the user just requested; the helper status lags by up to one tick,
+  // so readHelperStatus must not revert currentMode until it catches up.
+  property string pendingMode: ""
+  property real pendingUntil: 0
+  readonly property bool fanControl: root.helperState === "ok" && root.helperControllable
+  readonly property bool helperModeActive: root.helperState === "ok" && root.helperMode.length > 0
   property int selectedProc: 0
 
   readonly property color fg: bar ? bar.foreground : Color.foreground
@@ -75,17 +88,59 @@ Panel {
     "LC_ALL": "C"
   })
 
-  function triggerDaemon() {
-    Quickshell.execDetached(["/usr/bin/pkexec", root.pluginRoot + "/bin/omarchy-fan-daemon-start"])
-    refreshTimer.restart()
+  // loaded=false: the status file is gone (helper not installed or stopped).
+  function readHelperStatus(loaded) {
+    var raw = ""
+    if (loaded) {
+      try {
+        raw = String(helperStatusFile.text() || "")
+      } catch (e) {
+        raw = ""
+      }
+    }
+    var data = null
+    if (raw.length > 0 && raw.length < 4096) {
+      try {
+        data = JSON.parse(raw)
+      } catch (e2) {
+        data = null
+      }
+    }
+    if (!data || typeof data !== "object") {
+      root.helperState = "missing"
+      root.helperVersion = ""
+      root.helperControllable = false
+      root.helperMode = ""
+      return
+    }
+    root.helperVersion = clipStr(data.version, 24)
+    root.helperState = root.helperVersion === root.expectedHelperVersion ? "ok" : "outdated"
+    root.helperControllable = data.controllable === true
+    root.helperMode = clipStr(data.mode, 24).trim()
+    if (root.pendingMode.length > 0 && (root.helperMode === root.pendingMode || Date.now() > root.pendingUntil))
+      root.pendingMode = ""
+    if (root.helperModeActive && root.pendingMode.length === 0)
+      root.currentMode = root.helperMode
+  }
+
+  function helperHint() {
+    if (root.helperState === "missing")
+      return "Fan control: install the omarchy-fan-helper package and run 'systemctl enable --now omarchy-fan-daemon.service'"
+    if (root.helperState === "outdated")
+      return "Fan control: update the omarchy-fan-helper package (have " + (root.helperVersion || "?") + ", need " + root.expectedHelperVersion + ")"
+    if (!root.helperControllable)
+      return "Fan control: no writable fan target here"
+    return "Helper " + root.helperVersion
   }
 
   function setMode(mode) {
-    if (!mode || !root.fanControl)
+    // "auto" is always safe to write, so it bypasses the fanControl guard
+    // whenever a helper is present (e.g. version drift with a pinned preset).
+    if (!mode || !(root.fanControl || (mode === "auto" && root.helperState !== "missing")))
       return
-    if (!root.daemonRunning)
-      triggerDaemon()
     currentMode = mode
+    root.pendingMode = mode
+    root.pendingUntil = Date.now() + 6000
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", mode])
     refreshTimer.restart()
   }
@@ -93,9 +148,9 @@ Panel {
   function setCustom(name) {
     if (!root.fanControl)
       return
-    if (!root.daemonRunning)
-      triggerDaemon()
     currentMode = "custom"
+    root.pendingMode = "custom"
+    root.pendingUntil = Date.now() + 6000
     customName = name
     Quickshell.execDetached([root.py, root.pluginRoot + "/bin/omarchy-fan-set", "custom", name])
     refreshTimer.restart()
@@ -104,13 +159,14 @@ Panel {
   function cycleMode() {
     if (!root.fanControl)
       return
-    if (currentMode === "auto")
+    var from = root.pendingMode.length > 0 ? root.pendingMode : currentMode
+    if (from === "auto")
       setMode("low")
-    else if (currentMode === "low")
+    else if (from === "low")
       setMode("med")
-    else if (currentMode === "med")
+    else if (from === "med")
       setMode("high")
-    else if (currentMode === "high")
+    else if (from === "high")
       setMode("custom")
     else
       setMode("auto")
@@ -131,6 +187,7 @@ Panel {
   }
 
   function refresh() {
+    helperStatusFile.reload()
     if (!statusProc.running) {
       root.isRefreshing = true
       statusProc.running = true
@@ -202,7 +259,8 @@ Panel {
             return
           }
           root.fetchError = ""
-          if (data.fan_mode)
+          // The helper's effective mode wins: an expired preset shows as auto.
+          if (data.fan_mode && !root.helperModeActive)
             root.currentMode = clipStr(data.fan_mode, 24).trim()
           if (data.cpu_name)
             root.cpuName = clipStr(data.cpu_name)
@@ -262,8 +320,6 @@ Panel {
             })
           if (Array.isArray(data.fan_curve))
             root.fanCurve = data.fan_curve
-          root.fanControl = !!data.fan_control
-          root.daemonRunning = !!data.daemon_running
           if (root.selectedProc >= root.topMem.length)
             root.selectedProc = Math.max(0, root.topMem.length - 1)
         } catch (e) {
@@ -305,6 +361,45 @@ Panel {
         root.fetchError = "stats timeout"
       }
     }
+  }
+
+  // Root-owned status from the packaged helper (version, mode, controllable).
+  // Re-read on every stats refresh; a read is spawn-free.
+  FileView {
+    id: helperStatusFile
+    path: "/run/omarchy-fan/status.json"
+    watchChanges: false
+    printErrors: false
+    onLoaded: root.readHelperStatus(true)
+    onLoadFailed: root.readHelperStatus(false)
+  }
+
+  // Shell heartbeat for the helper: fixed presets expire when it is older than
+  // 120 s, so the fans never stay pinned after the shell is gone. Written in
+  // place (no process spawn) every 30 s, independent of panel visibility or
+  // screen lock. The directory is created by omarchy-fan-set when a mode is
+  // chosen; before that there is no preset to keep alive.
+  readonly property string heartbeatPath: {
+    var base = Quickshell.env("XDG_RUNTIME_DIR")
+    return base ? base + "/omarchy-fan/heartbeat" : ""
+  }
+
+  FileView {
+    id: heartbeatFile
+    path: root.heartbeatPath
+    preload: false
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+  }
+
+  Timer {
+    id: heartbeatTimer
+    interval: 30000
+    running: root.heartbeatPath.length > 0 && root.fanControl
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: heartbeatFile.setText(String(Math.floor(Date.now() / 1000)))
   }
 
   Timer {
@@ -704,34 +799,41 @@ Panel {
             color: root.fg
             font.pixelSize: Style.font.bodySmall
           }
-          Rectangle {
-            id: daemonBtn
-            implicitWidth: daemonBtnText.implicitWidth + Style.space(16)
-            implicitHeight: Style.space(22)
-            radius: Style.space(4)
-            color: root.daemonRunning ? "transparent" : root.accent
-            border.color: root.daemonRunning ? root.fg : root.accent
-            border.width: 1
-            opacity: root.daemonRunning ? 0.7 : 1.0
-            Text {
-              textFormat: Text.PlainText
-              id: daemonBtnText
-              anchors.centerIn: parent
-              text: root.daemonRunning ? "● Daemon Active" : "⚡ Start Daemon"
-              color: root.daemonRunning ? root.fg : Color.background
-              font.bold: true
-              font.pixelSize: Style.font.caption
-            }
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: root.triggerDaemon()
-            }
+        }
+        Text {
+          width: parent.width
+          text: root.helperHint()
+          textFormat: Text.PlainText
+          wrapMode: Text.Wrap
+          color: root.fanControl ? root.muted : root.accent
+          font.pixelSize: Style.font.caption
+        }
+        Rectangle {
+          visible: !root.fanControl && root.helperState !== "missing"
+          width: parent.width
+          height: Style.space(34)
+          radius: Style.space(6)
+          color: "transparent"
+          border.color: root.fg
+          border.width: 1
+          Text {
+            anchors.centerIn: parent
+            text: "Reset to auto"
+            textFormat: Text.PlainText
+            color: root.fg
+            font.bold: true
+            font.pixelSize: Style.font.caption
+          }
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.setMode("auto")
           }
         }
         Row {
           width: parent.width
           spacing: Style.space(6)
+          visible: root.fanControl
           Repeater {
             model: ["auto", "low", "med", "high", "custom"]
             delegate: Rectangle {
@@ -763,7 +865,7 @@ Panel {
         Row {
           width: parent.width
           spacing: Style.space(6)
-          visible: root.currentMode === "custom"
+          visible: root.fanControl && root.currentMode === "custom"
           Repeater {
             model: ["silent", "balanced", "performance"]
             delegate: Rectangle {

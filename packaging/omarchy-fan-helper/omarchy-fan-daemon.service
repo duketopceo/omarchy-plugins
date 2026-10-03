@@ -1,0 +1,20 @@
+[Unit]
+Description=Omarchy fan curve helper (lukedaduke.fan)
+Documentation=https://github.com/duketopceo/omarchy-plugins/tree/main/packaging/omarchy-fan-helper
+
+[Service]
+Type=simple
+# Package-owned, root-owned path: nothing the desktop user can rewrite runs here.
+ExecStart=/usr/lib/omarchy-fan/omarchy-fan-daemon run
+# Runs after every exit, clean or not (including SIGKILL): fans back to firmware.
+ExecStopPost=/usr/lib/omarchy-fan/omarchy-fan-daemon handback
+Restart=on-failure
+RestartSec=5
+# /run/omarchy-fan: status.json for the panel plus the unclean-exit marker.
+# Kept across automatic restarts so a crash is seen by the next start.
+RuntimeDirectory=omarchy-fan
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=restart
+
+[Install]
+WantedBy=multi-user.target
