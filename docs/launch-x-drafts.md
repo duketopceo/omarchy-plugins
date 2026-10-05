@@ -3,6 +3,60 @@
 Final copy as posted. Thread of 4 posts, all under 280 chars, Perplexity
 credited for the upstream tools.
 
+# X launch — Dayflow posted 2026-10-03 (v1.5.0)
+
+Single-post format (video screencast attached at post time). First of the
+flagship series: dayflow → wisp → omaseal, spaced across days.
+
+## Posted
+
+```
+Ported Dayflow to Linux — a private work journal that writes itself.
+
+A vision model summarizes your screen every 15 min into a searchable timeline: standup drafts, agent-session recaps, forecasts.
+
+Local-first, ~25MB RAM, any vision model or fully local via Ollama.
+
+github.com/duketopceo/dayflow-linux
+```
+
+## Follow-up
+
+- Wisp post next (draft below). Marketplace: submitted as #10092 via new
+  `duketopceo/omarchy-wisp` repo (subtree split of wisp's `shell-plugin/`);
+  validation passed, baseline `remote-git-execution-unpinned` fixed by
+  pinning the wispd install to v0.9.0 commit — awaiting maintainer
+  `approved-and-verified`.
+- OmaSeal #5620 blocker fixed in duketopceo/OmaSeal#39 (`c84b1569`,
+  VerifyStatus sender filter) — awaiting maintainer rescan.
+- Marketplace verify issues verified current (all four pin published
+  HEADs): #7595 numbat `03aa659`, #7594 bumblebee `82db872`,
+  #7596 pplx `92dff60`, #7587 agents `8d56cd2` — awaiting maintainer.
+
+## Wisp draft (pending)
+
+```
+Built a resident voice companion for Omarchy: Super+D, speak, done.
+
+Wisp hears you, reads your screen for context, then answers at your cursor, drives the desktop step by step, or spawns a coding agent in the background.
+
+whisper.cpp + a small router model — no cloud roundtrip for the ear.
+
+github.com/duketopceo/wisp
+```
+
+## OmaSeal draft (pending #5620 fix)
+
+```
+Omarchy plugins keep stashing API keys in .env files and dotfiles. So I built OmaSeal — one keyring for the desktop, plugins, and every agent.
+
+gnome-keyring underneath, MCP for Claude/Codex/Cursor, 1Password/Bitwarden fallback. Store once, use everywhere.
+
+github.com/duketopceo/OmaSeal
+```
+
+
+
 ## Posted thread
 
 **Post 1/4:**
