@@ -3,7 +3,7 @@
 # pkgver must equal HELPER_VERSION in the daemon and expectedHelperVersion in
 # plugins/lukedaduke.fan/Panel.qml (tests/test_fan_helper_package.py checks).
 pkgname=omarchy-fan-helper
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Root fan-curve helper for the lukedaduke.fan Omarchy plugin (macsmc_hwmon, dell_smm)"
 arch=('any')

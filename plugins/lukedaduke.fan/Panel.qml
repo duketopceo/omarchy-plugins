@@ -44,7 +44,7 @@ Panel {
   // Fan control is owned by the omarchy-fan-helper package (root, from
   // /usr/lib/omarchy-fan). The plugin never installs or elevates it: it only
   // reads the helper's status and asks for a package install/update.
-  readonly property string expectedHelperVersion: "1.0.0"
+  readonly property string expectedHelperVersion: "1.0.1"
   // "missing" | "outdated" | "ok"
   property string helperState: "missing"
   property string helperVersion: ""
