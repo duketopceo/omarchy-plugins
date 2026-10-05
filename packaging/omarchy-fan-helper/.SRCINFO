@@ -1,0 +1,12 @@
+pkgbase = omarchy-fan-helper
+	pkgdesc = Root fan-curve helper for the lukedaduke.fan Omarchy plugin (macsmc_hwmon, dell_smm)
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/duketopceo/omarchy-plugins
+	install = omarchy-fan-helper.install
+	arch = any
+	license = MIT
+	depends = python
+	depends = systemd
+
+pkgname = omarchy-fan-helper

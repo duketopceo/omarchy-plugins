@@ -13,9 +13,13 @@ Data model (verified against numbat 0.2.0, schema 0.3.0):
     its events take precedence over the scan-cached feed (events_live)
     and its finding records merge into the findings list. The file may
     not exist until a hook fires — absence is empty, not an error.
-  * `numbat scan` reconstructs events + findings from on-disk agent
-    artifacts and emits NDJSON to stdout. It is run on a stale-cache
-    cycle (SCAN_INTERVAL_S) and the parsed result is cached under
+  * `numbat scan --emit findings` reconstructs findings from on-disk
+    agent artifacts (events come from the live record stream — an
+    `--emit all` scan cannot fit this probe's byte/deadline caps at
+    real-world artifact scale). It runs on a stale-cache
+    cycle (SCAN_INTERVAL_S, stretched to LIVE_SCAN_INTERVAL_S while
+    records.ndjson is flowing) under a state-dir lock so the service
+    and panel never scan twice; results are cached under
     ~/.local/state/omarchy/numbat/ — never under ~/.numbat.
   * `numbat hook status` reports which agents have installed hooks and
     is folded into the same cache cycle.
@@ -35,9 +39,17 @@ control-char normalized and length-capped before they reach the QML layer.
 import json, os, re, selectors, shutil, signal, stat, subprocess, sys, time
 from datetime import datetime, timedelta, timezone
 
-JOB_DEADLINE_S = 30
-SCAN_TIMEOUT_S = 25          # per-exec deadline for `numbat scan`
+JOB_DEADLINE_S = 62
+SCAN_TIMEOUT_S = 55          # per-exec deadline for `numbat scan` —
+                             # findings scan measured ~24s at ~220MB of
+                             # live records on omarchy-max and grows with
+                             # artifact history; 2x headroom
 SCAN_INTERVAL_S = int(os.environ.get("NUMBAT_SCAN_INTERVAL_S", "600"))
+# While records.ndjson is flowing (hooked agents active) a rescan only
+# re-derives what the live stream carries, so the heavy scan stretches to
+# this interval and the cycles in between do a cheap `hook status` check.
+LIVE_SCAN_INTERVAL_S = int(os.environ.get("NUMBAT_LIVE_SCAN_INTERVAL_S",
+                                          "3600"))
 HOOKS_TIMEOUT_S = 3.0
 MAX_OUT_BYTES = 262144
 SCAN_MAX_BYTES = 32 * 1024 * 1024
@@ -69,6 +81,11 @@ STATE_DIR = os.path.join(os.path.expanduser("~"),
 FINDINGS_NAME = "findings.ndjson"
 RECORDS_NAME = "records.ndjson"
 CACHE_NAME = "scan-cache.json"
+LOCK_NAME = "scan.lock"
+# Longer than the longest legal scan cycle (job deadline covers the scan
+# timeout + hook status + tails) so a live peer's lock is never mistaken
+# for an abandoned one.
+LOCK_STALE_S = JOB_DEADLINE_S + 15
 FINDINGS_PATH_DISPLAY = "~/.numbat/findings.ndjson"
 RECORDS_PATH_DISPLAY = "~/.numbat/records.ndjson"
 TS_FIELDS = ("observed_at", "detected_at", "timestamp", "ts")
@@ -573,9 +590,12 @@ def _hooked_agents(binary, run):
 
 
 def _scan_records(binary, run):
-    """`numbat scan` NDJSON -> record list, or None on failure."""
-    out = run([binary, "scan", "--emit", "all"], timeout=SCAN_TIMEOUT_S,
-              max_bytes=SCAN_MAX_BYTES)
+    """`numbat scan --emit findings` NDJSON -> record list, or None on
+    failure. Findings only: events already stream via records.ndjson, and
+    `--emit all` cannot fit this probe's byte/deadline caps once a machine
+    accumulates real agent history (measured 48s/55MB on omarchy-max)."""
+    out = run([binary, "scan", "--emit", "findings"],
+              timeout=SCAN_TIMEOUT_S, max_bytes=SCAN_MAX_BYTES)
     if out is None:
         return None
     return list(_iter_records(out.encode(), False))
@@ -616,6 +636,68 @@ def _write_scan_cache(state_dir, payload):
         return
     try:
         _publish(dirfd, CACHE_NAME, json.dumps(payload).encode())
+    except OSError:
+        pass
+    finally:
+        os.close(dirfd)
+
+
+def _scan_lock(state_dir):
+    """Try to own this scan cycle under state_dir.
+
+    -> (dirfd, lockfd) held open on success — caller MUST _scan_unlock —
+    or None when a live peer holds the lock or the dir is unusable. A
+    lock older than LOCK_STALE_S is treated as abandoned and stolen.
+    """
+    try:
+        os.makedirs(state_dir, mode=0o700, exist_ok=True)
+        dirfd = _open_dir(state_dir)
+    except (PermissionError, OSError):
+        return None
+    for _ in range(2):
+        try:
+            fd = os.open(LOCK_NAME, os.O_WRONLY | os.O_CREAT |
+                         os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dirfd)
+            return dirfd, fd
+        except FileExistsError:
+            pass
+        except OSError:
+            break
+        try:
+            st = os.stat(LOCK_NAME, dir_fd=dirfd, follow_symlinks=False)
+        except OSError:
+            break
+        if not stat.S_ISREG(st.st_mode) or \
+                time.time() - st.st_mtime < LOCK_STALE_S:
+            break
+        try:
+            os.unlink(LOCK_NAME, dir_fd=dirfd)
+        except OSError:
+            break
+    os.close(dirfd)
+    return None
+
+
+def _scan_unlock(held):
+    """Release a _scan_lock() hold: unlink, then close both descriptors."""
+    dirfd, fd = held
+    try:
+        os.unlink(LOCK_NAME, dir_fd=dirfd)
+    except OSError:
+        pass
+    os.close(fd)
+    os.close(dirfd)
+
+
+def _bump_scan_cache(state_dir):
+    """Touch the cache mtime — a failed scan still consumes the cycle, so
+    the retry waits a full interval instead of hot-looping every poll."""
+    try:
+        dirfd = _open_dir(state_dir)
+    except (PermissionError, OSError):
+        return
+    try:
+        os.utime(CACHE_NAME, dir_fd=dirfd, follow_symlinks=False)
     except OSError:
         pass
     finally:
@@ -735,31 +817,89 @@ def probe(tool=_tool, run=_run, numbat_home=None, state_dir=None, now=None):
         result["findings_bytes"], result["findings_mtime"] = f_stat
 
     # --- scan + hook-status on a stale-cache cycle ---
+    # Two probes (service + panel) run this helper on overlapping timers;
+    # the state-dir lock makes sure only one `numbat scan` — a multi-
+    # second, whole-core crawl of every agent transcript — runs per cycle.
+    # While records.ndjson is fresh the live feed already carries what a
+    # rescan would reconstruct, so the scan cadence stretches to
+    # LIVE_SCAN_INTERVAL_S and intervening cycles do a cheap `hook status`
+    # refresh instead.
     cache = _load_scan_cache(state)
     prev_sample = (cache.get("records_size_sample")
                    if isinstance(cache, dict) else None)
-    if cache is None or not _fresh_enough(cache, time.time()):
-        records = _scan_records(binary, run)
-        hooked = _hooked_agents(binary, run)
-        if records is not None:
-            payload = {
-                "scanned_at": _iso_z(now),
-                "summary": _summarize_records(records, now),
-                "hooked_agents": hooked if isinstance(hooked, list) else [],
-                "records_size_sample": {
-                    "bytes": r_stat[0] if isinstance(r_stat, tuple) else 0,
-                    "at": time.time(),
-                },
-            }
-            _write_scan_cache(state, payload)
-            cache = dict(payload)
-            cache["_mtime"] = time.time()
-            result["scanned_at"] = payload["scanned_at"]
-        elif cache is not None:
-            result["scan_error"] = "scan failed; showing cached data"
-            result["scanned_at"] = cache.get("scanned_at")
+    now_ts = time.time()
+    cache_age = (now_ts - cache["_mtime"]
+                 if isinstance(cache, dict)
+                 and isinstance(cache.get("_mtime"), (int, float))
+                 else None)
+    live_fresh = (isinstance(r_stat, tuple)
+                  and (now_ts - r_stat[1]) < SCAN_INTERVAL_S)
+    scan_due = (cache_age is None
+                or cache_age >= (LIVE_SCAN_INTERVAL_S
+                                 if live_fresh else SCAN_INTERVAL_S))
+    if scan_due:
+        held = _scan_lock(state)
+        if held is None:
+            # A peer probe owns this cycle — serve what we have; its fresh
+            # cache lands for the next poll.
+            if cache is not None:
+                result["scanned_at"] = cache.get("scanned_at")
+            else:
+                result["scan_error"] = "scan in progress"
         else:
-            result["scan_error"] = "numbat scan failed"
+            try:
+                records = _scan_records(binary, run)
+                hooked = _hooked_agents(binary, run)
+                if records is not None:
+                    payload = {
+                        "scanned_at": _iso_z(now),
+                        "summary": _summarize_records(records, now),
+                        "hooked_agents":
+                            hooked if isinstance(hooked, list) else [],
+                        "records_size_sample": {
+                            "bytes": (r_stat[0]
+                                      if isinstance(r_stat, tuple) else 0),
+                            "at": time.time(),
+                        },
+                    }
+                    _write_scan_cache(state, payload)
+                    cache = dict(payload)
+                    cache["_mtime"] = time.time()
+                    result["scanned_at"] = payload["scanned_at"]
+                elif cache is not None:
+                    result["scan_error"] = "scan failed; showing cached data"
+                    result["scanned_at"] = cache.get("scanned_at")
+                    _bump_scan_cache(state)
+                else:
+                    result["scan_error"] = "numbat scan failed"
+                    payload = {
+                        "scanned_at": None,
+                        "summary": {},
+                        "hooked_agents": [],
+                        "records_size_sample": {
+                            "bytes": (r_stat[0]
+                                      if isinstance(r_stat, tuple) else 0),
+                            "at": now_ts,
+                        },
+                    }
+                    _write_scan_cache(state, payload)
+                    cache = dict(payload)
+                    cache["_mtime"] = time.time()
+            finally:
+                _scan_unlock(held)
+    elif live_fresh and cache_age >= SCAN_INTERVAL_S:
+        # Cheap in-between refresh: `hook status` only, then bump the cache
+        # TTL and size sample so a peer doesn't trigger the heavy path.
+        hooked = _hooked_agents(binary, run)
+        if isinstance(hooked, list):
+            refreshed = {k: v for k, v in cache.items() if k != "_mtime"}
+            refreshed["hooked_agents"] = hooked
+            refreshed["records_size_sample"] = {"bytes": r_stat[0],
+                                                "at": now_ts}
+            _write_scan_cache(state, refreshed)
+            cache = dict(refreshed)
+            cache["_mtime"] = now_ts
+        result["scanned_at"] = cache.get("scanned_at")
     else:
         result["scanned_at"] = cache.get("scanned_at")
 
