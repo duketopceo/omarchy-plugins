@@ -529,12 +529,36 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
+      // The card stack can exceed the panel cap — scroll instead of clipping
+      // the profile picker or consumers list below the fold.
+      Flickable {
+        id: scrollView
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: column.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
       Column {
         id: column
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
+        width: scrollView.width
         spacing: Style.space(14)
+
+        // ---------- Battery card ----------
+        Rectangle {
+          width: parent.width
+          radius: Style.cornerRadius
+          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.width: 1
+          implicitHeight: batteryCard.implicitHeight + Style.space(24)
+
+          Column {
+            id: batteryCard
+            x: Style.space(12)
+            y: Style.space(12)
+            width: parent.width - Style.space(24)
+            spacing: Style.space(14)
 
         // ---------- Hero: battery icon · title/status · percentage ----------
         Item {
@@ -750,17 +774,25 @@ Panel {
           // quietest line on the screen — backwards for a footnote.
           horizontalAlignment: Text.AlignLeft
         }
-
-        // ---------- Historical ASCII battery charge graph ----------
-        PanelSeparator {
-          visible: !!root.powerData.ascii_graph
-          foreground: root.bar.foreground
+          }
         }
 
-        Column {
+        // ---------- Charge history card ----------
+        Rectangle {
           width: parent.width
-          spacing: Style.space(6)
+          radius: Style.cornerRadius
+          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.width: 1
           visible: !!root.powerData.ascii_graph
+          implicitHeight: historyCard.implicitHeight + Style.space(24)
+
+          Column {
+            id: historyCard
+            x: Style.space(12)
+            y: Style.space(12)
+            width: parent.width - Style.space(24)
+            spacing: Style.space(6)
 
           PanelSectionHeader {
             text: "BATTERY CHARGE HISTORY"
@@ -815,18 +847,25 @@ Panel {
           }
           // The caption under the sparkline already carries the least-squares
           // drain slope, so a separate "Drain rate" row would only repeat it.
+          }
         }
 
-        // ---------- Drawing power now ----------
-        PanelSeparator {
-          visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
-          foreground: root.bar.foreground
-        }
-
-        Column {
+        // ---------- Drawing power now card ----------
+        Rectangle {
           width: parent.width
-          spacing: Style.space(6)
+          radius: Style.cornerRadius
+          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.width: 1
           visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
+          implicitHeight: consumersCard.implicitHeight + Style.space(24)
+
+          Column {
+            id: consumersCard
+            x: Style.space(12)
+            y: Style.space(12)
+            width: parent.width - Style.space(24)
+            spacing: Style.space(6)
 
           PanelSectionHeader {
             text: "DRAWING POWER NOW"
@@ -904,15 +943,23 @@ Panel {
             }
           }
         }
-
-        // ---------- Power profile picker ----------
-        PanelSeparator {
-          foreground: root.bar.foreground
         }
 
-        Column {
+        // ---------- Power profile card ----------
+        Rectangle {
           width: parent.width
-          spacing: Style.space(10)
+          radius: Style.cornerRadius
+          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.width: 1
+          implicitHeight: profileCard.implicitHeight + Style.space(24)
+
+          Column {
+            id: profileCard
+            x: Style.space(12)
+            y: Style.space(12)
+            width: parent.width - Style.space(24)
+            spacing: Style.space(10)
 
           PanelSectionHeader {
             text: "POWER PROFILE"
@@ -956,7 +1003,9 @@ Panel {
               }
             }
           }
+          }
         }
+      }
       }
     }
   }
