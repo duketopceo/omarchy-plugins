@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" alt="omarchy-fan" height="48">
+  </picture>
+</p>
+
 # Resource & Fan
 
 A native Omarchy bar widget that turns your top bar into a compact laptop resource monitor: RAM, CPU load, CPU/GPU/NVMe thermals, fan RPM, and top processes, plus manual and automatic fan-curve control.
@@ -139,3 +146,14 @@ their own `-m`/`--port` flags.
 ## License
 
 MIT
+
+## Status and design
+
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Design direction (Pilot Light, shared by the Omarchy plugin family): [DESIGN.md](DESIGN.md)
+- Landscape research: [docs/research/2026-10-11-landscape.md](docs/research/2026-10-11-landscape.md)
+- Authoring catalog and shared rules: https://github.com/duketopceo/omarchy-plugins
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/lukedaduke.fan/`). Send changes to the umbrella; a direct commit here is overwritten by the next publish.

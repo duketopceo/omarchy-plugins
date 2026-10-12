@@ -1,4 +1,13 @@
-# Neo — `io.github.duketopceo.neo`
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-dark.svg">
+    <img src="assets/brand/lockup.svg" alt="Neo" height="48">
+  </picture>
+</p>
+
+<p align="center"><strong>Status and control for the BrowserOS neo browser sidecar, in the Omarchy bar.</strong></p>
+
+<!-- Logo is a proposal pending owner sign-off. TODO: replace preview.png (a listing mock-up) with a real screenshot from a live Omarchy session. -->
 
 Bar status + control widget for the local **BrowserOS neo** sidecar: stock
 headless chromium + the `browserclaw` CDP shim + `browseros-claw-server`,
@@ -44,5 +53,27 @@ sidecar it renders DOWN — install it only where the sidecar exists.
 omarchy plugin add https://github.com/duketopceo/omarchy-neo
 omarchy plugin enable io.github.duketopceo.neo
 ```
+
+## How it works
+
+```mermaid
+flowchart LR
+  P[Panel.qml] -->|every 30 s| H[bin/probe_neo.py]
+  H --> U[systemctl --user show]
+  H --> T[/proc/net/tcp]
+  H --> M[MCP initialize on :9211]
+  H --> J[CDP shim /json/list]
+  P -->|click| H
+```
+
+## Status and roadmap
+
+Proposed program roadmap with difficulty, feasibility and simpler alternatives: [ROADMAP.md](ROADMAP.md). Design direction: [DESIGN.md](DESIGN.md). Landscape notes: [docs/research/2026-10-10-landscape.md](docs/research/2026-10-10-landscape.md).
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/io.github.duketopceo.neo/`). Open issues here; send changes to the umbrella, because a direct commit here is overwritten by the next publish. Read `AGENTS.md` first.
+
+## License
 
 MIT — see [LICENSE](LICENSE).

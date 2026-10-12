@@ -1,4 +1,13 @@
-# Hardware Nexus
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-dark.svg">
+    <img src="assets/brand/lockup.svg" alt="Hardware Nexus" height="48">
+  </picture>
+</p>
+
+<p align="center"><strong>A live hardware topology map of USB, Bluetooth, network and storage, from the Omarchy bar.</strong></p>
+
+<!-- Logo is a proposal pending owner sign-off. TODO: replace preview.png (a listing mock-up) with a real screenshot from a live Omarchy session. -->
 
 A native Omarchy bar widget that opens a live hardware topology radar: USB bus,
 Bluetooth mesh, network interfaces and VPNs, NVMe/storage, and internal
@@ -40,6 +49,26 @@ omarchy plugin enable lukedaduke.nexus
 ```bash
 omarchy plugin remove lukedaduke.nexus
 ```
+
+## How it works
+
+```mermaid
+flowchart LR
+  P[Panel.qml] --> H[bin/probe_nexus.py]
+  H --> U[/sys/bus/usb/devices]
+  H --> B[bluetoothctl]
+  H --> N[ip -j addr]
+  H --> L[lsblk -J]
+  H -->|bounded JSON| P
+```
+
+## Status and roadmap
+
+Proposed program roadmap with difficulty, feasibility and simpler alternatives: [ROADMAP.md](ROADMAP.md). Design direction: [DESIGN.md](DESIGN.md). Landscape notes: [docs/research/2026-10-10-landscape.md](docs/research/2026-10-10-landscape.md).
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/lukedaduke.nexus/`). Open issues here; send changes to the umbrella, because a direct commit here is overwritten by the next publish. Read `AGENTS.md` first.
 
 ## License
 

@@ -1,4 +1,13 @@
-# Bumblebee
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/lockup-dark.svg">
+    <img src="assets/brand/lockup.svg" alt="Bumblebee" height="48">
+  </picture>
+</p>
+
+<p align="center"><strong>Supply-chain exposure radar for the Omarchy bar.</strong></p>
+
+<!-- Logo is a proposal pending owner sign-off. TODO: replace preview.png (a listing mock-up) with a real screenshot from a live Omarchy session. -->
 
 Supply-chain exposure radar for the Omarchy bar. Periodically scans installed
 packages, lockfiles, extension manifests, and MCP configs against a catalog of
@@ -106,5 +115,27 @@ omarchy plugin disable io.github.duketopceo.bumblebee
 omarchy plugin remove io.github.duketopceo.bumblebee
 rm -rf ~/.local/state/omarchy/bumblebee ~/.config/omarchy/plugins-data/bumblebee
 ```
+
+## How it works
+
+```mermaid
+flowchart LR
+  S[Service.qml, hourly check] -->|stale?| H[bin/scan_bumblebee.py]
+  H --> B[bumblebee baseline]
+  C[catalog/exposures.json + catalog.d] --> H
+  H --> J[(last-scan.json cache)]
+  J --> P[Panel.qml shield + tabs]
+  J -->|new exposure| T[toast]
+```
+
+## Status and roadmap
+
+Proposed program roadmap with difficulty, feasibility and simpler alternatives: [ROADMAP.md](ROADMAP.md). Design direction: [DESIGN.md](DESIGN.md). Landscape notes: [docs/research/2026-10-10-landscape.md](docs/research/2026-10-10-landscape.md).
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/io.github.duketopceo.bumblebee/`). Open issues here; send changes to the umbrella, because a direct commit here is overwritten by the next publish. Read `AGENTS.md` first.
+
+## License
 
 MIT — see [LICENSE](LICENSE). Upstream: Apache-2.0 (Perplexity).
