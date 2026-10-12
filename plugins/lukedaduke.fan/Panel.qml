@@ -96,7 +96,8 @@ Panel {
   readonly property color fg: bar ? bar.foreground : Color.foreground
   readonly property color urgent: Color.urgent
   readonly property color accent: Color.accent
-  readonly property color muted: Color.muted
+  // Color.muted fails WCAG AA on 20 of 22 bundled themes; derive from foreground (DESIGN.md).
+  readonly property color muted: Util.alpha(Color.foreground, 0.85)
   readonly property color surface: Color.popups.background
   // Identity-dot palette: theme-derived only (no hardcoded hex). Cycled per
   // row so adjacent processes read as distinct; cpu>=50 overrides to urgent.
