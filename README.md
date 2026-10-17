@@ -16,7 +16,7 @@
 ## Stack
 
 - Quickshell / QML (Omarchy shell plugins)
-- Python 3 helpers (fan stats, market quotes)
+- Python 3 helpers (hardware and power stats, weather, supply-chain and agent-activity scans, Perplexity search)
 - Bash installer
 
 ## Local Setup
@@ -53,6 +53,10 @@ required. See `.env.example`.
 | `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
 | `lukedaduke.nexus` | Hardware topology radar: USB/BT/NVMe interconnect map |
 | `lukedaduke.power` | Battery status, charge graph, top consumers, power profiles |
+| `io.github.duketopceo.bumblebee` | Supply-chain exposure radar: packages and dev tools checked against a known-compromise catalog |
+| `io.github.duketopceo.numbat` | AI-agent activity radar: live agent list and findings from Perplexity's numbat monitor |
+| `io.github.duketopceo.pplx` | Quick-ask UI for the Perplexity Search API (`pplx` CLI, bring your own key) |
+| `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
 
 ### Retired
 
@@ -72,6 +76,10 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
 | `lukedaduke.nexus` | https://github.com/duketopceo/omarchy-nexus |
 | `lukedaduke.power` | https://github.com/duketopceo/omarchy-power |
+| `io.github.duketopceo.bumblebee` | https://github.com/duketopceo/omarchy-bumblebee |
+| `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
+| `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
+| `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
 
 Install any of them with:
 
@@ -93,7 +101,7 @@ See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 - Active inventory review: [`docs/reviews/active-plugin-estate.md`](docs/reviews/active-plugin-estate.md)
 - Deep runtime/source audit: [`docs/reviews/active-plugin-deep-audit.md`](docs/reviews/active-plugin-deep-audit.md)
 - Host integration health: [`docs/HOST_INTEGRATION.md`](docs/HOST_INTEGRATION.md)
-- Secret/data lifecycle: [`docs/DATA_LIFECYCLE.md`](docs/DATA_LIFECYCLE.md)
+- Secret/data lifecycle: [`docs/DATA-LIFECYCLE.md`](docs/DATA-LIFECYCLE.md)
 - Surface migration dry-run: [`docs/SURFACE-MIGRATION.md`](docs/SURFACE-MIGRATION.md)
 - Release/publish workflow: [`docs/UPSTREAM.md`](docs/UPSTREAM.md)
 - See `AGENTS.md` for agent context.

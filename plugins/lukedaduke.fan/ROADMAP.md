@@ -97,14 +97,15 @@ Current state: v2.5.1. Open PR #28 (`feat/fan-polish`, draft) is the card-style 
 
 ## Current status
 
-Ready to install. The manifest, README, and LICENSE all pass `omarchy plugin validate`. Not yet submitted to the Omarchy marketplace.
+Ready to install. The manifest, README, and LICENSE all pass `omarchy plugin validate`. The marketplace registry does not list it yet.
 
 ## Launch checklist
 
-- [ ] Add a clean `preview.png` (bar widget and panel)
+- [x] Add a clean `preview.png` (bar widget and panel)
 - [ ] Submit to https://plugins.omarchy.org/publish.html
-- [ ] Set GitHub repo topics and social preview
-- [ ] Add a one-line tagline to the GitHub repo description
+- [x] Set GitHub repo topics
+- [ ] Set GitHub social preview
+- [x] Add a one-line tagline to the GitHub repo description
 - [ ] Write a short release note / social post
 
 ## Future work
