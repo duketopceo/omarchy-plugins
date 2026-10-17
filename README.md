@@ -1,6 +1,13 @@
 # omarchy-plugins
 
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" alt="omarchy-plugins" height="48">
+  </picture>
+</p>
+
+<p align="center">
   <img src="docs/assets/social.png" alt="omarchy-plugins" width="640" />
 </p>
 
@@ -87,6 +94,8 @@ This umbrella stays the authoring catalog — edit here, then `git subtree push 
 See [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
 ## Docs
+
+- Design direction for every plugin (Pilot Light): [`DESIGN.md`](DESIGN.md); roadmap: [`ROADMAP.md`](ROADMAP.md); landscape: [`docs/research/2026-10-11-landscape.md`](docs/research/2026-10-11-landscape.md)
 
 - Plugin trust/reliability rules: [`docs/PLUGIN_CONTRACT.md`](docs/PLUGIN_CONTRACT.md)
 - Active inventory review: [`docs/reviews/active-plugin-estate.md`](docs/reviews/active-plugin-estate.md)

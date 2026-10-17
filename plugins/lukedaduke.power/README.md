@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" alt="omarchy-power" height="48">
+  </picture>
+</p>
+
 # Power
 
 An Omarchy bar widget for laptop power: live battery status, a historical ASCII charge graph, top resource consumers, and power-profile switching.
@@ -32,3 +39,14 @@ omarchy plugin remove lukedaduke.power
 ```
 
 MIT — see [LICENSE](LICENSE).
+
+## Status and design
+
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Design direction (Pilot Light, shared by the Omarchy plugin family): [DESIGN.md](DESIGN.md)
+- Landscape research: [docs/research/2026-10-11-landscape.md](docs/research/2026-10-11-landscape.md)
+- Authoring catalog and shared rules: https://github.com/duketopceo/omarchy-plugins
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/lukedaduke.power/`). Send changes to the umbrella; a direct commit here is overwritten by the next publish.

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" alt="omarchy-standby" height="48">
+  </picture>
+</p>
+
 # Standby
 
 An OLED-friendly nightstand overlay for Omarchy — iPhone StandBy-style horizontal display that can be summoned manually without touching the screensaver or lock screen.
@@ -37,3 +44,14 @@ omarchy-shell shell hide lukedaduke.standby
 ## License
 
 MIT
+
+## Status and design
+
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Design direction (Pilot Light, shared by the Omarchy plugin family): [DESIGN.md](DESIGN.md)
+- Landscape research: [docs/research/2026-10-11-landscape.md](docs/research/2026-10-11-landscape.md)
+- Authoring catalog and shared rules: https://github.com/duketopceo/omarchy-plugins
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/lukedaduke.standby/`). Send changes to the umbrella; a direct commit here is overwritten by the next publish.

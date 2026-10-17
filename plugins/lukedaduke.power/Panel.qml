@@ -763,7 +763,7 @@ Panel {
           // here silently yields an empty string and the line vanishes.
           text: root.packFooter
           color: root.bar.foreground
-          opacity: 0.45
+          opacity: 0.85
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
           // Wrap rather than elide: a long gauge model must push the line to a
@@ -840,7 +840,7 @@ Panel {
             textFormat: Text.PlainText
             text: "watts"
             color: root.bar.foreground
-            opacity: 0.4
+            opacity: 0.85
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignRight
@@ -882,7 +882,7 @@ Panel {
             textFormat: Text.PlainText
             text: "cpu share over ~30 s · ≈W of pack draw"
             color: root.bar.foreground
-            opacity: 0.4
+            opacity: 0.85
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
           }
@@ -925,7 +925,7 @@ Panel {
                   textFormat: Text.PlainText
                   text: Model.fmtEstWatts(modelData.watts)
                   color: root.bar.foreground
-                  opacity: 0.7
+                  opacity: 0.85
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   horizontalAlignment: Text.AlignRight
@@ -1033,7 +1033,7 @@ Panel {
         textFormat: Text.PlainText
         text: "BATTERY HEALTH"
         color: root.bar.foreground
-        opacity: 0.6
+        opacity: 0.85
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.caption
         font.bold: true
@@ -1079,7 +1079,7 @@ Panel {
       textFormat: Text.PlainText
       text: gauge.caption
       color: root.bar.foreground
-      opacity: 0.45
+      opacity: 0.85
       font.family: root.bar.fontFamily
       font.pixelSize: Style.font.caption
       elide: Text.ElideRight
@@ -1117,7 +1117,7 @@ Panel {
   component InfoLabel: Text {
     textFormat: Text.PlainText
     color: root.bar.foreground
-    opacity: 0.6
+    opacity: 0.85
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.bodySmall
   }

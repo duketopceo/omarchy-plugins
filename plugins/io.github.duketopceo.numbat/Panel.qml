@@ -97,7 +97,8 @@ Panel {
   }
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color dim: Qt.darker(foreground, 1.5)
+  // foreground at 0.85 alpha keeps >= 4.5:1 on every bundled theme (DESIGN.md)
+  readonly property color dim: Util.alpha(foreground, 0.85)
   readonly property color accent: Color.accent
   readonly property color urgent: (Color.urgent === undefined || Color.urgent === null) ? foreground : Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family

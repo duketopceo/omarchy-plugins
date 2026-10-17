@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/wordmark-dark.svg">
+    <img src="assets/brand/wordmark.svg" alt="omarchy-numbat" height="48">
+  </picture>
+</p>
+
 # Numbat
 
 AI-agent activity radar for the Omarchy bar. Ambient visibility into what your
@@ -119,3 +126,14 @@ omarchy plugin remove io.github.duketopceo.numbat
 `~/.numbat/` is upstream's data dir — remove it separately if you also uninstall numbat.
 
 MIT — see [LICENSE](LICENSE). Upstream: Apache-2.0 (Perplexity).
+
+## Status and design
+
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Design direction (Pilot Light, shared by the Omarchy plugin family): [DESIGN.md](DESIGN.md)
+- Landscape research: [docs/research/2026-10-11-landscape.md](docs/research/2026-10-11-landscape.md)
+- Authoring catalog and shared rules: https://github.com/duketopceo/omarchy-plugins
+
+## Contributing
+
+This repository is the published mirror of [`duketopceo/omarchy-plugins`](https://github.com/duketopceo/omarchy-plugins) (`plugins/io.github.duketopceo.numbat/`). Send changes to the umbrella; a direct commit here is overwritten by the next publish.
