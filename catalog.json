@@ -79,7 +79,7 @@
     {
       "id": "io.github.duketopceo.nordvpn",
       "path": "plugins/io.github.duketopceo.nordvpn",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "kinds": [
         "bar-widget"
       ],
