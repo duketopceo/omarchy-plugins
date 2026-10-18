@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.nordvpn",
+  "name": "NordVPN",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "NordVPN status, connect/disconnect, kill switch, and country picker in the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "NordVPN",
+    "description": "VPN status, connect/disconnect, kill switch, country picker",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}

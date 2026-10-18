@@ -25,6 +25,7 @@ declare -A REPO=(
   [io.github.duketopceo.numbat]="git@github.com:duketopceo/omarchy-numbat.git"
   [io.github.duketopceo.pplx]="git@github.com:duketopceo/omarchy-pplx.git"
   [io.github.duketopceo.neo]="git@github.com:duketopceo/omarchy-neo.git"
+  [io.github.duketopceo.nordvpn]="git@github.com:duketopceo/omarchy-nordvpn.git"
 )
 
 # Dry-run diff: list files present on the remote ref but absent from the

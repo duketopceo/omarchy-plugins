@@ -75,6 +75,15 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-neo"
+    },
+    {
+      "id": "io.github.duketopceo.nordvpn",
+      "path": "plugins/io.github.duketopceo.nordvpn",
+      "version": "0.1.0",
+      "kinds": [
+        "bar-widget"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-nordvpn"
     }
   ]
 }
