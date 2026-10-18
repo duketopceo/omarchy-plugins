@@ -77,6 +77,7 @@ Panel {
 
   function applyStatus(data) {
     if (!data || typeof data !== "object") return
+    var wasConnected = root.connected
     root.cliOk = data.cli === true
     root.loggedIn = data.logged_in === true
     var s = data.status
@@ -88,7 +89,9 @@ Panel {
     root.statusKnown = true
     root.lastError = (typeof data.error === "string" && data.error !== null)
                      ? data.error : ""
-    if (root.connected) root.close()      // landed ON after a pick → panel away
+    // close only on the OFF→ON transition (a pick landing) — a steady ON
+    // must not slam the panel every poll
+    if (!wasConnected && root.connected) root.close()
   }
 
   function groupKill(proc) {
