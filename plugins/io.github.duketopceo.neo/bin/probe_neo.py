@@ -24,9 +24,9 @@ Verbs — exactly one JSON object on stdout, exit 0:
        "capabilities": {"sidecar": bool},
        "error": str|null}
 
-      capabilities.sidecar is false only when a successful systemctl show
-      reports LoadState=not-found for every unit. A failed systemctl leaves
-      sidecar true so the panel never hides on probe failure.
+      capabilities.sidecar is false only when systemctl show exits 0 and
+      every unit reports LoadState=not-found. Nonzero rc, timeout, or any
+      other/missing LoadState leaves sidecar true (never hide on failure).
 
   start | stop | restart [unit]
       systemctl --user <verb> on all three units — or one when `unit` is a
@@ -95,16 +95,18 @@ def _run(argv, timeout_s=8.0, max_bytes=65536):
 def _unit_states():
     """One `systemctl show` for all three units.
 
-    Returns ({key: {active,sub,pid,loaded}}, show_ok). show_ok is False when
-    systemctl itself failed (timeout/missing binary); then loaded stays False
-    but callers must not treat that as "units absent".
+    Returns ({key: {active,sub,pid,load_state,loaded}}, show_ok). show_ok is
+    True only when systemctl exits 0. Timeout, missing binary, or nonzero rc
+    leave load_state None / loaded False — callers must not treat that as
+    "units absent".
     """
     rc, out = _run([SYSTEMCTL, "--user", "show",
                     "-p", "Id,LoadState,ActiveState,SubState,MainPID",
                     *[UNITS[k] for k in UNITS]])
-    states = {k: {"active": False, "sub": "unknown", "pid": 0, "loaded": False}
+    states = {k: {"active": False, "sub": "unknown", "pid": 0,
+                  "load_state": None, "loaded": False}
               for k in UNITS}
-    if rc is None:
+    if rc != 0:
         return states, False
     by_name = {v: k for k, v in UNITS.items()}
     cur = None
@@ -118,6 +120,7 @@ def _unit_states():
             cur = states.get(by_name.get(name, ""))
         elif cur is not None:
             if key == "LoadState":
+                cur["load_state"] = val
                 cur["loaded"] = val == "loaded"
             elif key == "ActiveState":
                 cur["active"] = val == "active"
@@ -133,10 +136,14 @@ def _unit_states():
 
 
 def _sidecar_present(states, show_ok):
-    """True unless a successful show found every unit LoadState=not-found."""
+    """False only when show succeeded and every unit is LoadState=not-found.
+
+    Failed systemctl, missing LoadState, masked/error/bad-setting, or any
+    loaded unit all count as present (do not hide the widget).
+    """
     if not show_ok:
         return True
-    return any(s.get("loaded") for s in states.values())
+    return not all(s.get("load_state") == "not-found" for s in states.values())
 
 
 def _listening_ports():

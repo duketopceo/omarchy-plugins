@@ -66,11 +66,14 @@ def test_unit_states_parses_show_output():
     st, ok = mod._unit_states()
     assert ok is True
     assert st["chromium"] == {
-        "active": True, "sub": "running", "pid": 1234, "loaded": True}
+        "active": True, "sub": "running", "pid": 1234,
+        "load_state": "loaded", "loaded": True}
     assert st["shim"] == {
-        "active": False, "sub": "dead", "pid": 0, "loaded": True}
+        "active": False, "sub": "dead", "pid": 0,
+        "load_state": "loaded", "loaded": True}
     assert st["server"]["pid"] == 5678
     assert st["server"]["loaded"] is True
+    assert st["server"]["load_state"] == "loaded"
 
 
 def test_unit_states_survive_systemctl_failure():
@@ -80,7 +83,18 @@ def test_unit_states_survive_systemctl_failure():
     assert ok is False
     assert all(v["active"] is False for v in st.values())
     assert all(v["loaded"] is False for v in st.values())
+    assert all(v["load_state"] is None for v in st.values())
     assert set(st) == {"chromium", "shim", "server"}
+
+
+def test_unit_states_nonzero_rc_is_not_success():
+    mod = load()
+    # Nonzero rc with empty/partial output must not count as a successful show.
+    mod._run = lambda argv, **kw: (1, "")
+    st, ok = mod._unit_states()
+    assert ok is False
+    assert all(v["load_state"] is None for v in st.values())
+    assert mod._sidecar_present(st, ok) is True
 
 
 def test_listening_ports_shape():
@@ -147,6 +161,7 @@ def test_status_sidecar_false_when_units_not_found(monkeypatch):
     assert data["ports"] == {"9211": False, "49337": False, "49338": False}
     assert data["tabs"] is None
     assert data["endpoint"] == mod.ENDPOINT
+    assert all(u["load_state"] == "not-found" for u in data["units"].values())
 
 
 def test_status_sidecar_true_when_systemctl_fails(monkeypatch):
@@ -158,6 +173,37 @@ def test_status_sidecar_true_when_systemctl_fails(monkeypatch):
     monkeypatch.setattr(mod, "_tab_count", lambda: None)
     data = mod._status()
     assert data["capabilities"]["sidecar"] is True
+
+
+def test_sidecar_present_true_for_masked_or_error_units():
+    mod = load()
+    # All units exist but are masked — not "absent".
+    masked = {k: {"active": False, "sub": "dead", "pid": 0,
+                  "load_state": "masked", "loaded": False}
+              for k in mod.UNITS}
+    assert mod._sidecar_present(masked, True) is True
+    errored = {k: {"active": False, "sub": "dead", "pid": 0,
+                   "load_state": "error", "loaded": False}
+               for k in mod.UNITS}
+    assert mod._sidecar_present(errored, True) is True
+    # Missing LoadState after a "successful" parse must not hide either.
+    missing = {k: {"active": False, "sub": "unknown", "pid": 0,
+                   "load_state": None, "loaded": False}
+               for k in mod.UNITS}
+    assert mod._sidecar_present(missing, True) is True
+
+
+def test_sidecar_present_false_only_when_all_explicitly_not_found():
+    mod = load()
+    absent = {k: {"active": False, "sub": "dead", "pid": 0,
+                  "load_state": "not-found", "loaded": False}
+              for k in mod.UNITS}
+    assert mod._sidecar_present(absent, True) is False
+    # One loaded unit among not-found → still present.
+    mixed = dict(absent)
+    mixed["server"] = {"active": True, "sub": "running", "pid": 1,
+                       "load_state": "loaded", "loaded": True}
+    assert mod._sidecar_present(mixed, True) is True
 
 
 def test_control_rejects_bad_verb_and_bounds_calls(monkeypatch):

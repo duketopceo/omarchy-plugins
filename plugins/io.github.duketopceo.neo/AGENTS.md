@@ -43,9 +43,9 @@ This plugin lives only under
 - Control verbs can legitimately wait out a unit's `TimeoutStopSec` — the
   helper's JOB_DEADLINE_S (50s) and the panel's control deadline (55s) are
   sized for that; do not shrink them below a stop timeout.
-- Status payloads include `capabilities.sidecar`. False only when a successful
-  `systemctl show` reports every unit `LoadState=not-found`. A failed
-  systemctl must not hide the widget.
+- Status payloads include `capabilities.sidecar`. False only when `systemctl
+  show` exits 0 and every unit reports `LoadState=not-found`. Nonzero rc,
+  timeout, masked/error/missing LoadState must not hide the widget.
 - MCP "up" means a real `initialize` answered `serverInfo` — keep that the
   truth test; a bound socket alone can be a wedged process.
 - Never edit `/usr/share/omarchy/`.
