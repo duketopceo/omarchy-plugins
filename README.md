@@ -49,7 +49,7 @@ required. See `.env.example`.
 | `io.github.duketopceo.bumblebee` | Supply-chain exposure radar: packages and dev tools checked against a known-compromise catalog |
 | `io.github.duketopceo.numbat` | AI-agent activity radar: live agent list and findings from Perplexity's numbat monitor |
 | `io.github.duketopceo.pplx` | Quick-ask UI for the Perplexity Search API (`pplx` CLI, bring your own key) |
-| `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
+| `io.github.duketopceo.neo` | **Local-only** BrowserOS neo sidecar status/control (hides when units absent; not published) |
 
 ### Retired
 
@@ -72,9 +72,12 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.bumblebee` | https://github.com/duketopceo/omarchy-bumblebee |
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
-| `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
 
-Install any of them with:
+`io.github.duketopceo.neo` is **local-only** (catalog `localOnly: true`) and is
+not published via `scripts/publish.sh`. Install it from this umbrella with
+`scripts/install.sh`.
+
+Install any published plugin with:
 
 ```bash
 omarchy plugin add https://github.com/duketopceo/omarchy-fan

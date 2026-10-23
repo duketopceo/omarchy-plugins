@@ -310,6 +310,26 @@ def test_non_retiring_stub_without_catalog_entry_still_fails(tmp_path: Path) -> 
     assert any("missing catalog entry" in e for e in module.check_tree(plugin_root, catalog))
 
 
+def test_local_only_catalog_entry_allows_null_repo(tmp_path: Path) -> None:
+    module = load_module()
+    plugin_root, catalog = _stub_repo(
+        tmp_path, [],
+        [{"id": "old.stub", "version": "3.0.0", "localOnly": True, "repo": None}])
+    errors = module.check_tree(plugin_root, catalog)
+    assert not any("catalog repository is missing" in e for e in errors), errors
+    assert not any("catalog version mismatch" in e for e in errors), errors
+
+
+def test_local_only_catalog_entry_rejects_publish_repo(tmp_path: Path) -> None:
+    module = load_module()
+    plugin_root, catalog = _stub_repo(
+        tmp_path, [],
+        [{"id": "old.stub", "version": "3.0.0", "localOnly": True,
+          "repo": "https://example.com/neo"}])
+    errors = module.check_tree(plugin_root, catalog)
+    assert any("localOnly catalog entry must not set repo" in e for e in errors)
+
+
 def test_retiring_plugin_still_in_catalog_keeps_parity_checks(tmp_path: Path) -> None:
     module = load_module()
     plugin_root, catalog = _stub_repo(tmp_path, ["old.stub"],

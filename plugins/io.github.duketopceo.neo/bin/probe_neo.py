@@ -15,12 +15,18 @@ The sidecar is three systemd user units on this machine:
 Verbs — exactly one JSON object on stdout, exit 0:
 
   status (default)
-      {"ok": true, "units": {"chromium": {"active","sub","pid"},
+      {"ok": true, "units": {"chromium": {"active","sub","pid","loaded"},
         "shim": {...}, "server": {...}},
        "ports": {"9211": bool, "49337": bool, "49338": bool},
        "mcp": {"up": bool, "server": str|null, "version": str|null},
        "tabs": int|null,
-       "endpoint": "http://127.0.0.1:9211/mcp", "error": str|null}
+       "endpoint": "http://127.0.0.1:9211/mcp",
+       "capabilities": {"sidecar": bool},
+       "error": str|null}
+
+      capabilities.sidecar is false only when a successful systemctl show
+      reports LoadState=not-found for every unit. A failed systemctl leaves
+      sidecar true so the panel never hides on probe failure.
 
   start | stop | restart [unit]
       systemctl --user <verb> on all three units — or one when `unit` is a
@@ -87,14 +93,19 @@ def _run(argv, timeout_s=8.0, max_bytes=65536):
 
 
 def _unit_states():
-    """One `systemctl show` for all three units -> {key: {active,sub,pid}}."""
+    """One `systemctl show` for all three units.
+
+    Returns ({key: {active,sub,pid,loaded}}, show_ok). show_ok is False when
+    systemctl itself failed (timeout/missing binary); then loaded stays False
+    but callers must not treat that as "units absent".
+    """
     rc, out = _run([SYSTEMCTL, "--user", "show",
-                    "-p", "Id,ActiveState,SubState,MainPID",
+                    "-p", "Id,LoadState,ActiveState,SubState,MainPID",
                     *[UNITS[k] for k in UNITS]])
-    states = {k: {"active": False, "sub": "unknown", "pid": 0}
+    states = {k: {"active": False, "sub": "unknown", "pid": 0, "loaded": False}
               for k in UNITS}
     if rc is None:
-        return states
+        return states, False
     by_name = {v: k for k, v in UNITS.items()}
     cur = None
     for line in out.splitlines():
@@ -106,7 +117,9 @@ def _unit_states():
             name = val[:-len(".service")] if val.endswith(".service") else val
             cur = states.get(by_name.get(name, ""))
         elif cur is not None:
-            if key == "ActiveState":
+            if key == "LoadState":
+                cur["loaded"] = val == "loaded"
+            elif key == "ActiveState":
                 cur["active"] = val == "active"
                 cur["sub"] = val
             elif key == "SubState":
@@ -116,7 +129,14 @@ def _unit_states():
                     cur["pid"] = max(0, int(val))
                 except ValueError:
                     cur["pid"] = 0
-    return states
+    return states, True
+
+
+def _sidecar_present(states, show_ok):
+    """True unless a successful show found every unit LoadState=not-found."""
+    if not show_ok:
+        return True
+    return any(s.get("loaded") for s in states.values())
 
 
 def _listening_ports():
@@ -198,17 +218,22 @@ def _tab_count():
 
 
 def _status(check_mcp=True):
-    units = _unit_states()
-    ports = _listening_ports()
-    mcp_up, mcp_name, mcp_ver = _mcp_health() if check_mcp \
+    units, show_ok = _unit_states()
+    sidecar = _sidecar_present(units, show_ok)
+    ports = _listening_ports() if sidecar else {k: False for k in PORTS}
+    # Skip MCP/tabs when the sidecar units are not installed — nothing to ask.
+    do_mcp = check_mcp and sidecar
+    mcp_up, mcp_name, mcp_ver = _mcp_health() if do_mcp \
         else (False, None, None)
+    tabs = _tab_count() if sidecar else None
     return {
         "ok": True,
         "units": units,
         "ports": ports,
         "mcp": {"up": mcp_up, "server": mcp_name, "version": mcp_ver},
-        "tabs": _tab_count(),
+        "tabs": tabs,
         "endpoint": ENDPOINT,
+        "capabilities": {"sidecar": sidecar},
         "error": None,
     }
 
