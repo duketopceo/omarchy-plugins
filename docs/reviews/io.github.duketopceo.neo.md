@@ -29,6 +29,6 @@ See docs/SCORECARD.md for semantics.
       "date": null
     }
   },
-  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+  "notes": "U17 2026-10-23: localOnly in catalog; publish.sh mapping removed; probe emits capabilities.sidecar and panel hides when units are LoadState=not-found. Scorecard criteria still pending assessment."
 }
 ```

@@ -13,18 +13,16 @@ SYNC_SHARED="$UMBRELLA/scripts/sync-shared.py"
 ALLOW_DELETE=""
 
 # Keyed by full plugin id — the directory name under plugins/.
+# Publishable plugins only. Retired stubs (connections/ticker/agents) and
+# local-only neo stay out of this map so `publish.sh all` cannot republish them.
 declare -A REPO=(
   [lukedaduke.fan]="git@github.com:duketopceo/omarchy-fan.git"
-  [lukedaduke.ticker]="git@github.com:duketopceo/omarchy-ticker.git"
-  [lukedaduke.agents]="git@github.com:duketopceo/omarchy-agents.git"
   [lukedaduke.standby]="git@github.com:duketopceo/omarchy-standby.git"
   [lukedaduke.nexus]="git@github.com:duketopceo/omarchy-nexus.git"
-  [lukedaduke.connections]="git@github.com:duketopceo/omarchy-connections.git"
   [lukedaduke.power]="git@github.com:duketopceo/omarchy-power.git"
   [io.github.duketopceo.bumblebee]="git@github.com:duketopceo/omarchy-bumblebee.git"
   [io.github.duketopceo.numbat]="git@github.com:duketopceo/omarchy-numbat.git"
   [io.github.duketopceo.pplx]="git@github.com:duketopceo/omarchy-pplx.git"
-  [io.github.duketopceo.neo]="git@github.com:duketopceo/omarchy-neo.git"
 )
 
 # Dry-run diff: list files present on the remote ref but absent from the

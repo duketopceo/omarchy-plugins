@@ -70,11 +70,12 @@
     {
       "id": "io.github.duketopceo.neo",
       "path": "plugins/io.github.duketopceo.neo",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "kinds": [
         "bar-widget"
       ],
-      "repo": "https://github.com/duketopceo/omarchy-neo"
+      "localOnly": true,
+      "repo": null
     }
   ]
 }

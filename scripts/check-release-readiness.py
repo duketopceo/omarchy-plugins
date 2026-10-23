@@ -131,7 +131,12 @@ def _check_plugin(
     else:
         if str(catalog_entry.get("version")) != str(manifest.get("version")):
             errors.append(f"{plugin.name}: catalog version mismatch")
-        if not catalog_entry.get("repo"):
+        # localOnly plugins stay in the umbrella catalog but are excluded from
+        # subtree publish, so a null/absent repo is required rather than a URL.
+        if catalog_entry.get("localOnly") is True:
+            if catalog_entry.get("repo"):
+                errors.append(f"{plugin.name}: localOnly catalog entry must not set repo")
+        elif not catalog_entry.get("repo"):
             errors.append(f"{plugin.name}: catalog repository is missing")
     architectures = manifest.get("architectures", manifest.get("architectureSupport"))
     if not architectures:

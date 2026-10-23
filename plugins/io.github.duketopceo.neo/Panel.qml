@@ -16,15 +16,20 @@ Panel {
 
   property bool statusKnown: false
   property bool busy: false           // a control verb is in flight
+  property bool sidecarPresent: true  // false only after probe reports units absent
   property var units: ({})
   property var ports: ({})
   property bool mcpUp: false
   property string mcpName: ""
   property string mcpVersion: ""
   property int tabs: -1               // -1 = unknown (shim down/unprobed)
-  property string endpoint: "http://127.0.0.1:9211/mcp"
+  property string endpoint: ""        // filled from helper status payload
   property string lastError: ""
   property string lastAction: ""
+
+  // Local-only plugin: hide the bar glyph when the sidecar units are not installed.
+  visible: root.sidecarPresent
+  implicitWidth: button.implicitWidth
 
   readonly property int unitCount: 3
   readonly property int unitsUp: (units.chromium && units.chromium.active ? 1 : 0)
@@ -94,6 +99,15 @@ Panel {
 
   function applyStatus(data) {
     if (!data || typeof data !== "object") return
+    var caps = data.capabilities
+    if (caps && typeof caps === "object" && caps.sidecar === false) {
+      root.sidecarPresent = false
+      root.statusKnown = true
+      statusTimer.stop()
+      return
+    }
+    if (caps && typeof caps === "object" && caps.sidecar === true)
+      root.sidecarPresent = true
     var u = data.units
     if (u && typeof u === "object" && !Array.isArray(u)) root.units = u
     var p = data.ports
