@@ -1,89 +1,98 @@
 {
-  "name": "omarchy-plugins",
-  "owner": "duketopceo",
-  "plugins": [
-    {
-      "id": "lukedaduke.fan",
-      "path": "plugins/lukedaduke.fan",
-      "version": "2.5.1",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-fan"
-    },
-    {
-      "id": "lukedaduke.standby",
-      "path": "plugins/lukedaduke.standby",
-      "version": "1.0.4",
-      "kinds": [
-        "overlay"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-standby"
-    },
-    {
-      "id": "lukedaduke.nexus",
-      "path": "plugins/lukedaduke.nexus",
-      "version": "1.0.3",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-nexus"
-    },
-    {
-      "id": "lukedaduke.power",
-      "path": "plugins/lukedaduke.power",
-      "version": "1.2.0",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-power"
-    },
-    {
-      "id": "io.github.duketopceo.bumblebee",
-      "path": "plugins/io.github.duketopceo.bumblebee",
-      "version": "0.4.0",
-      "kinds": [
-        "service",
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-bumblebee"
-    },
-    {
-      "id": "io.github.duketopceo.numbat",
-      "path": "plugins/io.github.duketopceo.numbat",
-      "version": "0.4.1",
-      "kinds": [
-        "service",
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-numbat"
-    },
-    {
-      "id": "io.github.duketopceo.pplx",
-      "path": "plugins/io.github.duketopceo.pplx",
-      "version": "0.2.1",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-pplx"
-    },
-    {
-      "id": "io.github.duketopceo.neo",
-      "path": "plugins/io.github.duketopceo.neo",
-      "version": "0.2.0",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-neo"
-    },
-    {
-      "id": "io.github.duketopceo.nordvpn",
-      "path": "plugins/io.github.duketopceo.nordvpn",
-      "version": "0.1.1",
-      "kinds": [
-        "bar-widget"
-      ],
-      "repo": "https://github.com/duketopceo/omarchy-nordvpn"
-    }
-  ]
+ "name": "omarchy-plugins",
+ "owner": "duketopceo",
+ "plugins": [
+  {
+   "id": "lukedaduke.fan",
+   "path": "plugins/lukedaduke.fan",
+   "version": "2.5.1",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-fan"
+  },
+  {
+   "id": "lukedaduke.standby",
+   "path": "plugins/lukedaduke.standby",
+   "version": "1.0.4",
+   "kinds": [
+    "overlay"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-standby"
+  },
+  {
+   "id": "lukedaduke.nexus",
+   "path": "plugins/lukedaduke.nexus",
+   "version": "1.0.3",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-nexus"
+  },
+  {
+   "id": "lukedaduke.power",
+   "path": "plugins/lukedaduke.power",
+   "version": "1.2.0",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-power"
+  },
+  {
+   "id": "io.github.duketopceo.bumblebee",
+   "path": "plugins/io.github.duketopceo.bumblebee",
+   "version": "0.4.0",
+   "kinds": [
+    "service",
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-bumblebee"
+  },
+  {
+   "id": "io.github.duketopceo.numbat",
+   "path": "plugins/io.github.duketopceo.numbat",
+   "version": "0.4.1",
+   "kinds": [
+    "service",
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-numbat"
+  },
+  {
+   "id": "io.github.duketopceo.pplx",
+   "path": "plugins/io.github.duketopceo.pplx",
+   "version": "0.2.1",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-pplx"
+  },
+  {
+   "id": "io.github.duketopceo.neo",
+   "path": "plugins/io.github.duketopceo.neo",
+   "version": "0.2.0",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-neo"
+  },
+  {
+   "id": "io.github.duketopceo.nordvpn",
+   "path": "plugins/io.github.duketopceo.nordvpn",
+   "version": "0.1.1",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-nordvpn"
+  },
+  {
+   "id": "lukedaduke.lidguard",
+   "path": "plugins/lukedaduke.lidguard",
+   "version": "1.0.0",
+   "kinds": [
+    "bar-widget"
+   ],
+   "repo": "https://github.com/duketopceo/omarchy-lidguard"
+  }
+ ]
 }

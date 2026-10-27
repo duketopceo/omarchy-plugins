@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -22,7 +22,9 @@ Panel {
   property var history: []
   property string lastError: ""
   property int elapsedMs: 0
-  property string currentTab: "ask" // "ask" | "history"
+  property string currentTab: "computer" // "computer" | "ask" | "history"
+  property bool desktopRunning: false
+  property bool desktopStatusKnown: false
   // Search-option chip state — session-only (never persisted), allowlisted
   // values only; the helper re-validates before pplx ever sees them.
   property string recency: ""   // "" | "day" | "week" | "month"
@@ -199,7 +201,7 @@ Panel {
   }
 
   onOpenedChanged: {
-    if (opened) { refreshStatus(); return }
+    if (opened) { refreshStatus(); if (!desktopProc.running) desktopProc.running = true; return }
     draft = ""
     var f = askField()
     if (f) f.text = ""
@@ -213,6 +215,15 @@ Panel {
   visible: true
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+
+  Process {
+    id: desktopProc
+    command: ["/usr/bin/pgrep", "--quiet", "-f", "^/opt/perplexity/opt/Perplexity/perplexity( |$)"]
+    onExited: function (code) {
+      root.desktopRunning = code === 0
+      root.desktopStatusKnown = code === 0 || code === 1
+    }
+  }
 
   // Status probe: {"installed","authed","history"} — no network.
   Process {
@@ -369,10 +380,14 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰍉"
-    tooltipText: "Perplexity Search"
-    // Paints the glyph in the urgent color while the tool can't search.
-    active: root.statusKnown && (!root.installed || !root.authed)
+    iconComponent: Component {
+      Image {
+        source: "file:///opt/perplexity/opt/Perplexity/resources/icons/64x64.png"
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+      }
+    }
+    tooltipText: "Perplexity Computer"
     onPressed: function (b) { root.refreshStatus(); root.toggle() }
   }
 
@@ -413,28 +428,29 @@ Panel {
             color: root.accentFill(0.12)
             anchors.verticalCenter: parent.verticalCenter
 
-            Text {
+            Image {
               anchors.centerIn: parent
-              text: "󰍉"; textFormat: Text.PlainText
-              color: root.accent
-              font.family: root.fontFamily; font.pixelSize: Style.font.iconLarge
+              width: Style.space(26); height: Style.space(26)
+              source: "file:///opt/perplexity/opt/Perplexity/resources/icons/64x64.png"
+              fillMode: Image.PreserveAspectFit
+              smooth: true
             }
           }
 
           Column {
-            width: parent.width - iconTile.width - statusPill.width - parent.spacing * 2
+            width: parent.width - iconTile.width - (statusPill.visible ? statusPill.width : 0) - parent.spacing * 2
             spacing: Style.space(2)
             anchors.verticalCenter: parent.verticalCenter
 
             Text {
-              text: "Perplexity Search"; textFormat: Text.PlainText
+              text: "Perplexity Computer"; textFormat: Text.PlainText
               color: root.foreground
               font.family: root.fontFamily; font.pixelSize: Style.font.subtitle
               font.bold: true
             }
             Text {
               width: parent.width
-              text: "quick-ask for the perplexity search api"; textFormat: Text.PlainText
+              text: "Desktop and Search"; textFormat: Text.PlainText
               color: root.dim
               font.family: root.fontFamily; font.pixelSize: Style.font.caption
               elide: Text.ElideRight
@@ -443,6 +459,7 @@ Panel {
 
           Rectangle {
             id: statusPill
+            visible: root.currentTab !== "computer"
             height: Style.space(22)
             width: pillText.implicitWidth + Style.space(16)
             radius: height / 2
@@ -463,7 +480,7 @@ Panel {
 
         // ---- setup pane: one bordered card, conditional copy ----
         Rectangle {
-          visible: root.statusKnown && !root.ready
+          visible: root.currentTab !== "computer" && root.statusKnown && !root.ready
           width: parent.width
           height: stateColumn.implicitHeight + Style.space(24)
           radius: Style.cornerRadius
@@ -501,7 +518,7 @@ Panel {
           spacing: Style.space(6)
 
           Repeater {
-            model: ["ask", "history"]
+            model: ["computer", "ask", "history"]
             delegate: Rectangle {
               height: Style.space(28)
               width: tabLabel.implicitWidth + Style.space(16)
@@ -538,8 +555,54 @@ Panel {
           id: tabLoader
           width: parent.width
           height: item ? item.implicitHeight : Style.space(60)
-          sourceComponent: root.currentTab === "ask" ? askTab : historyTab
+          sourceComponent: root.currentTab === "ask" ? askTab : root.currentTab === "history" ? historyTab : computerTab
         }
+      }
+    }
+  }
+
+  Component {
+    id: computerTab
+    Column {
+      width: parent.width
+      spacing: Style.space(10)
+      Text {
+        width: parent.width
+        text: !root.desktopStatusKnown ? "Desktop status unavailable" : root.desktopRunning ? "Desktop running" : "Desktop not running"
+        textFormat: Text.PlainText
+        color: root.foreground
+        font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.Wrap
+      }
+      Rectangle {
+        width: parent.width; height: Style.space(36)
+        radius: Style.cornerRadius
+        color: openDesktopMouse.containsMouse ? root.accentFill(0.18) : root.accentFill(0.10)
+        border.color: root.accentFill(0.45); border.width: 1
+        Text {
+          anchors.centerIn: parent
+          text: "Open Perplexity Desktop"; textFormat: Text.PlainText
+          color: root.foreground
+          font.family: root.fontFamily; font.pixelSize: Style.font.bodySmall
+          font.bold: true
+        }
+        MouseArea {
+          id: openDesktopMouse
+          anchors.fill: parent; hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            Quickshell.execDetached(["/home/lukekimball/.local/bin/perplexity"])
+            root.close()
+          }
+        }
+      }
+      Text {
+        width: parent.width
+        text: "Super + P opens the desktop app. Manage Computer sessions and model settings in the app."
+        textFormat: Text.PlainText
+        color: root.dim
+        font.family: root.fontFamily; font.pixelSize: Style.font.caption
+        wrapMode: Text.Wrap
       }
     }
   }

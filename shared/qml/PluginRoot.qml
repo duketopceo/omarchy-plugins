@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 
 // Resolves a plugin's on-disk root from a component URL (pass Qt.resolvedUrl(".")
 // from the plugin's entry QML). Percent-decodes, so a path with spaces or

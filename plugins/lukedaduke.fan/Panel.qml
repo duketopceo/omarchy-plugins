@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
@@ -24,6 +24,7 @@ Panel {
   property int swapPct: 0
   property string ramInfo: ""
   property string cpuTemp: "--"
+  property string cpuTempLabel: "CPU"
   property string gpuName: "GPU"
   property int gpuLoad: -1
   property string gpuLoadReason: ""
@@ -640,6 +641,8 @@ Panel {
             root.ramInfo = clipStr(data.ram_info)
           if (data.cpu_temp)
             root.cpuTemp = clipStr(data.cpu_temp, 16)
+          if (data.cpu_temp_label)
+            root.cpuTempLabel = clipStr(data.cpu_temp_label, 16)
           if (data.gpu_name)
             root.gpuName = clipStr(data.gpu_name)
           if (data.gpu_load !== undefined) {
@@ -1338,7 +1341,7 @@ Panel {
             Column {
               spacing: Style.space(2)
               Text {
-                text: "CPU"
+                text: root.cpuTempLabel
                 textFormat: Text.PlainText
                 color: root.muted
                 font.pixelSize: Style.font.caption

@@ -804,10 +804,9 @@ def gpu_info() -> tuple[str, int | None, str]:
         c_name = cpu_name()
         gpu_name = f"{c_name} GPU" if "Apple" in c_name else "Apple Silicon GPU"
         gpu_load = _asahi_gpu_load()
-        # On Apple Silicon unified SoC, die temp is shared
-        devices = hwmon_paths()
-        cpu_t, _, _ = cpu_temp_and_fans(devices)
-        return gpu_name, gpu_load, cpu_t
+        # Asahi exposes no GPU (or SoC) die temp — macsmc_hwmon's temps are
+        # board sensors, not the die, so there is nothing honest to show.
+        return gpu_name, gpu_load, "--"
 
     # 4. Fallback to lspci
     gpu_name = _gpu_name_from_lspci() or "GPU"
@@ -1357,6 +1356,11 @@ def collect(sample_seconds: float = SAMPLE_SECONDS) -> dict[str, Any]:
             else "GPU utilization counter unavailable"
         )
 
+    # macsmc_hwmon exposes no SoC die sensor — cpu_temp is the max of the
+    # SMC's board temps (charge regulator / WiFi / NAND / battery), so the
+    # panel should label it as what it is rather than "CPU".
+    cpu_temp_label = "SMC" if devices.get("macsmc_hwmon") else "CPU"
+
     cpu_load, cpu_cores = _read_cpu_stats(sample_seconds=sample_seconds)
 
     # Cross-exec sampler state: net/disk rates are deltas vs the previous
@@ -1386,6 +1390,7 @@ def collect(sample_seconds: float = SAMPLE_SECONDS) -> dict[str, Any]:
         "cpu_load": cpu_load,
         "cpu_cores": cpu_cores[:MAX_LIST],
         "cpu_temp": _clip(cpu_temp, 16),
+        "cpu_temp_label": _clip(cpu_temp_label, 16),
         "gpu_name": _clip(gpu_name),
         "gpu_load": gpu_load if gpu_load is not None else -1,
         "gpu_load_reason": _clip(gpu_load_reason, 80),

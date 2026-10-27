@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 
 // Freshness and backoff bookkeeping for one polled source (plan R8).
 // Data is stale after 3 refresh intervals without a good result; repeated
