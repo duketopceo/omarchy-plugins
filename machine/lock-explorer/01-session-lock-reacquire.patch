@@ -1,0 +1,48 @@
+diff --git i/Service.qml w/Service.qml
+index 30f7961..03d4c82 100644
+--- i/Service.qml
++++ w/Service.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import Quickshell.Services.Pam
+@@ -3237,12 +3237,9 @@ echo "$out"
+       }
+ 
+       if (!locked && root.lockRequested) {
+-        root.lockRequested = false
+-        root.pendingSessionLock = false
+-        sessionLockStabilizeTimer.stop()
+-        pendingSessionLockTimer.stop()
+-        root.resetAuthenticationState()
+-        root.runWake()
++        // Losing the compositor surface is not an authenticated unlock.
++        root.logEvent("session-lock-lost: reacquiring")
++        root.requestSessionLock()
+       }
+     }
+ 
+@@ -4284,17 +4281,18 @@ echo "$out"
+ 
+     function lock(): string {
+       if (!root.passwordPamConfigured) return "missing-pam"
+-      if (!root.locked && !root.beginLock()) return "failed"
++      if (!root.lockRequested && !sessionLock.locked && !sessionLock.secure && !root.beginLock())
++        return "failed"
+       return "ok"
+     }
+ 
+     function isLocked(): string {
+-      return root.locked ? "true" : "false"
++      return root.lockRequested || sessionLock.locked || sessionLock.secure ? "true" : "false"
+     }
+ 
+     function status(): string {
+       return JSON.stringify({
+-        locked: root.locked,
++        locked: root.lockRequested || sessionLock.locked || sessionLock.secure,
+         requested: root.lockRequested,
+         pending: root.pendingSessionLock,
+         sessionLocked: sessionLock.locked,
