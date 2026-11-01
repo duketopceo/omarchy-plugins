@@ -31,16 +31,24 @@ def run_guard(tmp_path, args, stdin_tty=False):
 
 
 def test_passes_through_without_sudoloop(tmp_path) -> None:
+    # No terminal: the loop is forced off so a saved SudoLoop config can't start it.
     out = run_guard(tmp_path, ["-Q"])
     assert out.returncode == 0
-    assert out.stdout.strip() == "REAL -Q"
+    assert out.stdout.strip() == "REAL --sudoloop=false -Q"
 
 
 def test_refuses_sudoloop_without_terminal(tmp_path) -> None:
-    out = run_guard(tmp_path, ["-S", "--sudoloop", "foo"])
-    assert out.returncode == 2
-    assert "REAL" not in out.stdout
-    assert "--sudoloop" in out.stderr
+    for flag in ("--sudoloop", "--sudoloop=true", "--sudoloop=1"):
+        out = run_guard(tmp_path, ["-S", flag, "foo"])
+        assert out.returncode == 2, flag
+        assert "REAL" not in out.stdout
+        assert "--sudoloop" in out.stderr
+
+
+def test_explicit_sudoloop_false_is_allowed_without_terminal(tmp_path) -> None:
+    out = run_guard(tmp_path, ["-S", "--sudoloop=false", "foo"])
+    assert out.returncode == 0
+    assert "REAL --sudoloop=false -S --sudoloop=false foo" in out.stdout
 
 
 def test_allows_sudoloop_in_a_terminal(tmp_path) -> None:
