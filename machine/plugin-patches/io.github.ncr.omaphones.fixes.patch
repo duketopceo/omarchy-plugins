@@ -1,0 +1,18 @@
+diff --git i/Panel.qml w/Panel.qml
+index 68fd6a0..6b3fbbe 100644
+--- i/Panel.qml
++++ w/Panel.qml
+@@ -1143,11 +1143,11 @@ Panel {
+     // The popup hangs under whichever mark is drawing the device it is about, so
+     // it follows a click on another icon and the , and . keys alike.
+     function claimAnchor() {
+-      if (root.current === slot.follower) root.currentAnchor = slot
++      if (root && root.current === slot.follower) root.currentAnchor = slot
+     }
+ 
+     Component.onCompleted: claimAnchor()
+-    Component.onDestruction: if (root.currentAnchor === slot) root.currentAnchor = null
++    Component.onDestruction: if (root && root.currentAnchor === slot) root.currentAnchor = null
+ 
+     Connections {
+       target: root
