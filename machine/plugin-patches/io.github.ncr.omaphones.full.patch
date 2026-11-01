@@ -1,0 +1,44 @@
+diff --git i/DeviceFollower.qml w/DeviceFollower.qml
+index b493509..5d5834e 100644
+--- i/DeviceFollower.qml
++++ w/DeviceFollower.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import "Model.js" as Model
+diff --git i/Panel.qml w/Panel.qml
+index 68fd6a0..a6b259d 100644
+--- i/Panel.qml
++++ w/Panel.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+@@ -1143,11 +1143,11 @@ Panel {
+     // The popup hangs under whichever mark is drawing the device it is about, so
+     // it follows a click on another icon and the , and . keys alike.
+     function claimAnchor() {
+-      if (root.current === slot.follower) root.currentAnchor = slot
++      if (root && root.current === slot.follower) root.currentAnchor = slot
+     }
+ 
+     Component.onCompleted: claimAnchor()
+-    Component.onDestruction: if (root.currentAnchor === slot) root.currentAnchor = null
++    Component.onDestruction: if (root && root.currentAnchor === slot) root.currentAnchor = null
+ 
+     Connections {
+       target: root
+diff --git i/Service.qml w/Service.qml
+index c319cd3..a8cb652 100644
+--- i/Service.qml
++++ w/Service.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import Quickshell.Bluetooth

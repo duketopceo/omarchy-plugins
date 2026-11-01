@@ -1,0 +1,241 @@
+diff --git i/BarWidget.qml w/BarWidget.qml
+index 84cd661..fd58e6d 100644
+--- i/BarWidget.qml
++++ w/BarWidget.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Io
+ import qs.Commons
+ import qs.Ui
+diff --git i/Panel.qml w/Panel.qml
+index ceb9308..fb2d714 100644
+--- i/Panel.qml
++++ w/Panel.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import Quickshell
+@@ -524,14 +524,17 @@ Panel {
+ 
+     var first = s.charCodeAt(0)
+     if (first >= 0xE000 && first <= 0xF8FF) return s.charAt(0)
++    if ((first >= 0x2300 && first <= 0x23FF) || (first >= 0x2600 && first <= 0x27BF) || (first >= 0x2B00 && first <= 0x2BFF)) return s.charAt(0)
+     if (first < 0xD800 || first > 0xDBFF || s.length < 2) return ""
+ 
+     var second = s.charCodeAt(1)
+     if (second < 0xDC00 || second > 0xDFFF) return ""
+     var codePoint = (first - 0xD800) * 0x400 + second - 0xDC00 + 0x10000
+     // Nerd Font's supplementary glyphs are in the Supplementary Private Use
+-    // Areas (planes 15 and 16). Do not turn arbitrary emoji into row icons.
+-    return codePoint >= 0xF0000 && codePoint <= 0x10FFFD ? s.substring(0, 2) : ""
++    // Areas (planes 15 and 16). Also allow standard emoji sequences.
++    if (codePoint >= 0xF0000 && codePoint <= 0x10FFFD) return s.substring(0, 2)
++    if (codePoint >= 0x1F000 && codePoint <= 0x1FAFF) return s.substring(0, 2)
++    return ""
+   }
+ 
+   function iconFor(id) {
+@@ -566,7 +569,17 @@ Panel {
+       "omarchy.notifications": "\uf0f3",
+       "omarchy.osd":         "\uf163",
+       "omarchy.polkit":      "\uf3ed",
+-      "omarchy.reminders":   "\uf017"
++      "omarchy.reminders":   "\uf017",
++      "gemini-bar":          "\udb82\udc39",
++      "mohamedmansour.finance": "\uf0d6",
++      "io.github.ncr.omaphones": "\uf025",
++      "lukedaduke.power":    "\uf240",
++      "jankeesvw.herdr":     "\uf120",
++      "jankeesvw.notification-center": "\uf0f3",
++      "io.github.idr4n.clipboard-plus": "\uf328",
++      "lukedaduke.standby":  "\uf011",
++      "soup.airpods":        "\uf025",
++      "tmn73.calendar":      "\uf073"
+     }
+     if (/clock/i.test(String(id))) return "\uf017"
+     var live = root.leadingIconGlyph(root.liveGlyphFor(id))
+diff --git i/panel/Presentation.js w/panel/Presentation.js
+index 0648404..6050784 100644
+--- i/panel/Presentation.js
++++ w/panel/Presentation.js
+@@ -70,6 +70,17 @@ function iconColor(name) {
+   return palette[Math.abs(hash) % palette.length]
+ }
+ 
++function fallbackEmoji(name) {
++  var emojis = [
++    "🧩", "⚡", "🔮", "🛠️", "🚀", "🎯", "📦", "💡",
++    "⚙️", "✨", "📊", "📡", "🛡️", "🔋", "🎨", "🌟"
++  ]
++  var value = String(name || "")
++  var hash = 0
++  for (var i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0
++  return emojis[Math.abs(hash) % emojis.length]
++}
++
+ function commitVerification(entry, commit) {
+   if (!entry) return "Not listed"
+   if (!entry.verified && entry.snapshotStatus !== "update-unverified") return "Unverified"
+diff --git i/panel/dialogs/Confirm.qml w/panel/dialogs/Confirm.qml
+index 4e3d7d7..1e91996 100644
+--- i/panel/dialogs/Confirm.qml
++++ w/panel/dialogs/Confirm.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/dialogs/Review.qml w/panel/dialogs/Review.qml
+index b6a5aba..e80ea52 100644
+--- i/panel/dialogs/Review.qml
++++ w/panel/dialogs/Review.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/dialogs/Shortcut.qml w/panel/dialogs/Shortcut.qml
+index 9568522..4070cca 100644
+--- i/panel/dialogs/Shortcut.qml
++++ w/panel/dialogs/Shortcut.qml
+@@ -1,5 +1,5 @@
+ pragma ComponentBehavior: Bound
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import Quickshell
+diff --git i/panel/layout/Page.qml w/panel/layout/Page.qml
+index 47b5427..312f4e4 100644
+--- i/panel/layout/Page.qml
++++ w/panel/layout/Page.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/plugin/Actions.qml w/panel/plugin/Actions.qml
+index 68efd5c..ecb1b8c 100644
+--- i/panel/plugin/Actions.qml
++++ w/panel/plugin/Actions.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/plugin/ContextMenu.qml w/panel/plugin/ContextMenu.qml
+index 4f852e0..fc71349 100644
+--- i/panel/plugin/ContextMenu.qml
++++ w/panel/plugin/ContextMenu.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/plugin/IconGlyph.qml w/panel/plugin/IconGlyph.qml
+index 5b2a8ec..0fd971c 100644
+--- i/panel/plugin/IconGlyph.qml
++++ w/panel/plugin/IconGlyph.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ Text {
+   id: glyph
+diff --git i/panel/plugin/ListingLinks.qml w/panel/plugin/ListingLinks.qml
+index e884a32..c225fa5 100644
+--- i/panel/plugin/ListingLinks.qml
++++ w/panel/plugin/ListingLinks.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/plugin/Row.qml w/panel/plugin/Row.qml
+index e17de7d..cc21c48 100644
+--- i/panel/plugin/Row.qml
++++ w/panel/plugin/Row.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+@@ -101,7 +101,7 @@ Item {
+           color: Presentation.iconColor(pluginRow.modelData.name)
+ 
+           IconGlyph {
+-            text: pluginRow.icon || pluginRow.modelData.name.trim().charAt(0).toUpperCase()
++            text: pluginRow.icon || Presentation.fallbackEmoji(pluginRow.modelData.name)
+             font.family: pluginRow.fontFamily
+             font.pixelSize: Style.font.bodySmall
+           }
+diff --git i/panel/settings/Page.qml w/panel/settings/Page.qml
+index 9b4fd04..537f548 100644
+--- i/panel/settings/Page.qml
++++ w/panel/settings/Page.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/panel/updates/Page.qml w/panel/updates/Page.qml
+index 24b9277..911282f 100644
+--- i/panel/updates/Page.qml
++++ w/panel/updates/Page.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Layouts
+ import qs.Commons
+diff --git i/tests/AutoCheckLogic.qml w/tests/AutoCheckLogic.qml
+index aeba542..a4bb150 100644
+--- i/tests/AutoCheckLogic.qml
++++ w/tests/AutoCheckLogic.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ 
+ // Standalone harness for the background auto-check logic added to
+diff --git i/tests/DetachedLaunch.qml w/tests/DetachedLaunch.qml
+index 13dd5d6..18c6393 100644
+--- i/tests/DetachedLaunch.qml
++++ w/tests/DetachedLaunch.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ 
+ ShellRoot {
