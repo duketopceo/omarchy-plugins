@@ -31,6 +31,8 @@ DesignBase {
   LiveSystem { id: system }
 
   // History files are named <epoch-ms>-<n>.json; only the names are read.
+  // Omarchy caps history at 10 files, so a full folder swaps its oldest file
+  // for each new one and the count never changes: recount on every insert.
   FolderListModel {
     id: history
     folder: "file://" + Quickshell.env("HOME") + "/.local/state/omarchy/notifications/history"
@@ -48,6 +50,7 @@ DesignBase {
   }
   Connections {
     target: history
+    function onRowsInserted() { lock.countMissed() }
     function onCountChanged() { lock.countMissed() }
   }
 

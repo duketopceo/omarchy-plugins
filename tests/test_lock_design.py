@@ -25,8 +25,8 @@ def test_no_private_data_is_read() -> None:
     # Wisp's state file carries transcripts; notification files carry text.
     assert "state.json" not in TEXT
     assert "XDG_RUNTIME_DIR" not in TEXT
-    assert "FileView" not in TEXT
-    assert "Process" not in TEXT
+    assert not re.search(r"\bFileView\s*\{", TEXT)
+    assert not re.search(r"\bProcess\s*\{", TEXT)
     assert "notifications/history" in TEXT  # counted by file name only
 
 

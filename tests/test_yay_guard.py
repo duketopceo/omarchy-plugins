@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -16,12 +16,15 @@ def run_guard(tmp_path, args, stdin_tty=False):
     fake.write_text('#!/usr/bin/env bash\necho "REAL $*"\n')
     fake.chmod(0o755)
     guard = tmp_path / "yay"
-    guard.write_text(GUARD.read_text().replace("REAL=/usr/bin/yay", f"REAL={fake}"))
+    source = GUARD.read_text()
+    # Never let a test fall through to the real yay.
+    assert "REAL=/usr/bin/yay" in source
+    guard.write_text(source.replace("REAL=/usr/bin/yay", f"REAL={fake}"))
     guard.chmod(0o755)
     if stdin_tty:
         # script(1) gives the child a real pty on stdin.
         return subprocess.run(
-            ["script", "-qec", f"{guard} {' '.join(args)}", "/dev/null"],
+            ["script", "-qec", shlex.join([str(guard), *args]), "/dev/null"],
             capture_output=True, text=True, stdin=subprocess.DEVNULL,
         )
     return subprocess.run([str(guard), *args], capture_output=True, text=True, stdin=subprocess.DEVNULL)
