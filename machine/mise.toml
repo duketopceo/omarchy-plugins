@@ -6,7 +6,7 @@ crush = "latest"
 gemini = { version = "latest", allow_builds = ["@github/keytar", "node-pty"] }
 gh = "latest"
 "github:can1357/oh-my-pi" = "latest"
-node = "26.7.0"
+node = "26.12.1"
 "npm:@xai-official/grok" = "latest"
 opencode = "latest"
 zig = "latest"
