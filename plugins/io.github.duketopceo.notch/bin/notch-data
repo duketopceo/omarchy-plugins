@@ -12,6 +12,15 @@ one the finance bar plugin uses, for the symbols in
 most once per --quotes-age seconds (default 300), independent of weather,
 with exponential backoff after errors; the old quotes stay on failure.
 
+Series (the Stocks tab): per watchlist symbol, Yahoo's chart endpoint
+(v8/finance/chart, free, no key) fills cache["series"][SYMBOL][RANGE] with
+{t,o,h,l,c,v,prev,fetchedAt,...}. Ranges: 1D@5m, 5D@30m, 1M@1d, 6M@1d, 1Y@1wk.
+Only the default range (setting "stocks.range") and the ranges the tab asked
+for in ~/.cache/omarchy/notch-stocks-request.json are fetched; 1D refreshes at
+most every 5 min, longer ranges hourly, with per-entry backoff on errors
+(old data stays). The watchlist is the plugin's "stocks.watchlist" setting in
+~/.config/omarchy/shell.json, else finance.json.
+
 Usage: notch-data [--max-age SECONDS] [--quotes-age SECONDS] [--unit fahrenheit|celsius]
 """
 import argparse
@@ -28,6 +37,19 @@ CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.join(HOME, ".cache
 PLACE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "weather.json")
 FINANCE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "finance.json")
 SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark?range=1d&interval=5m&symbols="
+SHELL_FILE = os.path.join(HOME, ".config", "omarchy", "shell.json")
+REQUEST_FILE = os.path.join(os.path.dirname(CACHE), "notch-stocks-request.json")
+PLUGIN_ID = "io.github.duketopceo.notch"
+CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/"
+# range key -> (yahoo range, interval, min seconds between fetches)
+RANGES = {
+    "1D": ("1d", "5m", 300),
+    "5D": ("5d", "30m", 3600),
+    "1M": ("1mo", "1d", 3600),
+    "6M": ("6mo", "1d", 3600),
+    "1Y": ("1y", "1wk", 3600),
+}
+SERIES_BUDGET = 45  # seconds of network time per run
 MAX_SYMBOLS = 12
 BACKOFF_BASE = 60
 BACKOFF_MAX = 3600
@@ -96,8 +118,18 @@ def parse_spark(data, wanted):
     return [found[s] for s in wanted if s in found]
 
 
+def plugin_settings():
+    """This plugin's entry in shell.json plugins[] ({} when absent)."""
+    for p in read_json(SHELL_FILE).get("plugins") or []:
+        if isinstance(p, dict) and p.get("id") == PLUGIN_ID:
+            return p
+    return {}
+
+
 def watchlist_symbols():
-    raw = read_json(FINANCE_FILE).get("watchlist")
+    raw = plugin_settings().get("stocks.watchlist")
+    if not isinstance(raw, list) or not raw:
+        raw = read_json(FINANCE_FILE).get("watchlist")
     out = []
     for s in raw if isinstance(raw, list) else []:
         s = str(s).strip().upper()
@@ -131,6 +163,103 @@ def refresh_quotes(cache, quotes_age):
         return True
     cache["quotes"] = {"items": items, "symbols": symbols, "fetchedAt": now, "failures": 0, "retryAt": 0}
     return True
+
+
+def parse_chart(data):
+    """{t,o,h,l,c,v,prev} from a v8 chart response; rows with a null close are dropped."""
+    res = ((data or {}).get("chart") or {}).get("result") or []
+    if not res:
+        raise ValueError("no chart result")
+    r = res[0]
+    ts = r.get("timestamp") or []
+    q = ((r.get("indicators") or {}).get("quote") or [{}])[0]
+    out = {k: [] for k in "tohlcv"}
+    for i, t in enumerate(ts):
+        try:
+            c = q["close"][i]
+        except (KeyError, IndexError, TypeError):
+            continue
+        if not isinstance(c, (int, float)):
+            continue
+
+        def pick(key, fallback):
+            try:
+                x = q[key][i]
+            except (KeyError, IndexError, TypeError):
+                return fallback
+            return x if isinstance(x, (int, float)) else fallback
+        out["t"].append(t)
+        out["o"].append(pick("open", c))
+        out["h"].append(pick("high", c))
+        out["l"].append(pick("low", c))
+        out["c"].append(c)
+        out["v"].append(pick("volume", 0))
+    if not out["t"]:
+        raise ValueError("empty series")
+    meta = r.get("meta") or {}
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+    out["prev"] = prev if isinstance(prev, (int, float)) else None
+    return out
+
+
+def wanted_ranges():
+    """Default range plus whatever the tab asked for (and only fresh asks)."""
+    default = plugin_settings().get("stocks.range")
+    out = [default if default in RANGES else "1M"]
+    req = read_json(REQUEST_FILE)
+    if time.time() - float(req.get("at") or 0) < 24 * 3600:
+        for r in req.get("ranges") or []:
+            if r in RANGES and r not in out:
+                out.append(r)
+    return out
+
+
+def refresh_series(cache, symbols):
+    """Update cache["series"] in place; returns True if the cache changed."""
+    if not symbols:
+        return False
+    series = cache.get("series")
+    if not isinstance(series, dict):
+        series = {}
+    prepost = bool(plugin_settings().get("stocks.prepost", False))
+    now = time.time()
+    started = time.monotonic()
+    changed = False
+    for rng in wanted_ranges():
+        yrange, interval, min_age = RANGES[rng]
+        intraday = rng in ("1D", "5D")
+        for sym in symbols:
+            if time.monotonic() - started > SERIES_BUDGET:
+                break
+            bucket = series.setdefault(sym, {})
+            ent = bucket.get(rng) or {}
+            if now < float(ent.get("retryAt") or 0):
+                continue
+            pp = prepost and intraday
+            if now - float(ent.get("fetchedAt") or 0) < min_age and ent.get("prepost", False) == pp and ent.get("t"):
+                continue
+            url = (CHART_URL + urllib.parse.quote(sym) + "?range=" + yrange + "&interval=" + interval
+                   + "&includePrePost=" + ("true" if pp else "false"))
+            try:
+                new = parse_chart(get_json(url))
+            except Exception as error:  # keep the old series, back off
+                fails = int(ent.get("failures") or 0) + 1
+                ent["failures"] = fails
+                ent["retryAt"] = now + min(BACKOFF_MAX, BACKOFF_BASE * 2 ** (fails - 1))
+                bucket[rng] = ent
+                print("notch-data: series " + sym + " " + rng + ": " + str(error), file=sys.stderr)
+                changed = True
+                continue
+            new.update({"fetchedAt": now, "failures": 0, "retryAt": 0, "prepost": pp, "interval": interval})
+            bucket[rng] = new
+            changed = True
+    # drop symbols no longer on the watchlist
+    for sym in [k for k in series if k not in symbols]:
+        del series[sym]
+        changed = True
+    if changed:
+        cache["series"] = series
+    return changed
 
 
 def refresh_weather(cache, max_age, unit):
@@ -177,7 +306,8 @@ def main():
     cache = read_json(CACHE)
     w_changed, w_ok = refresh_weather(cache, args.max_age, args.unit)
     q_changed = refresh_quotes(cache, args.quotes_age)
-    if w_changed or q_changed:
+    s_changed = refresh_series(cache, watchlist_symbols())
+    if w_changed or q_changed or s_changed:
         write_cache(cache)
     return 0 if w_ok else 1
 

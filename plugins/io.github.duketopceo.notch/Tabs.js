@@ -14,6 +14,7 @@ var TABS = [
   { id: "media", title: "Media", glyph: "\u{F075A}", source: "MediaTab.qml" },
   { id: "agents", title: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml" },
   { id: "messages", title: "Messages", glyph: "\u{F0361}", source: "MessagesTab.qml" },
+  { id: "stocks", title: "Stocks", glyph: "\u{F012A}", source: "StocksTab.qml" },
   { id: "plugins", title: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml" },
   { id: "settings", title: "Settings", glyph: "\u{F0493}", source: "SettingsTab.qml" }
 ]

@@ -26,12 +26,12 @@ def run(expr):
 
 def test_tab_list_shape_and_sources():
     tabs = run("T.TABS")
-    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "plugins", "settings"]
+    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "stocks", "plugins", "settings"]
     for t in tabs:
         assert set(t) == {"id", "title", "glyph", "source"} and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
-        "messages": "MessagesTab.qml", "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
+        "messages": "MessagesTab.qml", "stocks": "StocksTab.qml", "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
 
 
 def test_shipped_tab_files_exist():
