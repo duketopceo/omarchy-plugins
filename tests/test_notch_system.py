@@ -112,3 +112,46 @@ def test_sparkline_buffer():
     assert run("S.hasData([null, null])") is False
     buf = run("(function(){var b=[];for(var i=0;i<100;i++)b=S.pushSample(b,i);return b.length})()")
     assert buf == 30
+
+
+SS = (
+    "State Recv-Q Send-Q Local Address:Port Peer Address:Port Process\n"
+    'LISTEN 0 128 127.0.0.1:8081 0.0.0.0:* users:(("python",pid=9,fd=5))\n'
+    'LISTEN 0 128 192.168.1.5:8082 0.0.0.0:* users:(("python",pid=9,fd=6))\n'
+    'LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:(("sshd",pid=1,fd=3))\n'
+    'LISTEN 0 128 [::1]:8090 [::]:* users:(("python",pid=9,fd=7))\n'
+)
+
+
+def test_ane_procs_and_mlx_ports_from_scan():
+    scan = "==ane\n77 78\n==comm\n77 python\n78 python\n79 mlx-omarchy\n==ss\n" + SS + "==mlx\n9 /x/python -m mlx_lm.server --model /m/a/b --port 8081\n"
+    s = run(f"S.parseScan({j(scan)})")
+    assert s["aneProcs"] == ["python", "mlx-omarchy"]
+    assert s["mlxPorts"] == [8081, 8090]
+    assert run("S.mlxListenPorts('', [9])") == []
+
+
+def test_models_command_and_ids():
+    assert run("S.modelsCommand([])") == ""
+    cmd = run("S.modelsCommand([8081, 'x; rm', -1, 70000])")
+    assert "8081" in cmd and "rm" not in cmd and "127.0.0.1" in cmd
+    out = "==port 8081\n" + json.dumps({"data": [{"id": "/m/mlx-community/Qwen-4bit"}, {"id": "b"}, {"id": "b"}]}) + "\n==port 8090\nnot json\n"
+    assert run(f"S.parseModelIds({j(out)})") == ["mlx-community/Qwen-4bit", "b"]
+    assert run("S.parseModelIds('')") == []
+
+
+def test_ane_state_jobs_rate_and_last_used():
+    assert run("S.aneState('active\\n')") == "Active"
+    assert run("S.aneState('suspended')") == "Asleep"
+    assert run("S.aneState('')") == "unknown"
+    buf = run("S.pushJobs(S.pushJobs(S.pushJobs(null, 0, 10, 60000), 30000, 20, 60000), 90000, 40, 60000)")
+    assert [x["t"] for x in buf] == [30000, 90000]
+    assert run(f"S.jobsPerMin({j(buf)})") == 20
+    assert run("S.jobsPerMin([{t:0,jobs:5}])") is None
+    assert run("S.jobsPerMin([{t:0,jobs:5},{t:1000,jobs:1}])") is None
+    assert run("S.aneLastUsed(5, 6, 1000, 0)") == 1000
+    assert run("S.aneLastUsed(5, 5, 2000, 1000)") == 1000
+    assert run("S.aneLastUsed(null, 5, 2000, 0)") == 0
+    assert run("S.fmtAgo(0, 5000)") == "never"
+    assert run("S.fmtAgo(1000, 13000)") == "12s ago"
+    assert run("S.fmtAgo(1000, 241000)") == "4m ago"

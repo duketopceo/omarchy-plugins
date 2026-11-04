@@ -340,15 +340,116 @@ function parseReservations(text) {
   return out
 }
 
-// Output of the slow scan script: "==ane" pids, then "==mlx" pgrep lines.
+// Output of the slow scan script: "==ane" pids, "==comm" "pid name" lines,
+// "==ss" `ss -ltnp` lines, then "==mlx" pgrep lines.
 function parseScan(text) {
-  var sec = { ane: "", mlx: "" }, cur = ""
+  var sec = { ane: "", comm: "", ss: "", mlx: "" }, cur = ""
   String(text || "").split("\n").forEach(function (line) {
-    var m = /^==(ane|mlx)\s*$/.exec(line)
+    var m = /^==(ane|comm|ss|mlx)\s*$/.exec(line)
     if (m) { cur = m[1]; return }
     if (cur) sec[cur] += line + "\n"
   })
-  return { anePids: parseFuserPids(sec.ane), mlx: parseMlxProcs(sec.mlx) }
+  var mlx = parseMlxProcs(sec.mlx)
+  var ports = mlxListenPorts(sec.ss, mlx.map(function (p) { return p.pid }))
+  return { anePids: parseFuserPids(sec.ane), aneProcs: parseAneProcs(sec.comm), mlx: mlx, mlxPorts: ports }
+}
+
+// "pid name" lines (from /proc/PID/comm) -> deduped process names, in order.
+function parseAneProcs(text) {
+  var seen = {}, out = []
+  String(text || "").split("\n").forEach(function (line) {
+    var m = /^(\d+)\s+(.+)$/.exec(line.trim())
+    if (!m) return
+    var name = m[2].trim().slice(0, 24)
+    if (!name || seen[name]) return
+    seen[name] = true
+    out.push(name)
+  })
+  return out
+}
+
+// `ss -ltnp` -> sorted unique localhost ports whose listener pid is in pids.
+// Only loopback / wildcard listeners count; anything else is never queried.
+function mlxListenPorts(text, pids) {
+  var want = {}, seen = {}, out = []
+  ;(pids || []).forEach(function (p) { want[p] = true })
+  String(text || "").split("\n").forEach(function (line) {
+    var a = /^LISTEN\s+\d+\s+\d+\s+(\S+):(\d+)\s/.exec(line.trim())
+    if (!a) return
+    if (!/^(127\.0\.0\.1|0\.0\.0\.0|\*|\[::1\]|\[::\])$/.test(a[1])) return
+    var re = /pid=(\d+)/g, m, hit = false
+    while ((m = re.exec(line))) if (want[Number(m[1])]) hit = true
+    var port = Number(a[2])
+    if (hit && port > 0 && port < 65536 && !seen[port]) { seen[port] = true; out.push(port) }
+  })
+  return out.sort(function (x, y) { return x - y }).slice(0, 4)
+}
+
+// Shell command that asks each (validated numeric) localhost port for /v1/models.
+function modelsCommand(ports) {
+  var ps = (ports || []).map(Number).filter(function (p) { return p > 0 && p < 65536 && Math.floor(p) === p })
+  if (!ps.length) return ""
+  return ps.map(function (p) {
+    return "echo '==port " + p + "'; /usr/bin/curl -s -m 1 http://127.0.0.1:" + p + "/v1/models 2>/dev/null; echo"
+  }).join("; ")
+}
+
+// Output of modelsCommand -> sorted unique model ids (max 6).
+function parseModelIds(text) {
+  var seen = {}, out = []
+  String(text || "").split(/^==port \d+\s*$/m).forEach(function (chunk) {
+    var d = null
+    try { d = JSON.parse(chunk.trim()) } catch (e) { d = null }
+    if (!d || !Array.isArray(d.data)) return
+    d.data.forEach(function (m) {
+      if (!m || typeof m.id !== "string" || !m.id) return
+      var id = m.id.replace(/\/+$/, "").split("/").slice(-2).join("/").slice(0, 48)
+      if (!seen[id]) { seen[id] = true; out.push(id) }
+    })
+  })
+  return out.slice(0, 6)
+}
+
+// ANE runtime PM: "active" -> Active, "suspended" -> Asleep.
+function aneState(text) {
+  var t = String(text || "").trim()
+  if (t === "active") return "Active"
+  if (t === "suspended") return "Asleep"
+  return t ? t.slice(0, 12) : "unknown"
+}
+
+// Sliding window of {t, jobs} samples (last windowMs), oldest first.
+function pushJobs(buf, t, jobs, windowMs) {
+  var w = windowMs > 0 ? windowMs : 60000
+  var out = (Array.isArray(buf) ? buf : []).filter(function (s) { return t - s.t <= w })
+  out.push({ t: t, jobs: jobs })
+  return out
+}
+
+// Jobs per minute across the window; null when not computable.
+function jobsPerMin(buf) {
+  var b = Array.isArray(buf) ? buf : []
+  if (b.length < 2) return null
+  var a = b[0], z = b[b.length - 1]
+  var dt = z.t - a.t, dj = z.jobs - a.jobs
+  if (!(dt > 0) || dj < 0) return null
+  return Math.round(dj * 60000 / dt * 10) / 10
+}
+
+// Timestamp of the last time jobs increased (carried forward otherwise).
+function aneLastUsed(prevJobs, curJobs, nowMs, prevLast) {
+  if (prevJobs !== null && prevJobs !== undefined && curJobs > prevJobs) return nowMs
+  return prevLast || 0
+}
+
+// "12s ago" / "4m ago" / "2h ago" / "never".
+function fmtAgo(ms, nowMs) {
+  if (!(ms > 0)) return "never"
+  var s = Math.max(0, Math.round((nowMs - ms) / 1000))
+  if (s < 60) return s + "s ago"
+  if (s < 3600) return Math.floor(s / 60) + "m ago"
+  if (s < 86400) return Math.floor(s / 3600) + "h ago"
+  return Math.floor(s / 86400) + "d ago"
 }
 
 var MLX_COMMAND = "mlx-omarchy-serve recommend"
@@ -382,7 +483,9 @@ if (typeof module !== "undefined") {
     fanFraction: fanFraction, fmtRpm: fmtRpm, totalPower: totalPower,
     parseFanHelper: parseFanHelper, fanModeArg: fanModeArg, fanModeTitle: fanModeTitle,
     parseAneStats: parseAneStats, aneUtil: aneUtil, parseAneCheck: parseAneCheck, parseFuserPids: parseFuserPids,
-    parseMlxProcs: parseMlxProcs, parseReservations: parseReservations,
+    parseMlxProcs: parseMlxProcs, parseAneProcs: parseAneProcs, mlxListenPorts: mlxListenPorts,
+    modelsCommand: modelsCommand, parseModelIds: parseModelIds, aneState: aneState, pushJobs: pushJobs,
+    jobsPerMin: jobsPerMin, aneLastUsed: aneLastUsed, fmtAgo: fmtAgo, parseReservations: parseReservations,
     pushSample: pushSample, lastValue: lastValue, hasData: hasData
   }
 }

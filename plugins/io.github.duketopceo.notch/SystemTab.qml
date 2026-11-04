@@ -38,7 +38,12 @@ Item {
   property var prevAne: null
   property real prevAneAt: 0
   property var aneCheck: Sys.parseAneCheck("")
-  property var scan: ({ anePids: [], mlx: [] })
+  property var scan: ({ anePids: [], aneProcs: [], mlx: [], mlxPorts: [] })
+  property string aneRt: ""
+  property var aneJobs: []
+  property real aneLastUsed: 0
+  property var mlxModels: []
+  property real nowMs: Date.now()
   property var resv: Sys.parseReservations("")
   property string pendingMode: ""
   property real pendingUntil: 0
@@ -69,6 +74,12 @@ Item {
     mem = Sys.parseMeminfo(memFile.text())
     var a = Sys.parseAneStats(aneFile.text())
     var u = Sys.aneUtil(prevAne, a, now - prevAneAt)
+    nowMs = now
+    aneRt = rtFile.text()
+    if (a.ok) {
+      aneLastUsed = Sys.aneLastUsed(prevAne && prevAne.ok ? prevAne.jobs : null, a.jobs, now, aneLastUsed)
+      aneJobs = Sys.pushJobs(aneJobs, now, a.jobs, 60000)
+    }
     aneBusy = orNeg(u)
     prevAne = a
     prevAneAt = now
@@ -89,7 +100,7 @@ Item {
   function orNeg(v) { return v === null || v === undefined ? -1 : v }
 
   function refreshFiles() {
-    statFile.reload(); memFile.reload(); aneFile.reload(); helperFile.reload()
+    statFile.reload(); memFile.reload(); aneFile.reload(); rtFile.reload(); helperFile.reload()
   }
   function poll() { refreshFiles(); sampleLater.restart() }
   Timer { id: sampleLater; interval: 60; onTriggered: tab.sample() }
@@ -120,6 +131,7 @@ Item {
   // ---- sources
   FileView { id: statFile; path: "/proc/stat"; watchChanges: false; printErrors: false }
   FileView { id: memFile; path: "/proc/meminfo"; watchChanges: false; printErrors: false }
+  FileView { id: rtFile; path: "/sys/class/accel/accel0/device/power/runtime_status"; watchChanges: false; printErrors: false }
   FileView { id: aneFile; path: "/sys/class/accel/accel0/device/ane_stats"; watchChanges: false; printErrors: false }
   FileView { id: helperFile; path: "/run/omarchy-fan/status.json"; watchChanges: false; printErrors: false }
   FileView {
@@ -146,10 +158,24 @@ Item {
 
   Process {
     id: scanProc
-    command: ["/usr/bin/sh", "-c", "echo ==ane; /usr/bin/fuser /dev/accel/accel0 2>/dev/null; echo ==mlx; /usr/bin/pgrep -af '[m]lx' 2>/dev/null"]
+    command: ["/usr/bin/sh", "-c", "echo ==ane; /usr/bin/fuser /dev/accel/accel0 2>/dev/null; echo ==comm; for p in $(/usr/bin/fuser /dev/accel/accel0 2>/dev/null); do echo \"$p $(/usr/bin/cat /proc/$p/comm 2>/dev/null)\"; done; echo ==ss; /usr/bin/ss -ltnp 2>/dev/null; echo ==mlx; /usr/bin/pgrep -af '[m]lx' 2>/dev/null"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: if (text.length < 100000) tab.scan = Sys.parseScan(text)
+      onStreamFinished: {
+        if (text.length >= 100000) return
+        tab.scan = Sys.parseScan(text)
+        var cmd = Sys.modelsCommand(tab.scan.mlxPorts)
+        if (cmd === "") tab.mlxModels = []
+        else if (!modelsProc.running) { modelsProc.command = ["/usr/bin/sh", "-c", cmd]; modelsProc.running = true }
+      }
+    }
+  }
+
+  Process {
+    id: modelsProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text.length < 200000) tab.mlxModels = Sys.parseModelIds(text)
     }
   }
 
@@ -260,8 +286,14 @@ Item {
     Text {
       textFormat: Text.PlainText
       width: parent.width; elide: Text.ElideRight
+      color: tab.aneRt.trim() === "active" ? "#6fbf73" : tab.dimColor; font.family: tab.family; font.pixelSize: 10
+      text: "ANE " + Sys.aneState(tab.aneRt) + (tab.aneCheck.version !== "" ? " v" + tab.aneCheck.version : "") + " · " + (Sys.jobsPerMin(tab.aneJobs) !== null ? Sys.jobsPerMin(tab.aneJobs) + " jobs/min" : "-- jobs/min") + " · used " + Sys.fmtAgo(tab.aneLastUsed, tab.nowMs)
+    }
+    Text {
+      textFormat: Text.PlainText
+      width: parent.width; elide: Text.ElideRight
       color: tab.dimColor; font.family: tab.family; font.pixelSize: 10
-      text: "ANE " + (tab.aneCheck.version !== "" ? "v" + tab.aneCheck.version + " · " : "") + (tab.scan.anePids.length > 0 ? tab.scan.anePids.length + " proc open" : "idle, none open")
+      text: "ANE users: " + (tab.scan.aneProcs.length > 0 ? tab.scan.aneProcs.join(", ") : "none open")
     }
     Item {
       width: parent.width; height: 14
@@ -274,7 +306,7 @@ Item {
         elide: Text.ElideRight
         color: tab.scan.mlx.length > 0 ? "#6fbf73" : tab.dimColor
         font.family: tab.family; font.pixelSize: 10
-        text: (tab.scan.mlx.length > 0 ? "MLX " + (tab.scan.mlx[0].model || "serving") + " :" + tab.scan.mlx[0].port : "MLX not serving") + (tab.resv.count > 0 ? " · rsv " + tab.resv.gib + "G" : "")
+        text: (tab.scan.mlx.length > 0 ? "MLX x" + tab.scan.mlx.length + " " + (tab.mlxModels.length > 0 ? tab.mlxModels.join(", ") : (tab.scan.mlx[0].model || "serving") + " :" + tab.scan.mlx[0].port) : "MLX not running") + (tab.resv.count > 0 ? " · rsv " + tab.resv.gib + "G" : "")
       }
       Rectangle {
         id: copyBtn
