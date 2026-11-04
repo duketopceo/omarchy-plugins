@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -18,10 +19,10 @@ Panel {
   property string selectedTab: "overview" // "overview", "usb", "bt", "net", "storage"
   property real animPulse: 0.0
 
-  readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: Color.urgent
-  readonly property color accent: Color.accent
-  readonly property color muted: Color.muted
+  readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
+  readonly property color muted: Commons.Color.muted
   readonly property color cardBg: Qt.rgba(fg.r, fg.g, fg.b, 0.04)
   readonly property color cardBorder: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
   readonly property string pluginRoot: {
@@ -260,7 +261,7 @@ Panel {
               anchors.centerIn: parent
               text: modelData.label
               textFormat: Text.PlainText
-              color: root.selectedTab === modelData.id ? Color.background : root.fg
+              color: root.selectedTab === modelData.id ? Commons.Color.background : root.fg
               font.pixelSize: 10
               font.bold: true
             }

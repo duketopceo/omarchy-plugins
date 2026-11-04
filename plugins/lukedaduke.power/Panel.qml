@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -159,7 +160,7 @@ Panel {
   }
 
   readonly property color batteryFillColor: {
-    return root.bar ? root.bar.foreground : Color.foreground
+    return root.bar ? root.bar.foreground : Commons.Color.foreground
   }
 
   // Cute agent-flavored phrases shown in the hero status line, rotated on a
@@ -548,7 +549,7 @@ Panel {
         Rectangle {
           width: parent.width
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
           border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
           border.width: 1
           implicitHeight: batteryCard.implicitHeight + Style.space(24)
@@ -781,7 +782,7 @@ Panel {
         Rectangle {
           width: parent.width
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
           border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
           border.width: 1
           visible: !!root.powerData.ascii_graph
@@ -826,7 +827,7 @@ Panel {
             visible: !!root.powerData.watts_graph
             textFormat: Text.PlainText
             text: root.powerData.watts_graph || ""
-            color: Style.selectedFillFor(root.bar.foreground, Color.accent)
+            color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
             opacity: 0.8
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -854,7 +855,7 @@ Panel {
         Rectangle {
           width: parent.width
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
           border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
           border.width: 1
           visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
@@ -935,7 +936,7 @@ Panel {
                   anchors.verticalCenter: parent.verticalCenter
                   textFormat: Text.PlainText
                   text: modelData.bar
-                  color: Style.selectedFillFor(root.bar.foreground, Color.accent)
+                  color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.caption
                 }
@@ -949,7 +950,7 @@ Panel {
         Rectangle {
           width: parent.width
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
           border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
           border.width: 1
           implicitHeight: profileCard.implicitHeight + Style.space(24)
@@ -1046,7 +1047,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         text: gauge.headline
-        color: gauge.degraded ? Color.urgent : root.bar.foreground
+        color: gauge.degraded ? Commons.Color.urgent : root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.bodySmall
         font.bold: true
@@ -1065,7 +1066,7 @@ Panel {
         id: gaugeFill
         height: parent.height
         radius: parent.radius
-        color: gauge.degraded ? Color.urgent : root.bar.foreground
+        color: gauge.degraded ? Commons.Color.urgent : root.bar.foreground
         opacity: 0.85
         width: Math.max(0, Math.min(1, gauge.fraction)) * parent.width
 

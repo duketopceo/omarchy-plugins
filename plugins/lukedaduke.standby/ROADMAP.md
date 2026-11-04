@@ -2,13 +2,14 @@
 
 ## Current status
 
-Installable and validated. The most distinctive plugin in this set (OLED nightstand overlay). Missing only a preview image and a tagline before marketplace submission.
+Installable and validated, and submitted to the marketplace. The registry does not list it yet.
 
 ## Launch checklist
 
-- [ ] Add a clean `preview.png` of the overlay in red-tint and low-brightness modes
+- [x] Add a `preview.png` of the overlay
 - [x] Submit to https://plugins.omarchy.org/publish.html
-- [ ] Set GitHub repo topics and social preview
+- [x] Set GitHub repo topics
+- [ ] Set GitHub social preview
 - [ ] Write a short release / social post
 - [ ] Optional: make a short screen recording of the toggle keys
 
