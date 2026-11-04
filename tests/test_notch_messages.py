@@ -108,3 +108,95 @@ def test_badge_and_tab_rows():
     assert {r["name"] for r in rows} == {"Conversation", "Team"}
     th = json.dumps([{"chat": A, "name": A, "last_text": "one two", "unread": 1, "last_ts": "1"}])
     assert run(f"M.tabRows(M.parseThreads({json.dumps(th)}), null, 5)")[0]["name"] == "Contact"
+
+
+# ---- Messages tab helpers (scrubbed fixtures) ----
+
+NOW = 1_800_000_000_000  # ms
+
+
+@pytest.mark.parametrize("delta_ms,expected", [
+    (5_000, "now"), (120_000, "2m"), (59 * 60_000, "59m"), (3_600_000, "1h"), (23 * 3_600_000, "23h"),
+])
+def test_rel_time_short(delta_ms, expected):
+    assert run(f"M.relTime({NOW - delta_ms}, {NOW})") == expected
+
+
+def test_rel_time_days_and_junk():
+    two_days = NOW - 2 * 86_400_000
+    assert run(f"M.relTime({two_days}, {NOW})") in {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+    old = run(f"M.relTime({NOW - 30 * 86_400_000}, {NOW})")
+    assert old.split(" ")[0] in {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+    assert run(f"M.relTime('', {NOW})") == ""
+    assert run(f"M.relTime('nope', {NOW})") == ""
+    assert run(f"M.relTime({NOW + 5000}, {NOW})") == "now"  # clock skew never negative
+    assert run(f"M.relTime('2026-01-01T00:00:00Z', {NOW})") != ""
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("Ada Lovelace", "AL"), ("ada", "A"), ("Ada B. Cole", "AC"), ("  ", "?"), ("", "?"), ("(555)", "5"),
+])
+def test_initials(name, expected):
+    assert run(f"M.initials({json.dumps(name)})") == expected
+
+
+def test_hash_color_stable_and_hex():
+    a = run("M.hashColor('Ada')")
+    assert a == run("M.hashColor('Ada')")
+    assert len(a) == 7 and a.startswith("#")
+    assert len({run(f"M.hashColor('Person {i}')") for i in range(12)}) > 6
+
+
+def test_sha256_matches_node_crypto():
+    for s in ["", "abc", "+15551230001", "héllo", "x" * 200]:
+        js = (f"const M=require({json.dumps(str(MODULE))});const c=require('crypto');"
+              f"const s={json.dumps(s)};console.log(M.sha256(s)===c.createHash('sha256').update(s).digest('hex'))")
+        out = subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout.strip()
+        assert out == "true", s
+
+
+def test_avatar_key_normalizes_and_list_parse():
+    k = run("M.avatarKey(' Person@Example.com ')")
+    assert k == run("M.avatarKey('person@example.com')") and len(k) == 32
+    listing = f"{k}.jpg\n{'0' * 32}.none\njunk.jpg\n"
+    assert run(f"M.parseAvatarList({json.dumps(listing)})") == {k: True}
+
+
+def threads_json():
+    return json.dumps([
+        {"chat": A, "name": "Ada Lovelace", "last_text": "lunch   at\nnoon?", "unread": 2, "last_ts": "2026-01-02T00:00:00Z"},
+        {"chat": B, "name": "Bo Park", "last_text": "thanks!", "unread": 0, "last_ts": "2026-01-03T00:00:00Z"},
+        {"chat": G, "name": G, "last_text": "meeting moved", "unread": 1, "last_ts": "2026-01-01T00:00:00Z"},
+    ])
+
+
+def test_build_rows_model():
+    rows = run(f"M.buildRows(M.parseThreads({json.dumps(threads_json())}), null, 10)")
+    assert [r["name"] for r in rows] == ["Bo Park", "Ada Lovelace", "Group"]  # newest first, no raw handles or ids
+    ada = rows[1]
+    assert ada["preview"] == "lunch at noon?" and ada["unread"] == 2 and ada["initials"] == "AL"
+    assert ada["ts"] == "2026-01-02T00:00:00Z" and len(ada["avatar"]) == 32 and ada["color"].startswith("#")
+    assert run("M.totalUnread(" + json.dumps(rows) + ")") == 3
+
+
+def test_build_rows_fallback_without_threads():
+    st = f"M.parseState({json.dumps(state({A: 2, G: 1}, {G: {'name': 'Team'}}))})"
+    rows = run(f"M.buildRows(null, {st}, 10)")
+    assert {r["name"] for r in rows} == {"Conversation", "Team"} and all(r["preview"] == "" for r in rows)
+    assert run("M.buildRows(null, null, 10)") == []
+
+
+def test_filter_rows():
+    rows = json.dumps(run(f"M.buildRows(M.parseThreads({json.dumps(threads_json())}), null, 10)"))
+    assert [r["name"] for r in run(f"M.filterRows({rows}, ' ADA ')")] == ["Ada Lovelace"]
+    assert [r["name"] for r in run(f"M.filterRows({rows}, 'moved')")] == ["Group"]
+    assert run(f"M.filterRows({rows}, 'zzz')") == []
+    assert len(run(f"M.filterRows({rows}, '')")) == 3
+
+
+def test_goto_arg_and_offline_label():
+    assert run(f"M.gotoArg({json.dumps(A)})") == A[1:]
+    assert run(f"M.gotoArg({json.dumps(G)})") == G
+    assert run("M.offlineLabel(true, true)") == ""
+    assert run("M.offlineLabel(true, false)") == "Mac offline"
+    assert run("M.offlineLabel(false, false)") == "Blip not reachable"

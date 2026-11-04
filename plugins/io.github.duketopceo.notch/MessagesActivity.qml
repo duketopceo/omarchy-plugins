@@ -28,7 +28,7 @@ Scope {
   readonly property bool online: bridge !== null && bridge.online
   readonly property bool running: bridge !== null      // Blip widget answered IPC
   readonly property var threads: threadList            // null until automation allows it
-  readonly property var rows: Messages.tabRows(threadList, snapshot, 30)
+  readonly property var rows: Messages.buildRows(threadList, snapshot, 50)
 
   readonly property string home: Quickshell.env("HOME")
   readonly property var qsBase: ["qs", "-p", "/usr/share/omarchy/shell", "ipc", "call", "nixfred.blip"]
@@ -42,10 +42,11 @@ Scope {
   property var pending: []           // allowlisted arrivals waiting for a name lookup
 
   // ---- actions (user-initiated only)
-  function openBlip() { Quickshell.execDetached(qsBase.concat(["toggle"])) }
+  function openBlip() { Quickshell.execDetached(qsBase.concat(["open"])) }
   function openThread(chat) {
-    // `goto` needs Blip automation=on; without it just open the panel.
-    if (threadList) Quickshell.execDetached(qsBase.concat(["goto", String(chat)]))
+    // `goto` needs Blip automation=on; without it just open the panel. A bare
+    // "+" would be read by `qs ipc` as a flag; Blip accepts the digits alone.
+    if (threadList) Quickshell.execDetached(qsBase.concat(["goto", Messages.gotoArg(chat)]))
     else openBlip()
   }
   // Read-only: the Messages tab asks for the thread list while it is visible.
