@@ -62,7 +62,7 @@ def test_glyph():
     ("Song", "", 40, "Song"),
     ("", "Band", 40, "Band"),
     ("", "", 40, ""),
-    ("Song", "A Very Long Artist Name", 16, "Song — A Very Lo…"),
+    ("Song", "A Very Long Artist Name", 16, "Song — A Very L…"),
     ("A Very Long Song Title Indeed", "Band", 12, "A Very Long…"),
     ("Song", "Band", 0, "Song — Band"),
 ])
