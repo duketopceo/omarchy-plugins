@@ -4,15 +4,17 @@
 
 var HOVER_DELAY_MS = 150   // hover this long before expanding
 var LEAVE_DELAY_MS = 300   // leave this long before collapsing
-var PANEL_WIDTH = 420      // logical px
-var PANEL_HEIGHT = 180
+var PANEL_WIDTH = 460      // logical px
+var PANEL_HEIGHT = 240
 
 // States: "collapsed" -> "arming" (pointer in, waiting) -> "open"
 //         "open" -> "leaving" (pointer out, waiting) -> "collapsed"
 // Events: "enter", "leave", "timer" (the pending timer fired).
 // step() returns the next state plus the timer to (re)start: `timer` is a
 // delay in ms, or 0 when any pending timer must be stopped.
-function step(state, event) {
+function step(state, event, hoverDelay) {
+  // A 0 timer means "stop", so the shortest delay is 1 ms.
+  var hover = hoverDelay === null || hoverDelay === undefined || isNaN(Number(hoverDelay)) ? HOVER_DELAY_MS : Math.max(1, Number(hoverDelay))
   switch (state) {
     case "arming":
       if (event === "leave") return { state: "collapsed", timer: 0 }
@@ -26,7 +28,7 @@ function step(state, event) {
       if (event === "timer") return { state: "collapsed", timer: 0 }
       return { state: "leaving", timer: LEAVE_DELAY_MS }
     default:
-      if (event === "enter") return { state: "arming", timer: HOVER_DELAY_MS }
+      if (event === "enter") return { state: "arming", timer: hover }
       return { state: "collapsed", timer: 0 }
   }
 }

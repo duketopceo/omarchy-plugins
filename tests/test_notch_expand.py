@@ -71,9 +71,9 @@ def test_weekday_labels():
 
 
 def test_panel_sizing():
-    assert run("E.panelSize(1728)") == {"width": 420, "height": 180}
-    assert run("E.panelSize(300)") == {"width": 284, "height": 180}
-    assert run("E.panelSize(0)")["width"] == 420
+    assert run("E.panelSize(1728)") == {"width": 460, "height": 240}
+    assert run("E.panelSize(300)") == {"width": 284, "height": 240}
+    assert run("E.panelSize(0)")["width"] == 460
 
 
 def test_lines():

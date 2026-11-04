@@ -6,9 +6,11 @@ import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Commons as Commons
 import "Model.js" as Model
-import "Wordink.js" as Wordink
 import "Watchlist.js" as Watchlist
 import "Expand.js" as Expand  // U5 hover expand
+import "Settings.js" as Settings
+import "Activity.js" as Activity
+import "Plugins.js" as Plugins
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -28,12 +30,52 @@ Item {
     return p
   }
 
-  // Settings (v0.1: constants; later read from the plugin's shell.json entry).
-  readonly property int cameraWidth: 200   // logical px, 14"/16" MacBook Pro
+  // ------------------------------------------------------------ settings
+  // Stored in this plugin's entry of shell.json (`plugins[]`), edited from the
+  // Settings tab. Missing or invalid values fall back to Settings.DEFAULTS.
+
+  readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "io.github.duketopceo.notch"
+
+  // The injected shell config when present, else shell.json read directly.
+  property var fileConfig: null
+  FileView {
+    id: shellJson
+    path: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: { try { root.fileConfig = JSON.parse(text()) } catch (e) { root.fileConfig = null } }
+    onLoadFailed: root.fileConfig = null
+    onFileChanged: reload()
+  }
+  readonly property var shellConfig: shell && shell.shellConfig ? shell.shellConfig : fileConfig
+
+  // Values just set from the UI, so they show even before the config reloads.
+  property var pending: ({})
+  readonly property var settings: Settings.resolve(Settings.pluginEntry(shellConfig, pluginId), pending)
+
+  function setSetting(key, value) {
+    var copy = {}
+    for (var k in pending) copy[k] = pending[k]
+    copy[key] = value
+    pending = copy
+    if (!shell || typeof shell.mutateShellConfig !== "function") return
+    var patch = {}
+    patch[key] = value
+    shell.mutateShellConfig(Settings.settingsMutator(pluginId, patch))
+  }
+
+  // Open a plugin's panel: the shell's in-process toggle, else `qs ipc`.
+  function openPlugin(id) {
+    if (shell && typeof shell.toggle === "function") shell.toggle(String(id), "{}")
+    else Quickshell.execDetached(Plugins.ipcCommand(id))
+  }
+
+  readonly property int autoCameraWidth: 200   // logical px, 14"/16" MacBook Pro
+  readonly property int cameraWidth: settings.cameraWidth > 0 ? settings.cameraWidth : autoCameraWidth
   readonly property int earWidth: 96       // content room either side of the camera
   readonly property int virtualWidth: 300  // island width on screens without a cutout
-  readonly property int clockSeconds: 24
-  readonly property int slideSeconds: 7
+  readonly property int clockSeconds: settings.clockSeconds
+  readonly property int slideSeconds: settings.slideSeconds
 
   readonly property color islandColor: "black"
   readonly property color textColor: Commons.Color.foreground
@@ -67,9 +109,12 @@ Item {
 
   Process {
     id: fetcher
-    command: [root.pluginDir + "/bin/notch-data", "--max-age", "900"]
+    command: [root.pluginDir + "/bin/notch-data"].concat(Settings.dataArgs(root.settings))
     onExited: cacheFile.reload()
   }
+  // A new temperature unit refetches (the cache is keyed on the unit).
+  readonly property string unitName: settings.unitName
+  onUnitNameChanged: if (!fetcher.running) fetcher.running = true
   Timer {
     interval: 10 * 60 * 1000
     running: true
@@ -86,7 +131,7 @@ Item {
     onTriggered: root.now = new Date()
   }
 
-  readonly property string timeText: Qt.formatTime(now, "h:mm AP")
+  readonly property string timeText: Qt.formatTime(now, settings.timeFormat)
   readonly property string dateText: Qt.formatDate(now, "ddd d MMM")
   // Now playing takes over the side text while a player is playing.
   readonly property var player: {
@@ -94,14 +139,26 @@ Item {
     for (var i = 0; i < list.length; i++) if (list[i] && list[i].isPlaying) return list[i]
     return null
   }
-  readonly property string mediaText: player ? "\u{F075A} " + String(player.trackTitle || player.identity || "") : ""
+  readonly property string mediaText: player ? String(player.trackTitle || player.identity || "") : ""
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
 
-  readonly property string view: Wordink.chooseView(dictation.active, !!player, Model.idleView(now.getTime() / 1000, (weather ? ["weather"] : []).concat(quotes.length ? ["watchlist"] : []), clockSeconds, slideSeconds))  // watchlist hook: "watchlist" idle view when quotes exist
+  // Activity contract: each entry is { id, active, priority, text, glyph? }.
+  // The side text shows the highest-priority active one (ties: first listed),
+  // else the idle cycle. Add a new XActivity as one more line, anywhere in
+  // the list; order does not matter beyond ties.
+  readonly property var activities: [
+    { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
+    { id: "media", active: !!player, priority: 50, text: mediaText, glyph: "\u{F075A}" }
+    // activities:end
+  ]
+  readonly property var activity: Activity.pick(activities)
+
+  readonly property string idleView: Model.idleView(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), clockSeconds, slideSeconds)  // watchlist hook: "watchlist" idle view when quotes exist
+  readonly property string view: activity ? "activity" : idleView
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
-  readonly property string sideText: view === "dictation" ? dictation.text : view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
+  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : dateText)
   readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
@@ -129,7 +186,7 @@ Item {
       readonly property int baseHeight: notched ? Math.max(cut, root.barHeight) : root.barHeight
       readonly property var panelSz: Expand.panelSize(modelData.width)
       function xevent(e) {
-        var r = Expand.step(xstate, e)
+        var r = Expand.step(xstate, e, root.settings.hoverDelay)
         xstate = r.state
         if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
       }
@@ -170,6 +227,7 @@ Item {
             active: win.expanded
             progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.panelSz.height - win.baseHeight)))
             headerHeight: win.baseHeight
+            notch: root
             weather: root.weather
             now: root.now
             islandColor: root.islandColor
