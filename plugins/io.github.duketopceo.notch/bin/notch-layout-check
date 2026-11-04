@@ -4,6 +4,9 @@
 //
 //   notch-layout-check            table per screen, exit 1 if anything is blocked
 //   notch-layout-check --json     machine-readable report
+//   notch-layout-check --simulate 13|14|15|16
+//                                 check as if on that MacBook panel (scale 2),
+//                                 re-anchoring the current eDP bar widgets to it
 //
 // Reads widget geometry from the running Omarchy shell
 // (`qs ipc ... call shell debugBarGeometry`) and screen modes from hyprctl.
@@ -36,10 +39,23 @@ function room(rows, island, screenWidth) {
   }
 }
 
+// Device-tree compatible strings (NUL-separated); "" when unreadable.
+function readCompatible() {
+  try { return fs.readFileSync("/proc/device-tree/compatible", "utf8") } catch (e) { return "" }
+}
+
 function main() {
   const asJson = process.argv.includes("--json")
   const widgets = JSON.parse(run("qs", ["ipc", "-p", SHELL, "call", "shell", "debugBarGeometry"]))
-  const monitors = JSON.parse(run("hyprctl", ["monitors", "-j"]))
+  let monitors = JSON.parse(run("hyprctl", ["monitors", "-j"]))
+  let compatible = readCompatible()
+  const simIdx = process.argv.indexOf("--simulate")
+  const simInch = simIdx >= 0 ? Number(process.argv[simIdx + 1]) : 0
+  let simulated = null
+  if (simIdx >= 0) {
+    simulated = M.PANEL_BY_INCH[simInch]
+    if (!simulated) { console.error("--simulate takes 13, 14, 15 or 16"); process.exit(2) }
+  }
   let cutouts = []
   try { cutouts = M.parseCutouts(fs.readFileSync(CUTOUTS, "utf8")) } catch (e) { /* no cutout file */ }
 
@@ -64,13 +80,28 @@ function main() {
   const onlyNow = !process.argv.includes("--expand")
 
   let anyBlocked = false
+  // Simulation: take the built-in screen's widgets and re-anchor them to the
+  // simulated logical width (left widgets keep x, right ones stay flush right).
+  let simWidgets = null
+  if (simulated) {
+    const real = monitors.find(m => /^eDP/.test(m.name)) || monitors[0]
+    const realLogical = Math.round(real.width / real.scale)
+    const simLogical = Math.round(simulated.width / 2)
+    const shift = simLogical - realLogical
+    simWidgets = widgets.filter(w => !w.screen || w.screen === real.name)
+      .map(w => Object.assign({}, w, { x: w.section === "left" ? w.x : w.x + shift }))
+    compatible = "apple," + simulated.model
+    monitors = [{ name: "eDP-1", width: simulated.width, height: simulated.height, scale: 2, transform: 0 }]
+  }
+
   const reports = monitors.map(mon => {
     const logicalWidth = Math.round(mon.width / mon.scale)
     const cut = M.cutoutTop(cutouts, mon.name, logicalWidth, { width: mon.width, height: mon.height, transform: mon.transform })
-    const island = M.islandRect(logicalWidth, cut)
+    const camera = M.cameraWidthFor(compatible, mon.width, logicalWidth)
+    const island = M.islandRect(logicalWidth, cut, null, camera)
     // debugBarGeometry carries no screen; widgets with a `screen` field are
     // filtered to it, the rest are checked against every screen.
-    const mine = widgets.filter(w => !w.screen || w.screen === mon.name)
+    const mine = (simWidgets || widgets).filter(w => !w.screen || w.screen === mon.name)
     const report = M.layoutReport(mine, island)
     if (report.blocked.length) anyBlocked = true
     const expansions = scenarios.slice(1).map(([name, grow]) => {
@@ -79,7 +110,7 @@ function main() {
       if (!onlyNow && r.blocked.length) anyBlocked = true
       return { scenario: name, blocked: r.blocked, room: sideRoom }
     })
-    return { screen: mon.name, logicalWidth, cutout: cut, island, rows: report.rows, blocked: report.blocked, expansions }
+    return { screen: mon.name, simulatedInch: simInch || undefined, model: M.deviceModel(compatible), camera, logicalWidth, cutout: cut, island, rows: report.rows, blocked: report.blocked, expansions }
   })
 
   if (asJson) {
@@ -87,7 +118,7 @@ function main() {
   } else {
     for (const r of reports) {
       const i = r.island
-      console.log(`${r.screen}  ${r.logicalWidth}px wide  ${r.cutout ? "camera cutout " + r.cutout + "px" : "no cutout (virtual notch)"}`)
+      console.log(`${r.screen}${simInch ? ` (simulated ${simInch}")` : ""}  ${r.model || "unknown model"}  ${r.logicalWidth}px wide  ${r.cutout ? "camera cutout " + r.cutout + "px, camera " + r.camera + "px" : "no cutout (virtual notch)"}`)
       console.log(`  island  x ${i.x}-${i.x + i.width}  (${i.width}x${i.height})`)
       console.log("  " + "widget".padEnd(32) + "section".padEnd(9) + "x".padStart(6) + "width".padStart(7) + "gap".padStart(6) + "  status")
       for (const w of r.rows) {
