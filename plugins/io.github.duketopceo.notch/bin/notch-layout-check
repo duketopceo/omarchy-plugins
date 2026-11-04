@@ -30,6 +30,22 @@ function readJson(file) {
 // Free space between the island and the nearest widget on each side
 // (negative when a widget reaches under the island). Shared with the island's
 // ear sizing: Model.sideRoom.
+// With several screens, debugBarGeometry returns one copy of each widget per
+// bar and no screen name. Keep one copy per widget for this screen: the one
+// with the largest x that still fits on it (right-anchored widgets sit further
+// right on a wider screen). The tray drawer is off-screen by design, so it is
+// exempt from the fit test.
+function pickForScreen(list, screenWidth) {
+  const best = new Map()
+  for (const w of list) {
+    if (w.section !== "tray" && w.x + w.width > screenWidth + 1) continue
+    const key = w.section + "|" + w.id
+    const cur = best.get(key)
+    if (!cur || (w.section !== "tray" ? w.x > cur.x : w.x < cur.x)) best.set(key, w)
+  }
+  return Array.from(best.values())
+}
+
 function room(rows, island, screenWidth) {
   return M.sideRoom(rows.map(w => Object.assign({ visible: true }, w)), island, screenWidth)
 }
@@ -102,7 +118,7 @@ function main() {
     const island = M.islandRect(logicalWidth, cut, null, camera)
     // debugBarGeometry carries no screen; widgets with a `screen` field are
     // filtered to it, the rest are checked against every screen.
-    const mine = (simWidgets || widgets).filter(w => !w.screen || w.screen === mon.name)
+    const mine = pickForScreen((simWidgets || widgets).filter(w => !w.screen || w.screen === mon.name), logicalWidth)
     const report = M.layoutReport(mine, island)
     if (report.blocked.length) anyBlocked = true
     const expansions = scenarios.slice(1).map(([name, grow]) => {
