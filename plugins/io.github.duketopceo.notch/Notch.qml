@@ -146,13 +146,14 @@ Item {
 
   readonly property string timeText: Qt.formatTime(now, settings.timeFormat)
   readonly property string dateText: Qt.formatDate(now, "ddd d MMM")
-  // Now playing takes over the side text while a player is playing.
-  readonly property var player: {
-    var list = Mpris.players ? Mpris.players.values : []
-    for (var i = 0; i < list.length; i++) if (list[i] && list[i].isPlaying) return list[i]
-    return null
-  }
-  readonly property string mediaText: player ? String(player.trackTitle || player.identity || "") : ""
+  // Now playing (N3): MediaActivity picks the player (fastpotify, then Spotify,
+  // then any playing MPRIS player). Registered in `activities` below.
+  MediaActivity { id: media }
+  readonly property var mediaActivity: media   // read by MediaTab.qml
+  readonly property var player: media.active ? media.player : null
+  readonly property string mediaText: media.active ? media.text : ""
+  readonly property bool mediaShown: activity !== null && activity !== undefined && activity.id === "media"
+  readonly property int eqSpace: mediaShown ? 14 : 0   // room for the equalizer glyph
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
@@ -163,7 +164,7 @@ Item {
   // the list; order does not matter beyond ties.
   readonly property var activities: [
     { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
-    { id: "media", active: !!player, priority: 50, text: mediaText, glyph: "\u{F075A}" }
+    { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
@@ -278,13 +279,22 @@ Item {
         SlideText {
           visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + Math.round((win.earW - width) / 2)
+          x: win.earW + win.camW + root.eqSpace + Math.round((win.earW - root.eqSpace - width) / 2)
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earW - 8
+          maxWidth: win.earW - 8 - root.eqSpace
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
+        }
+
+        // N3: animated equalizer beside the title while media plays.
+        EqGlyph {
+          visible: win.notched && root.mediaShown
+          playing: media.active
+          color: root.textColor
+          anchors.verticalCenter: parent.verticalCenter
+          x: root.earWidth + root.cameraWidth + 4
         }
 
         // WordInk dictation dot (U4): pulses while recording.
@@ -308,6 +318,12 @@ Item {
             font.pixelSize: 13
             textFormat: Text.PlainText
             font.weight: Font.DemiBold
+          }
+          EqGlyph {
+            visible: root.mediaShown
+            playing: media.active
+            color: root.textColor
+            anchors.verticalCenter: parent.verticalCenter
           }
           // watchlist hook (virtual notch).
           WatchlistSlide {
