@@ -127,3 +127,59 @@ def test_pretty_app_name():
     assert run("A.prettyApp('com.example.herdr-app')") == "Herdr app"
     assert run("A.prettyApp('foot')") == "Foot"
     assert run("A.prettyApp('')") == "" and run("A.prettyApp(null)") == ""
+
+
+def test_counts_text_and_totals():
+    assert run("A.countsText({working:2,blocked:1,done:0,idle:0})") == "1 needs you · 2 working"
+    assert run("A.countsText({working:0,blocked:0,done:0,idle:0})") == ""
+    assert run("A.totalsText(A.parseLs(t))", t=LS) == "6 agents"
+    assert run("A.totalsText(A.parseLs(''))") == "No agents"
+
+
+def test_group_model_order_and_keys():
+    g = run("A.groupModel(A.parseLs(t))", t=LS)
+    assert [x["key"] for x in g] == ["Home", "Project", "box1/Remote"]
+    assert g[0]["blocked"] is True and g[0]["countsText"].startswith("1 needs you")
+
+
+def test_collapsed_set_and_auto_expand():
+    blocked = {"key": "Home", "blocked": True}
+    plain = {"key": "Project", "blocked": False}
+    assert run("A.isCollapsed(['Home','Project'], g)", g=blocked) is False
+    assert run("A.isCollapsed(['Home','Project'], g)", g=plain) is True
+    assert run("A.toggleCollapsed(['Home'], g)", g=plain) == ["Home", "Project"]
+    assert run("A.toggleCollapsed(['Project'], g)", g=plain) == []
+    assert run("A.normCollapsed('x')") == []
+    cfg = {"plugins": [{"id": "p", "agents.collapsed": ["a", 3, ""]}]}
+    assert run("A.readCollapsed(c, 'p')", c=cfg) == ["a"]
+    assert run("A.readCollapsed(null, 'p')") == []
+
+
+def test_icon_mapping():
+    assert run("A.iconFor('claude-code')")["file"] == "claude.svg"
+    d = run("A.iconFor('devin')")
+    assert d["file"] == "" and d["monogram"] == "D"
+    assert run("A.iconFor(null)")["monogram"] == "A"
+
+
+def test_status_label():
+    assert [run("A.statusLabel(s)", s=s) for s in ["blocked", "done", "working", None]] == ["needs you", "done", "working", "idle"]
+
+
+def test_usage_rows_top3_and_expand():
+    usage = {"ok": True, "providers": [
+        {"id": c, "name": c.upper(), "rows": [{"label": "w", "percent": p, "resetAt": "2026-11-04T13:00:00Z", "severity": sev}]}
+        for c, p, sev in [("a", 10, "low"), ("b", 95, "critical"), ("c", 60, "mid"), ("d", 80, "high")]]}
+    now = 1_793_800_000_000  # 2026-11-04T..Z area; only used for formatting
+    r = run("A.usageRows(u, n, false, 3)", u=usage, n=now)
+    assert [x["id"] for x in r["rows"]] == ["b", "d", "c"] and r["hidden"] == 1
+    assert [x["severity"] for x in r["rows"]] == ["critical", "warn", "warn"]
+    assert run("A.usageRows(u, n, true, 3)", u=usage, n=now)["hidden"] == 0
+    assert run("A.usageRows(null, 0, false, 3)")["rows"] == []
+
+
+@pytest.mark.parametrize("delta_min,expect", [(-1, "now"), (12, "12m"), (206, "3h"), (3 * 1440 + 300, "3d")])
+def test_reset_short(delta_min, expect):
+    now = 1_800_000_000_000
+    iso = run("new Date(n + d * 60000).toISOString()", n=now, d=delta_min)
+    assert run("A.resetShort(i, n)", i=iso, n=now) == expect
