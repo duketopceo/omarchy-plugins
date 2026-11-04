@@ -115,7 +115,7 @@ Panel {
     interval: 9000
     onTriggered: {
       if (statusProc.running) {
-        var pid = statusProc.pid
+        var pid = statusProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         statusProc.signal(9)
@@ -127,7 +127,8 @@ Panel {
   Timer {
     id: refreshTimer
     interval: 3000
-    running: true
+    // Data is only shown inside the panel, so poll only while it is open.
+    running: root.opened
     repeat: true
     triggeredOnStart: true
     onTriggered: root.refresh()
