@@ -104,6 +104,7 @@ Item {
       spacing: 5
 
       Text {
+        textFormat: Text.PlainText
         text: Qt.formatDate(panel.now, "dddd, d MMM")
         color: panel.textColor
         font.family: panel.family
@@ -129,6 +130,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           width: leftCol.width - 48
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             elide: Text.ElideRight
             text: panel.player ? String(panel.player.trackTitle || panel.player.identity || "") : "Nothing playing"
@@ -137,6 +139,7 @@ Item {
             font.pixelSize: 12
           }
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             elide: Text.ElideRight
             text: panel.player ? String(panel.player.trackArtist || "") : ""
@@ -162,6 +165,7 @@ Item {
             color: hit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
             opacity: panel.player ? 1 : 0.4
             Text {
+              textFormat: Text.PlainText
               anchors.centerIn: parent
               text: btn.modelData.glyph
               color: panel.textColor
@@ -186,6 +190,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: text !== ""
         width: leftCol.width
         elide: Text.ElideRight
@@ -196,6 +201,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         visible: text !== ""
         width: leftCol.width
         elide: Text.ElideRight
@@ -231,7 +237,7 @@ Item {
           required property var modelData
           spacing: 4
           Rectangle { width: 7; height: 7; radius: 4; color: dot.modelData.color; anchors.verticalCenter: parent.verticalCenter }
-          Text { text: dot.modelData.name; color: panel.dimColor; font.family: panel.family; font.pixelSize: 9 }
+          Text { textFormat: Text.PlainText; text: dot.modelData.name; color: panel.dimColor; font.family: panel.family; font.pixelSize: 9 }
         }
       }
     }

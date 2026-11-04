@@ -22,6 +22,7 @@ Item {
   implicitHeight: 16 + cellH * (rows.length + 1)
 
   Text {
+    textFormat: Text.PlainText
     id: title
     text: Qt.formatDate(cal.today, "MMMM yyyy")
     color: cal.textColor
@@ -38,6 +39,7 @@ Item {
     Repeater {
       model: cal.labels
       Text {
+        textFormat: Text.PlainText
         required property string modelData
         width: cal.cellW
         height: cal.cellH
@@ -67,6 +69,7 @@ Item {
           color: cal.accentColor
         }
         Text {
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: cell.modelData > 0 ? String(cell.modelData) : ""
           color: cell.isToday ? "black" : cal.textColor
