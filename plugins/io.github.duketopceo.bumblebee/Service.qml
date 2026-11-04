@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 // Always-on watcher for io.github.duketopceo.bumblebee — the radar that keeps
 // working with the dropdown closed.
@@ -88,10 +89,10 @@ Item {
     return (e && Array.isArray(e.ignoredExposures)) ? e.ignoredExposures : []
   }
 
-  readonly property color urgent: Color.urgent
-  readonly property color popupBg: Color.notifications.background
-  readonly property color popupText: Color.notifications.text
-  readonly property color dimText: Qt.darker(Color.notifications.text, 1.4)
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color popupBg: Commons.Color.notifications.background
+  readonly property color popupText: Commons.Color.notifications.text
+  readonly property color dimText: Qt.darker(Commons.Color.notifications.text, 1.4)
   readonly property string fontFamily: root.shell && root.shell.bar
                                        ? root.shell.bar.fontFamily
                                        : Style.font.family

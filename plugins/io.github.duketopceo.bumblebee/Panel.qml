@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -90,10 +91,10 @@ Panel {
   }
 
   // ---- palette: fg/dim + alpha fills only, never a raw hex ----
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(fg, 1.5)
-  readonly property color urgent: Color.urgent
-  readonly property color accent: Color.accent
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   // State color: dim until installed, urgent on any exposure, accent when clean.
   readonly property color stateColor: !installed ? dim
@@ -405,7 +406,7 @@ Panel {
     active: root.installed && root.exposureCount > 0
     foreground: root.installed && root.exposureCount === 0
                 ? root.accent
-                : (root.bar ? root.bar.barForeground : Color.foreground)
+                : (root.bar ? root.bar.barForeground : Commons.Color.foreground)
     onPressed: function (b) {
       root.refresh()
       root.toggle()

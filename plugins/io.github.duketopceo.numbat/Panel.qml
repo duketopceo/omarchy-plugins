@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -96,10 +97,10 @@ Panel {
     }
   }
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property color accent: Color.accent
-  readonly property color urgent: (Color.urgent === undefined || Color.urgent === null) ? foreground : Color.urgent
+  readonly property color accent: Commons.Color.accent
+  readonly property color urgent: (Commons.Color.urgent === undefined || Commons.Color.urgent === null) ? foreground : Commons.Color.urgent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   // Setup state exists only once a probe answer has landed — the banner must
   // not flash "not installed" on machines that have numbat before first poll.
@@ -407,7 +408,7 @@ Panel {
       anchors.centerIn: parent
       text: root.unseenCount > 9 ? "9+" : String(root.unseenCount)
       textFormat: Text.PlainText
-      color: Color.background
+      color: Commons.Color.background
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption - 2
       font.bold: true

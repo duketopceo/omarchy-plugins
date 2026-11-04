@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -37,10 +38,10 @@ Panel {
 
   // Palette — dayflow idiom: theme tokens plus derived alpha fills, no
   // hardcoded colors anywhere in the panel.
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property color urgent: Color.urgent
-  readonly property color accent: Color.accent
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property string pluginRoot: {
     var p = Qt.resolvedUrl(".").toString()
@@ -73,7 +74,7 @@ Panel {
     return Qt.rgba(rgb[0], rgb[1], rgb[2], alpha)
   }
   function accentFill(alpha) {
-    var c = (Color.accent === undefined || Color.accent === null) ? foreground : Color.accent
+    var c = (Commons.Color.accent === undefined || Commons.Color.accent === null) ? foreground : Commons.Color.accent
     return fillFor(c, alpha)
   }
   function fgFill(alpha) { return fillFor(foreground, alpha) }
