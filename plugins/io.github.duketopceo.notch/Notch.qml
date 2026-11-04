@@ -158,6 +158,10 @@ Item {
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
 
+  // Blip iMessage (N5): read-only. Flashes for allowlisted senders; MessagesTab reads `notch.messages`.
+  MessagesActivity { id: messagesAct }
+  readonly property var messages: messagesAct
+
   // Agents (N4): herdr agent status. AgentsTab reads it via `agentsActivity`.
   AgentsActivity { id: agents }
   readonly property var agentsActivity: agents
@@ -169,7 +173,8 @@ Item {
   readonly property var activities: [
     { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
-    { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph }
+    { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
+    { id: "messages", active: messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
