@@ -127,7 +127,7 @@ function looksLikeHandle(s) {
 function firstWords(text, n) {
   var words = String(text || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean)
   var cut = words.slice(0, n || WORDS).join(" ")
-  if (cut.length > MAX_CHARS) cut = cut.slice(0, MAX_CHARS - 1).trimEnd() + "…"
+  if (cut.length > MAX_CHARS) cut = cut.slice(0, MAX_CHARS - 1).replace(/\s+$/, "") + "…"
   else if (words.length > (n || WORDS)) cut += "…"
   return cut
 }
@@ -136,7 +136,7 @@ function firstWords(text, n) {
 // sender just the preview words; with neither a generic label.
 function formatText(name, preview) {
   var who = String(name || "").trim()
-  if (who.length > 18) who = who.slice(0, 17).trimEnd() + "…"
+  if (who.length > 18) who = who.replace(/\s+$/, "").slice(0, 17).replace(/\s+$/, "") + "…"
   var body = firstWords(preview)
   if (who && body) return who + ": " + body
   if (who) return who

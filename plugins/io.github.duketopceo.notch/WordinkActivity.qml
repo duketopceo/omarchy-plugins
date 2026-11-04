@@ -41,6 +41,14 @@ Scope {
       "wordink"].concat(args)
   }
 
+  // Click-to-toggle from the notch: `wordink dictation toggle` (start when
+  // idle, otherwise stop). Fire-and-forget; the follow stream reports the result.
+  function toggle() { if (!toggleProc.running) toggleProc.running = true }
+  Process {
+    id: toggleProc
+    command: wi.cli(["dictation", "toggle"])
+  }
+
   function poll() { if (!statusProc.running) statusProc.running = true }
 
   Process {

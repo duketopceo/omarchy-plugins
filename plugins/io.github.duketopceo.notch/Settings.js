@@ -12,7 +12,8 @@ var DEFAULTS = {
   unit: "F",          // "F" | "C"
   clockHours: 12,     // 12 | 24
   cameraWidth: 0,     // 0 = auto, else logical px
-  hoverDelay: 150     // ms before hover expands the panel
+  hoverDelay: 150,    // ms before hover expands the panel
+  snapdex: false      // optional personal integration: Screenshots tab + caption flash
 }
 
 var FIELDS = [
@@ -25,7 +26,8 @@ var FIELDS = [
   { key: "clockHours", label: "Clock", type: "choice",
     options: [{ value: 12, label: "12 h" }, { value: 24, label: "24 h" }] },
   { key: "cameraWidth", label: "Camera width", type: "int", min: 0, max: 400, step: 10, suffix: " px", zero: "auto" },
-  { key: "hoverDelay", label: "Hover delay", type: "int", min: 0, max: 1000, step: 50, suffix: " ms" }
+  { key: "hoverDelay", label: "Hover delay", type: "int", min: 0, max: 1000, step: 50, suffix: " ms" },
+  { key: "snapdex", label: "Screenshots (snapdex)", type: "bool" }
 ]
 
 function field(key) {

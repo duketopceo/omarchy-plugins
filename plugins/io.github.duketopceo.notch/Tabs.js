@@ -14,9 +14,18 @@ var TABS = [
   { id: "media", title: "Media", glyph: "\u{F075A}", source: "MediaTab.qml" },
   { id: "agents", title: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml" },
   { id: "messages", title: "Messages", glyph: "\u{F0361}", source: "MessagesTab.qml" },
+  { id: "network", title: "Network", glyph: "\u{F05A9}", source: "NetworkTab.qml" },
+  { id: "screenshots", title: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex" },
   { id: "plugins", title: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml" },
   { id: "settings", title: "Settings", glyph: "\u{F0493}", source: "SettingsTab.qml" }
 ]
+
+// Tabs to show for these resolved settings: an `optional` tab needs the
+// setting of that name to be true (personal integrations, off by default).
+function visibleTabs(settings, tabs) {
+  var list = Array.isArray(tabs) ? tabs : TABS
+  return list.filter(function (t) { return !t.optional || !!(settings && settings[t.optional] === true) })
+}
 
 function byId(id, tabs) {
   var list = Array.isArray(tabs) ? tabs : TABS
@@ -53,5 +62,5 @@ function failed(tab) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
+  module.exports = { visibleTabs: visibleTabs, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
 }

@@ -4,19 +4,29 @@ A Mac-style notch island at the top center of every screen, for Omarchy 4.5.
 
 - On MacBook panels with a camera cutout (from Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, date in the right ear.
 - On other screens it is a virtual notch with the same content on one line.
+- The ear text hugs the camera (6 px gap: left ear right-aligned, right ear left-aligned) and the island is exactly the cutout height.
 - Idle: clock and date, with the current weather sliding in every half minute. While music plays, the track title takes the right ear.
 
 Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weather settings, fetched at most every 15 minutes by `bin/notch-data` into `~/.cache/omarchy/notch.json`.
 
 ## Hover expand
 
-Hover the island for about 150 ms and it springs down into a 460x240 panel with a tab strip. The Home tab holds: media controls (Mpris), today's date with a month calendar, a weather line, a quotes line when the cache has `quotes`, and status dots for Wisp (`$XDG_RUNTIME_DIR/wisp/state.json`) and NordVPN (the nordvpn plugin's read-only status probe, polled every 30 s only while open). Leaving collapses it after about 300 ms. Logic lives in `Expand.js`, UI in `ExpandedPanel.qml` and `MiniCalendar.qml`; `Notch.qml` carries only the `U5` hook lines.
+Hover the island for about 150 ms and it springs down into a 460x240 panel with a tab strip (the selected tab shows glyph and name, the others just the glyph). Leaving collapses it after about 300 ms. Logic lives in `Expand.js`, UI in `ExpandedPanel.qml`.
 
 ## Tabs
 
 The expanded panel has a tab strip and a content area. Tabs are listed in `Tabs.js` as `{ id, title, glyph, source }`. The content is a `Loader` on `source` (a QML file next to `Notch.qml`) and the loaded item gets a `notch` property: the root `Notch.qml` item (declare `property var notch: null` in your tab). A tab whose file is missing shows "<Title> is coming soon", never an error.
 
-Shipped: Home (`HomeTab.qml`, the original panel), Plugins (`PluginsTab.qml`), Settings (`SettingsTab.qml`). Placeholders for `MediaTab.qml`, `AgentsTab.qml` and `MessagesTab.qml` light up as soon as those files exist.
+Tabs:
+
+- **Home**: date, weather with the pixel icon, now playing (compact), up to 2 quotes, the active app name, a month calendar, counters (agents working / need you / done, unread messages, top AI usage %) and status dots: Tailscale (click copies the IP), NordVPN (click toggles), Wisp (click opens its panel), Dictate (click runs `wordink dictation toggle`).
+- **Media**, **Agents** (AI usage on top, wheel scroll about 3 rows per notch), **Messages** (Blip threads, read-only), **Plugins**, **Settings** (scrollable).
+- **Network** (`NetworkTab.qml`, `Network.js`, `NetworkState.qml`): Tailscale (state, this device's tailnet IP, peers with online/offline dots, connect/disconnect switch, click an IP to copy it) and NordVPN (state, country/server, connect/disconnect switch). `/usr/bin/tailscale up|down` and the nordvpn plugin's own `probe_nordvpn.py connect|disconnect`. It polls every 8 s only while a tab showing it is visible, plus a cheap status read (no peer list) every 60 s that drives the small status dot on the idle notch (green when either is up, amber while connecting).
+- **Screenshots** (optional, Settings > "Screenshots (snapdex)", off by default): last 8 thumbnails with captions, unprocessed count, "Process now", the Auto switch and "Open folder", all through the snapdex plugin's `snapdex-ctl`. Shots are saved to and renamed in `~/Pictures/Screenshots`. While on, a newly captioned screenshot flashes its caption in the notch for 4 s at priority 30.
+
+The Plugins tab opens a slot by trying the shell's `summon`, then the plugin's own `qs ipc call <id> toggle`, then a per-plugin fallback. Plugins in the bar's `tray` section only have a panel the shell can summon while their widget is live (the built-in tray must be on the bar); otherwise the slot says "not on the bar".
+
+Click the right ear while a dictation shows to toggle dictation.
 
 Useful `notch` members for tabs: `weather`, `now`, `textColor`, `dimColor`, `fontFamily`, `pluginDir`, `shellConfig`, `settings` (resolved), `setSetting(key, value)`, `openPlugin(id)`, `activities`.
 
@@ -37,6 +47,7 @@ Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateS
 | `clockHours` | 12 | 12 or 24 hour clock |
 | `cameraWidth` | 0 | 0 = auto, else logical px |
 | `hoverDelay` | 150 | ms before hover expands |
+| `snapdex` | false | Screenshots tab and caption flash (needs the snapdex plugin) |
 
 ## Activity contract
 
@@ -51,6 +62,10 @@ readonly property var activities: [
 ```
 
 Each entry is `{ id, active (bool), priority (int, higher wins), text (string), glyph? }`. Ties go to the earlier entry; entries with empty text are skipped. To add an `XActivity` (a `Scope` exposing `active` and `text`, like `WordinkActivity`), instantiate it in `Notch.qml` and add one line above the `activities:end` marker. Logic is in `Activity.js`.
+
+## Slimming the bar
+
+`bin/notch-slim-bar` removes the bar widgets the notch covers (Tailscale, NordVPN, snapdex, WordInk, finance, world clock, active window) from `shell.json` `bar.layout`. `--dry-run` shows the change, `--undo` puts the entries back. It backs up to `shell.json.bak-notch-v3` first and keeps `omarchy.indicators`, `omarchy.microphone`, Blip and Wisp. Tests: `tests/test_notch_slim_bar.py`.
 
 ## Checking the bar layout
 

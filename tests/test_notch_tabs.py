@@ -26,12 +26,22 @@ def run(expr):
 
 def test_tab_list_shape_and_sources():
     tabs = run("T.TABS")
-    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "plugins", "settings"]
+    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "network", "screenshots", "plugins", "settings"]
     for t in tabs:
-        assert set(t) == {"id", "title", "glyph", "source"} and t["glyph"] and t["title"]
+        assert {"id", "title", "glyph", "source"} <= set(t) <= {"id", "title", "glyph", "source", "optional"} and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
-        "messages": "MessagesTab.qml", "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
+        "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "screenshots": "ScreenshotsTab.qml",
+        "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
+
+
+def test_snapdex_tab_is_optional_and_off_by_default():
+    off = [t["id"] for t in run("T.visibleTabs(S.resolve(null))")]
+    assert "screenshots" not in off and "network" in off
+    on = [t["id"] for t in run("T.visibleTabs(S.resolve({snapdex:true}))")]
+    assert "screenshots" in on
+    assert run("S.DEFAULTS.snapdex") is False
+    assert run("S.field('snapdex').type") == "bool"
 
 
 def test_shipped_tab_files_exist():
@@ -159,14 +169,37 @@ def test_slot_info_name_and_icon():
     assert i["name"] == "Nice" and i["image"] == "/h/.config/omarchy/plugins/a.b/art/p.png"
     m = json.dumps({"name": "Plain", "preview": "\U000f0431"})
     i = run(f"P.slotInfo('a.b',{json.dumps(m)},'/h')")
-    assert i["name"] == "Plain" and i["image"] == "" and i["glyph"] == "\U000f0431"
+    assert i["name"] == "Plain" and i["image"].endswith("/a.b/icon.png") and i["glyph"] == "\U000f0431"
     m = json.dumps({"name": "Plain", "preview": "/abs/p.svg"})
     assert run(f"P.slotInfo('a.b',{json.dumps(m)},'/h')")["image"] == "/abs/p.svg"
 
 
 def test_slot_info_generic_when_manifest_missing():
     i = run("P.slotInfo('lukedaduke.fan','','/h')")
-    assert i["name"] == "fan" and i["image"] == "" and i["glyph"] == run("P.GENERIC_GLYPH")
+    assert i["name"] == "fan" and i["image"].endswith("/lukedaduke.fan/icon.png")
+    assert i["glyph"] == run("P.GLYPHS['lukedaduke.fan']") != run("P.GENERIC_GLYPH")
+
+
+def test_preview_png_is_never_the_icon():
+    # preview.png is a screenshot of the panel, not an icon.
+    m = json.dumps({"name": "X", "preview": "preview.png"})
+    assert run(f"P.slotInfo('a.b',{json.dumps(m)},'/h')")["image"].endswith("/a.b/icon.png")
+
+
+def test_open_chain_and_step_results():
+    chain = run("P.openChain('robzolkos.github')")
+    assert [s["kind"] for s in chain] == ["summon", "ipc", "run"]
+    assert chain[0]["cmd"][-3:] == ["summon", "robzolkos.github", "{}"]
+    assert chain[1]["cmd"][-2:] == ["robzolkos.github", "toggle"]
+    assert [s["kind"] for s in run("P.openChain('lukedaduke.fan')")] == ["summon", "ipc"]
+    assert [s["kind"] for s in run("P.openChain('x.y',['/bin/true'])")] == ["summon", "ipc", "run"]
+    assert all(s["cmd"][0].startswith("/") for s in chain)
+    summon, ipc, fallback = chain
+    assert run("P.stepOk(%s,0,'ok\\n')" % json.dumps(summon)) is True
+    assert run("P.stepOk(%s,0,'unknown')" % json.dumps(summon)) is False
+    assert run("P.stepOk(%s,0,'')" % json.dumps(ipc)) is True
+    assert run("P.stepOk(%s,0,'Target not found.')" % json.dumps(ipc)) is False  # qs exits 0 here
+    assert run("P.stepOk(%s,1,'')" % json.dumps(fallback)) is False
 
 
 def test_open_commands():

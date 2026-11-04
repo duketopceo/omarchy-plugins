@@ -18,8 +18,15 @@ Item {
     if (notch) notch.setSetting(key, Settings.next(settings, key, dir))
   }
 
-  Flow {
+  NotchScroll {
     anchors.fill: parent
+    rowHeight: 32
+    contentHeight: flow.height
+    contentWidth: width
+
+  Flow {
+    id: flow
+    width: parent.width
     spacing: 0
 
     Repeater {
@@ -105,5 +112,6 @@ Item {
         }
       }
     }
+  }
   }
 }

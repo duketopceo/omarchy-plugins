@@ -28,7 +28,7 @@ Scope {
   readonly property bool online: bridge !== null && bridge.online
   readonly property bool running: bridge !== null      // Blip widget answered IPC
   readonly property var threads: threadList            // null until automation allows it
-  readonly property var rows: Messages.tabRows(threadList, snapshot, 6)
+  readonly property var rows: Messages.tabRows(threadList, snapshot, 30)
 
   readonly property string home: Quickshell.env("HOME")
   readonly property var qsBase: ["qs", "-p", "/usr/share/omarchy/shell", "ipc", "call", "nixfred.blip"]
@@ -48,6 +48,8 @@ Scope {
     if (threadList) Quickshell.execDetached(qsBase.concat(["goto", String(chat)]))
     else openBlip()
   }
+  // Read-only: the Messages tab asks for the thread list while it is visible.
+  function fetchThreads() { if (!threadsProc.running) threadsProc.running = true }
   function markAllRead() { Quickshell.execDetached(qsBase.concat(["read"])) }
 
   function apply(next) {

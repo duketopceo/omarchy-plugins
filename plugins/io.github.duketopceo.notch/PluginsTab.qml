@@ -26,8 +26,15 @@ Item {
     font.pixelSize: 11
   }
 
-  Flow {
+  NotchScroll {
     anchors.fill: parent
+    rowHeight: 42
+    contentHeight: flow.height
+    contentWidth: width
+
+  Flow {
+    id: flow
+    width: parent.width
     spacing: 6
 
     Repeater {
@@ -42,6 +49,14 @@ Item {
         radius: 8
         color: hit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
 
+        // Only hand an icon file to Image once it is known to exist (no warnings).
+        property bool imageOk: false
+        FileView {
+          path: slot.info.image
+          printErrors: false
+          onLoaded: slot.imageOk = true
+          onLoadFailed: slot.imageOk = false
+        }
         FileView {
           path: Plugins.manifestPath(tab.home, slot.modelData)
           blockLoading: true
@@ -59,10 +74,11 @@ Item {
           Item {
             width: 18; height: parent.height
             Image {
+              id: iconImg
               anchors.centerIn: parent
               width: 16; height: 16
-              visible: slot.info.image !== "" && status === Image.Ready
-              source: slot.info.image !== "" ? "file://" + slot.info.image : ""
+              visible: slot.imageOk && status === Image.Ready
+              source: slot.imageOk ? "file://" + slot.info.image : ""
               sourceSize: Qt.size(32, 32)
               fillMode: Image.PreserveAspectFit
               asynchronous: true
@@ -70,7 +86,7 @@ Item {
             Text {
               textFormat: Text.PlainText
               anchors.centerIn: parent
-              visible: slot.info.image === ""
+              visible: !slot.imageOk || iconImg.status !== Image.Ready
               text: slot.info.glyph
               color: tab.textColor
               font.family: tab.family
@@ -82,7 +98,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: parent.width - 24
             elide: Text.ElideRight
-            text: slot.info.name
+            text: tab.notch && tab.notch.openFailed === slot.modelData ? "not on the bar" : slot.info.name
             color: tab.textColor
             font.family: tab.family
             font.pixelSize: 10
@@ -98,5 +114,6 @@ Item {
         }
       }
     }
+  }
   }
 }

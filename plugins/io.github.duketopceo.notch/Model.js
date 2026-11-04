@@ -140,7 +140,7 @@ function islandRect(screenWidth, cut, sizes, cameraWidth) {
   var camera = Number(cameraWidth) > 0 ? Number(cameraWidth) : s.cameraWidth
   var ear = sizes ? s.earWidth : earWidthFor(screenWidth)
   var width = notched ? camera + 2 * ear : s.virtualWidth
-  var height = notched ? Math.max(Number(cut), s.barHeight) : s.barHeight
+  var height = notched ? Number(cut) : s.barHeight  // exactly the cutout: the island hugs the camera
   return { x: Math.round((Number(screenWidth) - width) / 2), y: 0, width: width, height: height, notched: notched }
 }
 

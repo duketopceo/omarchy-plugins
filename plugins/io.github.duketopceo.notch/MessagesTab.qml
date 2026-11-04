@@ -19,6 +19,13 @@ Item {
 
   opacity: offline ? 0.45 : 1
 
+  // Thread list (read-only) only while this tab is on screen.
+  function load() { if (feed && feed.online) feed.fetchThreads() }
+  onVisibleChanged: if (visible) load()
+  onFeedChanged: if (visible) load()
+  Component.onCompleted: if (visible) load()
+  Timer { interval: 15000; running: tab.visible; repeat: true; onTriggered: tab.load() }
+
   Text {
     id: head
     textFormat: Text.PlainText
@@ -56,17 +63,25 @@ Item {
     }
   }
 
-  Column {
+  NotchScroll {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.top: head.bottom
     anchors.topMargin: 6
+    anchors.bottom: parent.bottom
+    rowHeight: 24
+    contentHeight: list.height
+    contentWidth: width
+
+  Column {
+    id: list
+    width: parent.width
     spacing: 2
 
     Text {
       textFormat: Text.PlainText
       visible: tab.rows.length === 0
-      text: tab.offline ? "Blip is not reachable" : "No unread messages"
+      text: tab.offline ? "Blip is not reachable" : "No conversations yet"
       color: tab.dimColor
       font.family: tab.family
       font.pixelSize: 11
@@ -126,5 +141,6 @@ Item {
         }
       }
     }
+  }
   }
 }

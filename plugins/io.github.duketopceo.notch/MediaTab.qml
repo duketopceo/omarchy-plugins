@@ -34,7 +34,7 @@ Item {
     property bool on: false
     property bool dim: false
     signal clicked()
-    width: 36; height: 26; radius: 13
+    width: 34; height: 24; radius: 12
     color: ma.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, b.on ? 0.18 : 0.08)
     opacity: b.dim ? 0.35 : 1
     Text {
@@ -49,12 +49,14 @@ Item {
   }
 
   Row {
-    anchors.fill: parent
-    anchors.margins: 14
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    height: parent.height - 30
     spacing: 14
 
     Rectangle {
-      width: 120; height: 120; radius: 10
+      width: 100; height: 100; radius: 10
       color: Qt.rgba(1, 1, 1, 0.08)
       clip: true
       Image {
@@ -71,13 +73,14 @@ Item {
         text: Media.MUSIC_GLYPH
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 36
+        font.pixelSize: 32
       }
     }
 
     Column {
-      width: tab.width - 28 - 134
-      spacing: 6
+      anchors.verticalCenter: parent.verticalCenter
+      width: tab.width - 100 - 14
+      spacing: 5
 
       Text {
         width: parent.width
@@ -86,7 +89,7 @@ Item {
         text: tab.player ? String(tab.player.trackTitle || tab.player.identity || "") : "Nothing playing"
         color: tab.player ? tab.textColor : tab.dimColor
         font.family: tab.family
-        font.pixelSize: 15
+        font.pixelSize: 14
         font.weight: Font.DemiBold
       }
       Text {
@@ -147,7 +150,6 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    anchors.margins: 14
     spacing: 6
     Repeater {
       model: media ? media.players : []

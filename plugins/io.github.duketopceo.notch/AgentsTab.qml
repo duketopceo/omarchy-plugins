@@ -18,7 +18,7 @@ Item {
   property string family: Commons.Style.font.family
 
   readonly property var summary: notch && notch.agentsActivity ? notch.agentsActivity.summary : Agents.parseLs("")
-  property var usage: ({ ok: false, providers: [] })
+  readonly property var usage: notch && notch.usage ? notch.usage : ({ ok: false, providers: [] })
   property real nowMs: Date.now()
   property real lastUsageAt: 0
 
@@ -34,25 +34,13 @@ Item {
   }
 
   function refreshUsage() {
-    var now = Date.now()
-    tab.nowMs = now
-    if (usageProc.running || now - tab.lastUsageAt < tab.usageMinGapMs) return
-    tab.lastUsageAt = now
-    usageProc.running = true
+    tab.nowMs = Date.now()
+    if (notch) notch.refreshUsage()   // shared fetch, at most every 5 min
   }
   onVisibleChanged: if (visible) refreshUsage()
-  // While visible, re-check every 30 s; the gap check keeps fetches to one per 5 min.
+  onNotchChanged: if (visible) refreshUsage()
   Timer { interval: 30000; running: tab.visible; repeat: true; onTriggered: tab.refreshUsage() }
   Component.onCompleted: if (visible) refreshUsage()
-
-  Process {
-    id: usageProc
-    command: [tab.home + "/.local/bin/ai-usagebar-omaseal", "usage", "--json"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: if (text && text.length < 500000) tab.usage = Agents.parseUsage(text)
-    }
-  }
 
   Process { id: focusProc }
   function focusAgent(terminal) {
@@ -60,18 +48,91 @@ Item {
     focusProc.running = true
   }
 
-  Flickable {
+  NotchScroll {
     anchors.fill: parent
+    rowHeight: 24
     contentWidth: width
     contentHeight: col.implicitHeight
-    clip: true
-    boundsBehavior: Flickable.StopAtBounds
 
     ColumnLayout {
       id: col
       width: parent.width
       spacing: 6
 
+      // ---- AI usage
+      Text {
+        visible: tab.usage.providers.length > 0
+        text: "AI usage"
+        color: tab.dimColor
+        font.family: tab.family
+        font.pixelSize: 11
+        font.weight: Font.DemiBold
+        textFormat: Text.PlainText
+      }
+
+      Repeater {
+        model: tab.usage.providers
+        delegate: ColumnLayout {
+          id: prov
+          required property var modelData
+          Layout.fillWidth: true
+          spacing: 2
+
+          Repeater {
+            model: prov.modelData.rows
+            delegate: Item {
+              id: urow
+              required property var modelData
+              Layout.fillWidth: true
+              implicitHeight: 16
+
+              Text {
+                id: ulabel
+                width: 150
+                anchors.verticalCenter: parent.verticalCenter
+                text: prov.modelData.name + " " + urow.modelData.label
+                color: tab.textColor
+                font.family: tab.family
+                font.pixelSize: 11
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+              }
+              Rectangle {
+                id: track
+                anchors.left: ulabel.right
+                anchors.leftMargin: 6
+                anchors.right: upct.left
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                height: 5; radius: 2
+                color: Commons.Color.muted
+                opacity: 0.35
+              }
+              Rectangle {
+                x: track.x
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.round(track.width * urow.modelData.percent / 100)
+                height: 5; radius: 2
+                color: tab.barColor(urow.modelData.severity)
+              }
+              Text {
+                id: upct
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 90
+                horizontalAlignment: Text.AlignRight
+                text: urow.modelData.percent + "%" + (urow.modelData.resetAt ? " · " + Agents.resetIn(urow.modelData.resetAt, tab.nowMs) : "")
+                color: tab.dimColor
+                font.family: tab.family
+                font.pixelSize: 11
+                textFormat: Text.PlainText
+              }
+            }
+          }
+        }
+      }
+
+      // ---- Agents
       Text {
         visible: tab.summary.total === 0
         text: "No agents running"
@@ -157,79 +218,6 @@ Item {
         }
       }
 
-      // ---- AI usage
-      Text {
-        visible: tab.usage.providers.length > 0
-        Layout.topMargin: 6
-        text: "AI usage"
-        color: tab.dimColor
-        font.family: tab.family
-        font.pixelSize: 11
-        font.weight: Font.DemiBold
-        textFormat: Text.PlainText
-      }
-
-      Repeater {
-        model: tab.usage.providers
-        delegate: ColumnLayout {
-          id: prov
-          required property var modelData
-          Layout.fillWidth: true
-          spacing: 2
-
-          Repeater {
-            model: prov.modelData.rows
-            delegate: Item {
-              id: urow
-              required property var modelData
-              Layout.fillWidth: true
-              implicitHeight: 16
-
-              Text {
-                id: ulabel
-                width: 96
-                anchors.verticalCenter: parent.verticalCenter
-                text: prov.modelData.name + " " + urow.modelData.label
-                color: tab.textColor
-                font.family: tab.family
-                font.pixelSize: 11
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-              }
-              Rectangle {
-                id: track
-                anchors.left: ulabel.right
-                anchors.leftMargin: 6
-                anchors.right: upct.left
-                anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-                height: 5; radius: 2
-                color: Commons.Color.muted
-                opacity: 0.35
-              }
-              Rectangle {
-                x: track.x
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.round(track.width * urow.modelData.percent / 100)
-                height: 5; radius: 2
-                color: tab.barColor(urow.modelData.severity)
-              }
-              Text {
-                id: upct
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: 74
-                horizontalAlignment: Text.AlignRight
-                text: urow.modelData.percent + "%" + (urow.modelData.resetAt ? " · " + Agents.resetIn(urow.modelData.resetAt, tab.nowMs) : "")
-                color: tab.dimColor
-                font.family: tab.family
-                font.pixelSize: 11
-                textFormat: Text.PlainText
-              }
-            }
-          }
-        }
-      }
     }
   }
 }

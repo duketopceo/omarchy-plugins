@@ -101,3 +101,11 @@ def test_ear_width_scales_with_screen():
 def test_island_defaults_unchanged_on_16():
     island = run("M.islandRect(1728,32)")
     assert island["width"] == 392
+
+
+def test_island_is_exactly_the_cutout_height_when_notched():
+    # It hugs the camera: no taller than the cutout, even when the bar is taller.
+    for cut in (28, 32, 36, 40):
+        assert run(f"M.islandRect(1728,{cut}).height") == cut
+    # No cutout: the virtual notch keeps the bar height.
+    assert run("M.islandRect(1728,0).height") == run("M.SIZES.barHeight")

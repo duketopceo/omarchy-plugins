@@ -160,11 +160,31 @@ function resetIn(resetAt, nowMs) {
   return m + "m"
 }
 
+// The provider whose busiest metric is highest: { name, percent } or null.
+function topUsage(usage) {
+  if (!usage || !usage.ok || !Array.isArray(usage.providers)) return null
+  var best = null
+  usage.providers.forEach(function (p) {
+    p.rows.forEach(function (r) {
+      if (best === null || r.percent > best.percent) best = { name: p.name, percent: r.percent }
+    })
+  })
+  return best
+}
+
+// Window class -> short app name: "com.mitchellh.ghostty" -> "Ghostty".
+function prettyApp(cls) {
+  var c = String(cls || "").trim()
+  if (!c) return ""
+  var last = c.split(".").pop().replace(/[-_]/g, " ")
+  return last.charAt(0).toUpperCase() + last.slice(1)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     PRIORITY_BLOCKED: PRIORITY_BLOCKED, PRIORITY_DONE: PRIORITY_DONE,
     appName: appName, normStatus: normStatus, statusPriority: statusPriority, parseLs: parseLs,
     isActive: isActive, priority: priority, activityText: activityText, glyph: glyph,
-    badgeText: badgeText, statusColorKey: statusColorKey, parseUsage: parseUsage, resetIn: resetIn
+    badgeText: badgeText, topUsage: topUsage, prettyApp: prettyApp, statusColorKey: statusColorKey, parseUsage: parseUsage, resetIn: resetIn
   }
 }

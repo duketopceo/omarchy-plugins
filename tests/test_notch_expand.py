@@ -86,3 +86,9 @@ def test_lines():
     assert run("E.parseWisp('{\"status\":\"idle\"}')") == {"status": "idle"}
     assert run("E.parseNord('{\"cli\":true,\"logged_in\":true,\"status\":{\"state\":\"connected\"}}')") == "connected"
     assert run("E.parseNord('junk')") == "unavailable"
+
+
+def test_quotes_line_respects_a_small_limit():
+    q = [{"symbol": s, "price": 10, "changePercent": 1} for s in ("AAA", "BBB", "CCC", "DDD")]
+    assert len(run(f"E.quotesLine({json.dumps(q)},2)").split("   ")) == 2
+    assert len(run(f"E.quotesLine({json.dumps(q)})").split("   ")) == 3

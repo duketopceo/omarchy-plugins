@@ -89,11 +89,12 @@ function weatherLine(weather) {
 
 // One short line from the cache's `quotes` (another unit writes them), or ""
 // when absent. Accepts strings or { symbol, price, changePercent|change }.
-function quotesLine(quotes) {
+function quotesLine(quotes, max) {
+  var limit = Number(max) > 0 ? Number(max) : 3
   if (quotes && Array.isArray(quotes.items)) quotes = quotes.items  // watchlist cache shape
   if (!Array.isArray(quotes)) return ""
   var out = []
-  for (var i = 0; i < quotes.length && out.length < 3; i++) {
+  for (var i = 0; i < quotes.length && out.length < limit; i++) {
     var q = quotes[i]
     if (typeof q === "string" && q) { out.push(q); continue }
     if (!q || typeof q.symbol !== "string") continue

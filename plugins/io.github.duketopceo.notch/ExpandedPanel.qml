@@ -25,7 +25,8 @@ Item {
   property date now: new Date()
 
   property string currentTab: Tabs.DEFAULT_TAB
-  readonly property var tab: Tabs.select(currentTab)
+  readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null)
+  readonly property var tab: Tabs.select(currentTab, tabs)
   readonly property string pluginDir: notch ? notch.pluginDir : ""
 
   // tab id -> true/false once its source file has been probed.
@@ -82,12 +83,13 @@ Item {
       spacing: 4
 
       Repeater {
-        model: Tabs.TABS
+        model: panel.tabs
         Rectangle {
           id: chip
           required property var modelData
           readonly property bool selected: chip.modelData.id === panel.tab.id
-          width: Math.floor((strip.width - 5 * strip.spacing) / 6)
+          // The selected chip shows glyph + title; the others only their glyph.
+          width: selected ? 84 : Math.floor((strip.width - 84 - (panel.tabs.length - 1) * strip.spacing) / Math.max(1, panel.tabs.length - 1))
           height: strip.height
           radius: 12
           color: selected ? Qt.rgba(1, 1, 1, 0.16) : (hit.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
@@ -103,6 +105,7 @@ Item {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              visible: chip.selected
               textFormat: Text.PlainText
               text: chip.modelData.title
               color: chip.selected ? panel.textColor : panel.dimColor

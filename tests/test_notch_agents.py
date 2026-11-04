@@ -110,3 +110,20 @@ def test_reset_in(delta_min, expect):
     iso = run("new Date(n + d * 60000).toISOString()", n=now, d=delta_min)
     assert run("A.resetIn(i, n)", i=iso, n=now) == expect
     assert run("A.resetIn('', 0)") == ""
+
+
+def test_top_usage_picks_the_busiest_metric_across_providers():
+    usage = {"ok": True, "providers": [
+        {"id": "a", "name": "Alpha", "rows": [{"percent": 16}, {"percent": 64}]},
+        {"id": "b", "name": "Beta", "rows": [{"percent": 40}]},
+    ]}
+    assert run("A.topUsage(u)", u=usage) == {"name": "Alpha", "percent": 64}
+    assert run("A.topUsage(null)") is None
+    assert run("A.topUsage({ok:false,providers:[]})") is None
+    assert run("A.topUsage({ok:true,providers:[]})") is None
+
+
+def test_pretty_app_name():
+    assert run("A.prettyApp('com.example.herdr-app')") == "Herdr app"
+    assert run("A.prettyApp('foot')") == "Foot"
+    assert run("A.prettyApp('')") == "" and run("A.prettyApp(null)") == ""

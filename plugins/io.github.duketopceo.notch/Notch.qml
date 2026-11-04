@@ -11,6 +11,8 @@ import "Expand.js" as Expand  // U5 hover expand
 import "Settings.js" as Settings
 import "Activity.js" as Activity
 import "Plugins.js" as Plugins
+import "Agents.js" as Agents
+import "Screenshots.js" as Screenshots
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -64,15 +66,44 @@ Item {
     shell.mutateShellConfig(Settings.settingsMutator(pluginId, patch))
   }
 
-  // Open a plugin's panel: the shell's in-process toggle, else `qs ipc`.
-  function openPlugin(id) {
-    if (shell && typeof shell.toggle === "function") shell.toggle(String(id), "{}")
-    else Quickshell.execDetached(Plugins.ipcCommand(id))
+  // Wisp: open its panel through the shell (needs its bar widget live); if the
+  // shell cannot, fall back to Wisp's own click action, toggle listening.
+  function openWisp() { openPluginChecked("io.github.duketopceo.wisp", [Quickshell.env("HOME") + "/.local/bin/wisp-trigger"]) }
+
+  // Open a plugin's panel. Tries the shell's summon, then the plugin's own IPC
+  // target, then a plugin-specific fallback (see Plugins.openChain).
+  property var openSteps: []
+  property int openIndex: 0
+  property string openFailed: ""   // id whose panel could not be opened, for ~2 s
+  Timer { id: openFailedClear; interval: 2200; onTriggered: root.openFailed = "" }
+  property string openingId: ""
+  function openPlugin(id) { openPluginChecked(id, null) }
+  function openPluginChecked(id, fallback) {
+    if (opener.running) return
+    openingId = String(id)
+    openSteps = Plugins.openChain(String(id), fallback)
+    openIndex = 0
+    runOpenStep()
+  }
+  function runOpenStep() {
+    if (openIndex >= openSteps.length) { openFailed = openingId; openFailedClear.restart(); return }
+    opener.command = openSteps[openIndex].cmd
+    opener.running = true
+  }
+  Process {
+    id: opener
+    stdout: StdioCollector { id: openerOut }
+    onExited: function(code) {
+      if (Plugins.stepOk(root.openSteps[root.openIndex], code, openerOut.text)) return
+      root.openIndex += 1
+      root.runOpenStep()
+    }
   }
 
   readonly property int autoCameraWidth: 200   // logical px, 14"/16" MacBook Pro
   readonly property int cameraWidth: settings.cameraWidth > 0 ? settings.cameraWidth : autoCameraWidth
   readonly property int earWidth: 96       // content room either side of the camera
+  readonly property int earPad: 6          // gap between ear text and the camera edge
   // Camera width override from Settings (0 = auto-detect from the device model).
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
   readonly property int virtualWidth: 300  // island width on screens without a cutout
@@ -84,6 +115,8 @@ Item {
   readonly property color dimColor: Commons.Color.muted
   readonly property string fontFamily: Commons.Style.font.family
   readonly property int barHeight: Commons.Style.bar && Commons.Style.bar.sizeHorizontal > 0 ? Commons.Style.bar.sizeHorizontal : 32
+
+
 
   // ------------------------------------------------------------ data
 
@@ -157,6 +190,33 @@ Item {
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
+  readonly property var dictationActivity: dictation
+
+  // Tailscale + NordVPN (v3): idle status dot, Home dots, Network tab.
+  NetworkState { id: networkState }
+  readonly property var network: networkState
+
+  // Snapdex (v3): flashes the caption of a newly captioned screenshot.
+  ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
+
+  // AI usage, shared by Home (and anything else): refreshed at most every 5 min
+  // and only when a visible view asks for it.
+  property var usage: ({ ok: false, providers: [] })
+  property real usageAt: 0
+  function refreshUsage() {
+    var t = Date.now()
+    if (usageProc.running || t - usageAt < 5 * 60 * 1000) return
+    usageAt = t
+    usageProc.running = true
+  }
+  Process {
+    id: usageProc
+    command: [Quickshell.env("HOME") + "/.local/bin/ai-usagebar-omaseal", "usage", "--json"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text && text.length < 500000) root.usage = Agents.parseUsage(text)
+    }
+  }
 
   // Blip iMessage (N5): read-only. Flashes for allowlisted senders; MessagesTab reads `notch.messages`.
   MessagesActivity { id: messagesAct }
@@ -174,7 +234,8 @@ Item {
     { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
-    { id: "messages", active: messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph }
+    { id: "messages", active: messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
+    { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
@@ -209,7 +270,7 @@ Item {
       property string xstate: "collapsed"
       readonly property bool expanded: Expand.isExpanded(xstate)
       readonly property int baseWidth: notched ? camW + 2 * earW : root.virtualWidth
-      readonly property int baseHeight: notched ? Math.max(cut, root.barHeight) : root.barHeight
+      readonly property int baseHeight: notched ? cut : root.barHeight  // exactly the cutout height
       readonly property var panelSz: Expand.panelSize(modelData.width)
       function xevent(e) {
         var r = Expand.step(xstate, e, root.settings.hoverDelay)
@@ -267,8 +328,10 @@ Item {
         Text {
           visible: win.notched
           anchors.verticalCenter: parent.verticalCenter
-          x: Math.round((win.earW - width) / 2)
-          text: root.timeText + (agents.badge ? "  " + agents.badge : "")
+          width: Math.min(implicitWidth, win.earW - root.earPad - 2)
+          elide: Text.ElideRight
+          x: win.earW - width - root.earPad   // right-aligned against the camera edge
+          text: root.timeText + (agents.badge ? " " + agents.badge : "")
           color: root.textColor
           font.family: root.fontFamily
           font.pixelSize: 13
@@ -279,21 +342,21 @@ Item {
         WatchlistSlide {
           visible: win.notched && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + Math.round((win.earW - width) / 2)
+          x: win.earW + win.camW + root.earPad   // left-aligned against the camera edge
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
-          maxWidth: win.earW - 8
+          maxWidth: win.earW - root.earPad - 8
           family: root.fontFamily
         }
         SlideText {
           visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + root.eqSpace + Math.round((win.earW - root.eqSpace - width) / 2)
+          x: win.earW + win.camW + root.earPad + root.eqSpace
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earW - 8 - root.eqSpace
+          maxWidth: win.earW - root.earPad - 8 - root.eqSpace - (netDot.visible ? 12 : 0)
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
         }
@@ -304,7 +367,7 @@ Item {
           playing: media.active
           color: root.textColor
           anchors.verticalCenter: parent.verticalCenter
-          x: root.earWidth + root.cameraWidth + 4
+          x: win.earW + win.camW + root.earPad
         }
 
         // WordInk dictation dot (U4): pulses while recording.
@@ -313,6 +376,29 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
           anchors.rightMargin: Math.round(parent.height * 0.45)
+        }
+
+        // Network dot (v3): green while Tailscale or NordVPN is up, amber while
+        // one connects; hidden otherwise and while a dictation dot shows.
+        Rectangle {
+          id: netDot
+          visible: win.notched && root.network.idleDot !== "" && !dictation.active
+          width: 5; height: 5; radius: 3
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.right: parent.right
+          anchors.rightMargin: Math.round(parent.height * 0.45)
+          color: root.network.idleDot === "on" ? "#6fbf73" : "#e0b050"
+        }
+
+        // Click the right ear while dictation is showing to stop/toggle it.
+        MouseArea {
+          visible: win.notched
+          enabled: dictation.active && !win.expanded
+          x: win.earW + win.camW
+          width: win.earW
+          height: parent.height
+          cursorShape: Qt.PointingHandCursor
+          onClicked: dictation.toggle()
         }
 
         // Virtual notch: one centered line.
