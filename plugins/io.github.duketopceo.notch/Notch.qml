@@ -100,8 +100,9 @@ Item {
   WordinkActivity { id: dictation }
 
   readonly property string view: Wordink.chooseView(dictation.active, !!player, Model.idleView(now.getTime() / 1000, (weather ? ["weather"] : []).concat(quotes.length ? ["watchlist"] : []), clockSeconds, slideSeconds))  // watchlist hook: "watchlist" idle view when quotes exist
-  readonly property string weatherText: weather ? Model.weatherGlyph(weather.kind) + " " + weather.temperature + weather.unit : ""
+  readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
   readonly property string sideText: view === "dictation" ? dictation.text : view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
+  readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
 
@@ -206,6 +207,8 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
           target: root.sideText
+          iconKind: root.weather ? root.weather.kind : ""
+          iconOn: root.showIcon
           maxWidth: root.earWidth - 8
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
@@ -247,6 +250,8 @@ Item {
             visible: root.view !== "watchlist"
             anchors.verticalCenter: parent.verticalCenter
             target: root.sideText
+            iconKind: root.weather ? root.weather.kind : ""
+            iconOn: root.showIcon
             maxWidth: root.virtualWidth - 110
             color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
             family: root.fontFamily
@@ -260,11 +265,15 @@ Item {
   component SlideText: Item {
     id: slide
     property string target: ""
+    property string iconKind: ""     // pixel-art weather icon shown before the text
+    property bool iconOn: false
     property color color: "white"
     property string family: ""
     property string shown: ""
     property int maxWidth: 10000
-    implicitWidth: Math.min(maxWidth, label.implicitWidth)
+    property int iconSpace: iconOn ? icon.width + 4 : 0
+    Behavior on iconSpace { NumberAnimation { duration: 220; easing.type: Easing.OutQuad } }
+    implicitWidth: Math.min(maxWidth, label.implicitWidth + iconSpace)
     implicitHeight: label.implicitHeight
     width: implicitWidth
     height: implicitHeight
@@ -273,9 +282,19 @@ Item {
     Component.onCompleted: shown = target
     onTargetChanged: if (target !== shown) swap.restart()
 
+    PixelWeather {
+      id: icon
+      kind: slide.iconKind || "cloudy"
+      active: slide.iconOn
+      anchors.verticalCenter: parent.verticalCenter
+      opacity: slide.iconOn ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 220 } }
+    }
+
     Text {
       id: label
-      width: slide.width
+      x: slide.iconSpace
+      width: slide.width - slide.iconSpace
       text: slide.shown
       color: slide.color
       font.family: slide.family
