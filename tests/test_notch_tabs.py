@@ -31,7 +31,7 @@ def test_tab_list_shape_and_sources():
         assert {"id", "title", "short", "glyph", "source"} <= set(t) <= {"id", "title", "short", "glyph", "source", "optional", "size"} and len(t["short"]) <= 7 and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
-        "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml",
+        "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "power": "PowerTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml",
         "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
 
 
