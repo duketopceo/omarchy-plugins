@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 Item {
   id: root
@@ -83,8 +84,8 @@ Item {
   function toggleLowBrightness() { root.lowBrightness = !root.lowBrightness; }
 
   readonly property color textColor: root.redTint
-    ? Qt.tint(Color.foreground, Qt.rgba(Color.urgent.r, Color.urgent.g, Color.urgent.b, 0.10))
-    : Color.foreground
+    ? Qt.tint(Commons.Color.foreground, Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.10))
+    : Commons.Color.foreground
   property real contentOpacity: root.lowBrightness ? 0.05 : 1.0
 
   Timer {
@@ -402,7 +403,7 @@ textFormat: Text.PlainText
 
           Text {
             text: "[C]affeine " + (root.caffeine ? "on" : "off")
-            color: root.caffeine ? Color.urgent : root.textColor
+            color: root.caffeine ? Commons.Color.urgent : root.textColor
             font.family: Style.font.family
 textFormat: Text.PlainText
             font.pixelSize: Style.font.body
