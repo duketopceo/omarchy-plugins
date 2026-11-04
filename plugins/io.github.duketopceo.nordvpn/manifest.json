@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.nordvpn",
+  "name": "NordVPN",
+  "version": "0.1.1",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "NordVPN binary on/off bar toggle with a five-location US picker, connection details, and kill switch.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "NordVPN",
+    "description": "VPN on/off toggle, US location picker, connection details, kill switch",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}
