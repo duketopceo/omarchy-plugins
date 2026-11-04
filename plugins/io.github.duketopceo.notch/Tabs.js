@@ -16,6 +16,7 @@ var TABS = [
   { id: "agents", title: "Agents", short: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml" },
   { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml" },
   { id: "network", title: "Network", short: "Net", glyph: "\u{F05A9}", source: "NetworkTab.qml" },
+  { id: "power", title: "Power", short: "Power", glyph: "\u{F140B}", source: "PowerTab.qml" },
   { id: "stocks", title: "Stocks", short: "Stocks", glyph: "\u{F012A}", source: "StocksTab.qml", size: { w: 640, h: 360 } },
   { id: "screenshots", title: "Shots", short: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex" },
   { id: "plugins", title: "Plugins", short: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml" },
