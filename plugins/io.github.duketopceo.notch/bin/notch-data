@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Fetch the notch island's weather into a small JSON cache.
+"""Fetch the notch island's weather and stock quotes into a small JSON cache.
 
-Uses Open-Meteo (free, no key). The place comes from Omarchy's weather
+Weather uses Open-Meteo (free, no key). The place comes from Omarchy's weather
 setting (~/.local/state/omarchy/settings/weather.json "name"), else the
 NOTCH_PLACE environment variable. Fetches at most once per --max-age
 seconds; otherwise leaves the cache alone. Prints nothing on success.
 
-Usage: notch-data [--max-age SECONDS] [--unit fahrenheit|celsius]
+Quotes use Yahoo Finance's public spark endpoint (free, no key), the same
+one the finance bar plugin uses, for the symbols in
+~/.local/state/omarchy/settings/finance.json "watchlist". They refresh at
+most once per --quotes-age seconds (default 300), independent of weather,
+with exponential backoff after errors; the old quotes stay on failure.
+
+Usage: notch-data [--max-age SECONDS] [--quotes-age SECONDS] [--unit fahrenheit|celsius]
 """
 import argparse
 import json
@@ -20,6 +26,11 @@ import urllib.request
 HOME = os.path.expanduser("~")
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.join(HOME, ".cache")), "omarchy", "notch.json")
 PLACE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "weather.json")
+FINANCE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "finance.json")
+SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark?range=1d&interval=5m&symbols="
+MAX_SYMBOLS = 12
+BACKOFF_BASE = 60
+BACKOFF_MAX = 3600
 UA = {"User-Agent": "omarchy-notch/0.1"}
 
 
@@ -62,46 +73,113 @@ def geocode(name, cache):
     return {"query": name, "lat": r["latitude"], "lon": r["longitude"], "place": r.get("name", name)}
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--max-age", type=int, default=900)
-    ap.add_argument("--unit", choices=["fahrenheit", "celsius"], default="fahrenheit")
-    args = ap.parse_args()
+def parse_spark(data, wanted):
+    """Quotes [{symbol, price, changePercent}] in `wanted` order from a spark response."""
+    found = {}
+    for item in ((data or {}).get("spark") or {}).get("result") or []:
+        try:
+            meta = item["response"][0]["meta"]
+            price = meta.get("regularMarketPrice")
+            if not isinstance(price, (int, float)):
+                continue
+            pct = meta.get("regularMarketChangePercent")
+            prev = meta.get("previousClose") or meta.get("chartPreviousClose")
+            if not isinstance(pct, (int, float)) and isinstance(prev, (int, float)) and prev:
+                pct = (price - prev) / prev * 100
+            if not isinstance(pct, (int, float)):
+                continue
+            sym = str(item.get("symbol") or meta.get("symbol") or "")
+            if sym:
+                found[sym] = {"symbol": sym, "price": price, "changePercent": pct}
+        except (KeyError, IndexError, TypeError, AttributeError):
+            continue
+    return [found[s] for s in wanted if s in found]
 
-    cache = read_json(CACHE)
+
+def watchlist_symbols():
+    raw = read_json(FINANCE_FILE).get("watchlist")
+    out = []
+    for s in raw if isinstance(raw, list) else []:
+        s = str(s).strip().upper()
+        if s and s not in out:
+            out.append(s)
+    return out[:MAX_SYMBOLS]
+
+
+def refresh_quotes(cache, quotes_age):
+    """Update cache["quotes"] in place; returns True if the cache changed."""
+    symbols = watchlist_symbols()
+    if not symbols:
+        return False
+    q = cache.get("quotes") or {}
+    now = time.time()
+    if now < float(q.get("retryAt") or 0):
+        return False
+    if now - float(q.get("fetchedAt") or 0) < quotes_age and q.get("symbols") == symbols:
+        return False
+    try:
+        data = get_json(SPARK_URL + urllib.parse.quote(",".join(symbols)))
+        items = parse_spark(data, symbols)
+        if not items:
+            raise ValueError("no quotes in response")
+    except Exception as error:  # keep the old quotes, back off
+        fails = int(q.get("failures") or 0) + 1
+        q["failures"] = fails
+        q["retryAt"] = now + min(BACKOFF_MAX, BACKOFF_BASE * 2 ** (fails - 1))
+        cache["quotes"] = q
+        print("notch-data: quotes: " + str(error), file=sys.stderr)
+        return True
+    cache["quotes"] = {"items": items, "symbols": symbols, "fetchedAt": now, "failures": 0, "retryAt": 0}
+    return True
+
+
+def refresh_weather(cache, max_age, unit):
+    """Update cache["geo"/"weather"] in place; returns (changed, ok)."""
     fetched = float((cache.get("weather") or {}).get("fetchedAt") or 0)
-    if time.time() - fetched < args.max_age and (cache.get("weather") or {}).get("unitName") == args.unit:
-        return 0
-
+    if time.time() - fetched < max_age and (cache.get("weather") or {}).get("unitName") == unit:
+        return False, True
     name = place_name()
     if not name:
-        return 0
+        return False, True
     try:
         geo = geocode(name, cache)
         if not geo:
-            return 0
+            return False, True
         q = urllib.parse.urlencode({
             "latitude": geo["lat"], "longitude": geo["lon"],
             "current": "temperature_2m,weather_code,is_day",
-            "temperature_unit": args.unit, "timezone": "auto",
+            "temperature_unit": unit, "timezone": "auto",
         })
         cur = get_json("https://api.open-meteo.com/v1/forecast?" + q).get("current") or {}
     except Exception as error:  # network or parse trouble: keep the old cache
         print("notch-data: " + str(error), file=sys.stderr)
-        return 1
-
+        return False, False
     cache["geo"] = geo
     cache["weather"] = {
         "temperature": cur.get("temperature_2m"),
         "code": cur.get("weather_code"),
         "isDay": bool(cur.get("is_day", 1)),
-        "unit": "°F" if args.unit == "fahrenheit" else "°C",
-        "unitName": args.unit,
+        "unit": "°F" if unit == "fahrenheit" else "°C",
+        "unitName": unit,
         "place": geo.get("place", name),
         "fetchedAt": time.time(),
     }
-    write_cache(cache)
-    return 0
+    return True, True
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--max-age", type=int, default=900)
+    ap.add_argument("--quotes-age", type=int, default=300)
+    ap.add_argument("--unit", choices=["fahrenheit", "celsius"], default="fahrenheit")
+    args = ap.parse_args()
+
+    cache = read_json(CACHE)
+    w_changed, w_ok = refresh_weather(cache, args.max_age, args.unit)
+    q_changed = refresh_quotes(cache, args.quotes_age)
+    if w_changed or q_changed:
+        write_cache(cache)
+    return 0 if w_ok else 1
 
 
 if __name__ == "__main__":
