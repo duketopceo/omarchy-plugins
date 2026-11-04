@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Fetch the notch island's weather into a small JSON cache.
+
+Uses Open-Meteo (free, no key). The place comes from Omarchy's weather
+setting (~/.local/state/omarchy/settings/weather.json "name"), else the
+NOTCH_PLACE environment variable. Fetches at most once per --max-age
+seconds; otherwise leaves the cache alone. Prints nothing on success.
+
+Usage: notch-data [--max-age SECONDS] [--unit fahrenheit|celsius]
+"""
+import argparse
+import json
+import os
+import sys
+import tempfile
+import time
+import urllib.parse
+import urllib.request
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.join(HOME, ".cache")), "omarchy", "notch.json")
+PLACE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "weather.json")
+UA = {"User-Agent": "omarchy-notch/0.1"}
+
+
+def get_json(url):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.load(resp)
+
+
+def read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_cache(data):
+    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CACHE), prefix=".notch-")
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, CACHE)
+
+
+def place_name():
+    name = str(read_json(PLACE_FILE).get("name") or "").strip()
+    return name or os.environ.get("NOTCH_PLACE", "").strip()
+
+
+def geocode(name, cache):
+    cached = cache.get("geo") or {}
+    if cached.get("query") == name and "lat" in cached:
+        return cached
+    q = urllib.parse.urlencode({"name": name, "count": 1, "language": "en", "format": "json"})
+    res = (get_json("https://geocoding-api.open-meteo.com/v1/search?" + q).get("results") or [])
+    if not res:
+        return None
+    r = res[0]
+    return {"query": name, "lat": r["latitude"], "lon": r["longitude"], "place": r.get("name", name)}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--max-age", type=int, default=900)
+    ap.add_argument("--unit", choices=["fahrenheit", "celsius"], default="fahrenheit")
+    args = ap.parse_args()
+
+    cache = read_json(CACHE)
+    fetched = float((cache.get("weather") or {}).get("fetchedAt") or 0)
+    if time.time() - fetched < args.max_age and (cache.get("weather") or {}).get("unitName") == args.unit:
+        return 0
+
+    name = place_name()
+    if not name:
+        return 0
+    try:
+        geo = geocode(name, cache)
+        if not geo:
+            return 0
+        q = urllib.parse.urlencode({
+            "latitude": geo["lat"], "longitude": geo["lon"],
+            "current": "temperature_2m,weather_code,is_day",
+            "temperature_unit": args.unit, "timezone": "auto",
+        })
+        cur = get_json("https://api.open-meteo.com/v1/forecast?" + q).get("current") or {}
+    except Exception as error:  # network or parse trouble: keep the old cache
+        print("notch-data: " + str(error), file=sys.stderr)
+        return 1
+
+    cache["geo"] = geo
+    cache["weather"] = {
+        "temperature": cur.get("temperature_2m"),
+        "code": cur.get("weather_code"),
+        "isDay": bool(cur.get("is_day", 1)),
+        "unit": "°F" if args.unit == "fahrenheit" else "°C",
+        "unitName": args.unit,
+        "place": geo.get("place", name),
+        "fetchedAt": time.time(),
+    }
+    write_cache(cache)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
