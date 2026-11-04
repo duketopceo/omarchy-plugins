@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Commons as Commons
 import "Model.js" as Model
+import "Watchlist.js" as Watchlist
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -51,12 +52,13 @@ Item {
   }
 
   property var weather: null
+  property var quotes: []  // watchlist hook: from the cache "quotes" key
   FileView {
     id: cacheFile
     path: Quickshell.env("HOME") + "/.cache/omarchy/notch.json"
     watchChanges: true
     printErrors: false
-    onLoaded: root.weather = Model.parseWeather(text())
+    onLoaded: { root.weather = Model.parseWeather(text()); root.quotes = Watchlist.parseQuotes(text()) }  // watchlist hook
     onLoadFailed: root.weather = null
     onFileChanged: reload()
   }
@@ -92,7 +94,7 @@ Item {
   }
   readonly property string mediaText: player ? "\u{F075A} " + String(player.trackTitle || player.identity || "") : ""
 
-  readonly property string view: player ? "media" : Model.idleView(now.getTime() / 1000, weather ? ["weather"] : [], clockSeconds, slideSeconds)
+  readonly property string view: player ? "media" : Model.idleView(now.getTime() / 1000, (weather ? ["weather"] : []).concat(quotes.length ? ["watchlist"] : []), clockSeconds, slideSeconds)  // watchlist hook: "watchlist" idle view when quotes exist
   readonly property string weatherText: weather ? Model.weatherGlyph(weather.kind) + " " + weather.temperature + weather.unit : ""
   readonly property string sideText: view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
 
@@ -146,8 +148,19 @@ Item {
           font.pixelSize: 13
           font.weight: Font.DemiBold
         }
+        // watchlist hook: the slide replaces the side text while view === "watchlist".
+        WatchlistSlide {
+          visible: win.notched && root.view === "watchlist"
+          anchors.verticalCenter: parent.verticalCenter
+          x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
+          quotes: root.quotes
+          index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
+          notched: true
+          maxWidth: root.earWidth - 8
+          family: root.fontFamily
+        }
         SlideText {
-          visible: win.notched
+          visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
           x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
           target: root.sideText
@@ -169,7 +182,18 @@ Item {
             font.pixelSize: 13
             font.weight: Font.DemiBold
           }
+          // watchlist hook (virtual notch).
+          WatchlistSlide {
+            visible: root.view === "watchlist"
+            anchors.verticalCenter: parent.verticalCenter
+            quotes: root.quotes
+            index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
+            notched: false
+            maxWidth: root.virtualWidth - 110
+            family: root.fontFamily
+          }
           SlideText {
+            visible: root.view !== "watchlist"
             anchors.verticalCenter: parent.verticalCenter
             target: root.sideText
             maxWidth: root.virtualWidth - 110
