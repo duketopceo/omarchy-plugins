@@ -358,7 +358,7 @@ Item {
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch"
       WlrLayershell.layer: WlrLayer.Overlay
-      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      WlrLayershell.keyboardFocus: win.pinned && win.expanded ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None  // typing (search, add symbol) only after a click opens it; hover never takes focus
       exclusionMode: ExclusionMode.Ignore
       mask: Region { item: island }
 
