@@ -144,6 +144,7 @@ Item {
           color: root.textColor
           font.family: root.fontFamily
           font.pixelSize: 13
+          textFormat: Text.PlainText
           font.weight: Font.DemiBold
         }
         SlideText {
@@ -167,6 +168,7 @@ Item {
             color: root.textColor
             font.family: root.fontFamily
             font.pixelSize: 13
+            textFormat: Text.PlainText
             font.weight: Font.DemiBold
           }
           SlideText {
@@ -205,6 +207,7 @@ Item {
       color: slide.color
       font.family: slide.family
       font.pixelSize: 13
+      textFormat: Text.PlainText
       elide: Text.ElideRight
     }
 
