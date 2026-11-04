@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 
 // Persistent findings watcher for io.github.duketopceo.numbat — the radar
 // that keeps working with the dropdown closed.
@@ -118,11 +119,11 @@ Item {
   readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
   readonly property int barClearance: liveBarSize + Style.gapsOut
 
-  readonly property color foreground: Color.foreground
+  readonly property color foreground: Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property color accent: Color.accent
-  readonly property color urgent: (Color.urgent === undefined || Color.urgent === null) ? foreground : Color.urgent
-  readonly property color cardText: Color.notifications.text
+  readonly property color accent: Commons.Color.accent
+  readonly property color urgent: (Commons.Color.urgent === undefined || Commons.Color.urgent === null) ? foreground : Commons.Color.urgent
+  readonly property color cardText: Commons.Color.notifications.text
   readonly property color cardDim: Qt.darker(cardText, 1.4)
   readonly property string fontFamily: {
     var f = shell && shell.bar ? String(shell.bar.fontFamily || "") : ""
@@ -535,7 +536,7 @@ Item {
               implicitWidth: Style.space(340)
               implicitHeight: cardColumn.implicitHeight + Style.space(18)
               radius: Style.cornerRadius
-              color: Color.notifications.background
+              color: Commons.Color.notifications.background
               border.color: root.severe(cardSlot.severity) ? root.urgentFill(0.5) : root.accentFill(0.35)
               clip: true
 

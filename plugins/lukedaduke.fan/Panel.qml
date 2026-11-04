@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -93,11 +94,11 @@ Panel {
   property var netIfaces: []
   property var diskDevs: []
 
-  readonly property color fg: bar ? bar.foreground : Color.foreground
-  readonly property color urgent: Color.urgent
-  readonly property color accent: Color.accent
-  readonly property color muted: Color.muted
-  readonly property color surface: Color.popups.background
+  readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
+  readonly property color muted: Commons.Color.muted
+  readonly property color surface: Commons.Color.popups.background
   // Identity-dot palette: theme-derived only (no hardcoded hex). Cycled per
   // row so adjacent processes read as distinct; cpu>=50 overrides to urgent.
   readonly property var dotPalette: [
@@ -451,7 +452,7 @@ Panel {
           anchors.centerIn: parent
           textFormat: Text.PlainText
           text: drillRow.armed ? "?" : "x"
-          color: Color.background
+          color: Commons.Color.background
           font.pixelSize: Style.font.caption
           font.bold: true
         }
@@ -900,7 +901,7 @@ Panel {
     text: "󰍛 " + root.memUsed + "G " + root.cpuTemp
     fontSize: Style.font.bodySmall
     active: root.memPct >= 80 || root.currentMode === "high" || (root.currentMode === "auto" && parseInt(root.cpuTemp) >= 60)
-    activeColor: root.memPct >= 85 || parseInt(root.cpuTemp) >= 65 ? root.urgent : (root.bar ? root.bar.barForeground : Color.foreground)
+    activeColor: root.memPct >= 85 || parseInt(root.cpuTemp) >= 65 ? root.urgent : (root.bar ? root.bar.barForeground : Commons.Color.foreground)
     tooltipText: "RAM " + root.memUsed + "/" + root.memTotal + "G · CPU " + root.cpuLoad + "% " + root.cpuTemp + " · GPU " + root.gpuTemp + (root.gpuPowerW >= 0 ? " " + root.gpuPowerW.toFixed(0) + "W" : "") + (root.gpuClients.length > 0 ? " (" + root.gpuClients.length + " procs)" : "") + " · SSD " + root.nvmeTemp + (root.fanControl ? " · right-click cycles fan · middle btop" : " · fan control unavailable")
     horizontalMargin: 4.0
     onPressed: function (buttonCode) {
@@ -1025,7 +1026,7 @@ Panel {
             anchors.centerIn: parent
             text: root.fanControl ? (root.currentMode === "custom" ? root.customName.toUpperCase() : root.currentMode.toUpperCase()) : "READ"
             textFormat: Text.PlainText
-            color: Color.background
+            color: Commons.Color.background
             font.pixelSize: Style.font.bodySmall
             font.bold: true
           }
@@ -1042,7 +1043,7 @@ Panel {
       Rectangle {
         width: parent.width
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: memCard.implicitHeight + Style.space(24)
@@ -1160,7 +1161,7 @@ Panel {
       Rectangle {
         width: parent.width
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: cpuCard.implicitHeight + Style.space(24)
@@ -1316,7 +1317,7 @@ Panel {
       Rectangle {
         width: parent.width
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: thermCard.implicitHeight + Style.space(24)
@@ -1411,7 +1412,7 @@ Panel {
         width: parent.width
         visible: root.gpuName !== "GPU" || root.gpuLoad >= 0 || root.gpuTemp !== "--" || root.gpuLoadReason !== ""
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: gpuCard.implicitHeight + Style.space(24)
@@ -1529,7 +1530,7 @@ Panel {
           visible: root.netDownBps >= 0 || root.netUpBps >= 0
           Layout.fillWidth: true
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.fg, Color.accent)
+          color: Style.normalFillFor(root.fg, Commons.Color.accent)
           border.color: Util.alpha(root.fg, 0.08)
           border.width: 1
           implicitHeight: netCard.implicitHeight + Style.space(20)
@@ -1589,7 +1590,7 @@ Panel {
           visible: root.diskReadBps >= 0 || root.diskWriteBps >= 0
           Layout.fillWidth: true
           radius: Style.cornerRadius
-          color: Style.normalFillFor(root.fg, Color.accent)
+          color: Style.normalFillFor(root.fg, Commons.Color.accent)
           border.color: Util.alpha(root.fg, 0.08)
           border.width: 1
           implicitHeight: diskCard.implicitHeight + Style.space(20)
@@ -1652,7 +1653,7 @@ Panel {
         width: parent.width
         visible: root.disks.length > 0
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: diskListCard.implicitHeight + Style.space(24)
@@ -1716,7 +1717,7 @@ Panel {
       Rectangle {
         width: parent.width
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         implicitHeight: fanCard.implicitHeight + Style.space(24)
@@ -1811,7 +1812,7 @@ Panel {
                   anchors.centerIn: parent
                   text: modelData === "auto" ? "Auto" : (modelData === "low" ? "Low" : (modelData === "med" ? "Med" : (modelData === "high" ? "High" : "Cust")))
                   textFormat: Text.PlainText
-                  color: root.currentMode === modelData ? Color.background : root.fg
+                  color: root.currentMode === modelData ? Commons.Color.background : root.fg
                   font.bold: true
                   font.pixelSize: Style.font.caption
                 }
@@ -1843,7 +1844,7 @@ Panel {
                   anchors.centerIn: parent
                   text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                   textFormat: Text.PlainText
-                  color: root.customName === modelData ? Color.background : root.fg
+                  color: root.customName === modelData ? Commons.Color.background : root.fg
                   font.bold: true
                   font.pixelSize: Style.font.caption
                 }
@@ -1922,7 +1923,7 @@ Panel {
         width: parent.width
         visible: root.procList.length > 0 || root.findMode || root.procFilter.length > 0
         radius: Style.cornerRadius
-        color: Style.normalFillFor(root.fg, Color.accent)
+        color: Style.normalFillFor(root.fg, Commons.Color.accent)
         border.color: Util.alpha(root.fg, 0.08)
         border.width: 1
         // The identity tip lives inside this clip: it can never paint past
@@ -1999,7 +2000,7 @@ Panel {
               radius: Style.space(4)
               clip: true
               color: armed ? Util.alpha(root.urgent, 0.22)
-                     : (index === root.selectedProc ? Style.selectedFillFor(root.fg, Color.accent) : "transparent")
+                     : (index === root.selectedProc ? Style.selectedFillFor(root.fg, Commons.Color.accent) : "transparent")
               MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
@@ -2090,7 +2091,7 @@ Panel {
                     textFormat: Text.PlainText
                     anchors.centerIn: parent
                     text: procRow.armed ? "?" : "x"
-                    color: Color.background
+                    color: Commons.Color.background
                     font.pixelSize: Style.font.bodySmall
                     font.bold: true
                   }
@@ -2111,8 +2112,8 @@ Panel {
           visible: false
           z: 10
           radius: Style.cornerRadius
-          color: Color.tooltip.background
-          border.color: Color.tooltip.border
+          color: Commons.Color.tooltip.background
+          border.color: Commons.Color.tooltip.border
           border.width: 1
           width: Math.min(Style.space(300), Math.max(Style.space(160), procCard.width - Style.space(24)))
           implicitHeight: tipCol.implicitHeight + Style.space(16)
@@ -2126,7 +2127,7 @@ Panel {
             Text {
               text: root.hoverProcData ? (root.hoverProcData.display || root.hoverProcData.name || "unknown") : ""
               textFormat: Text.PlainText
-              color: Color.tooltip.text
+              color: Commons.Color.tooltip.text
               font.bold: true
               font.pixelSize: Style.font.bodySmall
               width: parent.width
@@ -2142,7 +2143,7 @@ Panel {
                        + (root.hoverProcData.unit ? " · " + root.clipStr(root.hoverProcData.unit, 40) : ""))
                     : ""
               textFormat: Text.PlainText
-              color: Color.tooltip.text
+              color: Commons.Color.tooltip.text
               font.pixelSize: Style.font.caption
               width: parent.width
               elide: Text.ElideRight
@@ -2151,7 +2152,7 @@ Panel {
               visible: !!(root.hoverProcData && (root.hoverProcData.exe_path || root.hoverProcData.exe))
               text: root.hoverProcData ? (root.hoverProcData.exe_path || root.hoverProcData.exe) : ""
               textFormat: Text.PlainText
-              color: Color.tooltip.text
+              color: Commons.Color.tooltip.text
               font.pixelSize: Style.font.caption
               width: parent.width
               elide: Text.ElideRight
@@ -2160,7 +2161,7 @@ Panel {
               visible: !!(root.hoverProcData && root.hoverProcData.args)
               text: root.hoverProcData ? root.hoverProcData.args : ""
               textFormat: Text.PlainText
-              color: Color.tooltip.text
+              color: Commons.Color.tooltip.text
               font.pixelSize: Style.font.caption
               width: parent.width
               wrapMode: Text.Wrap
