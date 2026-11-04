@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // WordInk bar widget. Talks only to the local `wordink` CLI (no network, no
@@ -36,10 +37,10 @@ Panel {
   readonly property string visual: !installed || !running ? "off"
     : hasError ? "error" : capState
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property color urgent: Color.urgent
-  readonly property color accent: Color.accent
+  readonly property color urgent: Commons.Color.urgent
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property string pluginRoot: {
     var p = Qt.resolvedUrl(".").toString()
