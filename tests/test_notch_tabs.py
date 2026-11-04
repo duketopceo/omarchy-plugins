@@ -215,6 +215,8 @@ def test_expand_hover_delay_setting():
 
 def test_per_tab_size_hook():
     assert run("T.sizeFor('home')") == {"w": 720, "h": 380}
-    assert run("T.sizeFor('stocks')") == {"w": 640, "h": 360}
-    assert run("T.sizeFor('media')") is None
+    # Every tab opens at Home's size so the panel never jumps between tabs.
+    for tab in ("stocks", "media", "system", "settings", "plugins"):
+        assert run("T.sizeFor('%s')" % tab) == {"w": 720, "h": 380}
+    assert run("T.sizeFor('nope')") is None
     assert run("T.maxHeight(240)") == 380

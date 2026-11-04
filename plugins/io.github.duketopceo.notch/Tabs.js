@@ -10,18 +10,21 @@
 
 var DEFAULT_TAB = "home"
 
+// Every tab opens at Home's size, so the panel never jumps between tabs.
+var PANEL_SIZE = { w: 720, h: 380 }
+
 var TABS = [
-  { id: "home", title: "Home", short: "Home", glyph: "\u{F02DC}", source: "HomeTab.qml", size: { w: 720, h: 380 } },
-  { id: "media", title: "Media", short: "Media", glyph: "\u{F075A}", source: "MediaTab.qml" },
-  { id: "agents", title: "Agents", short: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml" },
-  { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml" },
-  { id: "network", title: "Network", short: "Net", glyph: "\u{F05A9}", source: "NetworkTab.qml" },
-  { id: "power", title: "Power", short: "Power", glyph: "\u{F140B}", source: "PowerTab.qml" },
-  { id: "system", title: "System", short: "System", glyph: "\u{F061A}", source: "SystemTab.qml", size: { w: 560, h: 330 } },
-  { id: "stocks", title: "Stocks", short: "Stocks", glyph: "\u{F012A}", source: "StocksTab.qml", size: { w: 640, h: 360 } },
-  { id: "screenshots", title: "Shots", short: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex" },
-  { id: "plugins", title: "Plugins", short: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml" },
-  { id: "settings", title: "Settings", short: "Prefs", glyph: "\u{F0493}", source: "SettingsTab.qml" }
+  { id: "home", title: "Home", short: "Home", glyph: "\u{F02DC}", source: "HomeTab.qml", size: PANEL_SIZE },
+  { id: "media", title: "Media", short: "Media", glyph: "\u{F075A}", source: "MediaTab.qml", size: PANEL_SIZE },
+  { id: "agents", title: "Agents", short: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml", size: PANEL_SIZE },
+  { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml", size: PANEL_SIZE },
+  { id: "network", title: "Network", short: "Net", glyph: "\u{F05A9}", source: "NetworkTab.qml", size: PANEL_SIZE },
+  { id: "power", title: "Power", short: "Power", glyph: "\u{F140B}", source: "PowerTab.qml", size: PANEL_SIZE },
+  { id: "system", title: "System", short: "System", glyph: "\u{F061A}", source: "SystemTab.qml", size: PANEL_SIZE },
+  { id: "stocks", title: "Stocks", short: "Stocks", glyph: "\u{F012A}", source: "StocksTab.qml", size: PANEL_SIZE },
+  { id: "screenshots", title: "Shots", short: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex", size: PANEL_SIZE },
+  { id: "plugins", title: "Plugins", short: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml", size: PANEL_SIZE },
+  { id: "settings", title: "Settings", short: "Prefs", glyph: "\u{F0493}", source: "SettingsTab.qml", size: PANEL_SIZE }
 ]
 
 // Tabs to show for these resolved settings: an `optional` tab needs the
