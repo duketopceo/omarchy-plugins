@@ -99,6 +99,11 @@ Item {
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
 
+  // Blip iMessage (N5): read-only. Flashes for allowlisted senders, keeps `unread` for the idle badge.
+  // TODO(integrator): add `messages` to N1's `activities` list; MessagesTab.qml reads it via `notch.messages`.
+  MessagesActivity { id: messages }
+  readonly property var messages: messages
+
   readonly property string view: Wordink.chooseView(dictation.active, !!player, Model.idleView(now.getTime() / 1000, (weather ? ["weather"] : []).concat(quotes.length ? ["watchlist"] : []), clockSeconds, slideSeconds))  // watchlist hook: "watchlist" idle view when quotes exist
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
   readonly property string sideText: view === "dictation" ? dictation.text : view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
