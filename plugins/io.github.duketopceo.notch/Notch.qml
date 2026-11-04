@@ -265,10 +265,9 @@ Item {
 
   // ------------------------------------------------------------ windows
 
-  // Click-outside-to-close: while a screen's island is expanded, a transparent
-  // full-screen catcher (layer Top, below the Overlay island, no keyboard
-  // focus, no exclusive zone) swallows the next press and collapses it. It
-  // only exists while expanded, so it can never block clicks otherwise.
+  // Click-outside-to-close: a pinned (clicked-open) island holds a Hyprland
+  // focus grab, the same mechanism Omarchy's popups use; any click outside it
+  // clears the grab and collapses it. Nothing covers the screen.
   property var openScreens: ({})
   signal collapseRequested()
   function setOpen(name, open) {
@@ -278,29 +277,6 @@ Item {
     if (open) copy[name] = true; else delete copy[name]
     openScreens = copy
   }
-  Variants {
-    model: Quickshell.screens
-    LazyLoader {
-      id: catcherLoader
-      required property var modelData
-      active: !!root.openScreens[modelData.name]
-      PanelWindow {
-        screen: catcherLoader.modelData
-        anchors { top: true; bottom: true; left: true; right: true }
-        color: "transparent"
-        WlrLayershell.namespace: "omarchy-notch-catcher"
-        WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        exclusionMode: ExclusionMode.Ignore
-        MouseArea {
-          anchors.fill: parent
-          acceptedButtons: Qt.AllButtons
-          onPressed: root.collapseRequested()
-        }
-      }
-    }
-  }
-
   Variants {
     model: Quickshell.screens
 
@@ -334,7 +310,7 @@ Item {
       readonly property real sideNeed: root.activity ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) + root.earPad + 8 + root.eqSpace + (dotShown ? 12 : 0) : 0
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
-      // a click anywhere outside (the catcher below) or Esc collapses it.
+      // a click anywhere outside (focus grab below) or Esc collapses it.
       property bool pinned: false
       function collapseNow() {
         pinned = false
@@ -350,6 +326,11 @@ Item {
       Timer { id: xtimer; onTriggered: win.xevent("timer") }
       onExpandedChanged: root.setOpen(modelData.name, expanded)
       Connections { target: root; function onCollapseRequested() { win.collapseNow() } }
+      HyprlandFocusGrab {
+        active: win.pinned && win.expanded
+        windows: [win]
+        onCleared: win.collapseNow()
+      }
       // --- end U5 ---
 
       anchors { top: true; left: true; right: true }
