@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import Quickshell.Services.Mpris
 import qs.Commons as Commons
 import "Model.js" as Model
+import "Wordink.js" as Wordink
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -92,9 +93,12 @@ Item {
   }
   readonly property string mediaText: player ? "\u{F075A} " + String(player.trackTitle || player.identity || "") : ""
 
-  readonly property string view: player ? "media" : Model.idleView(now.getTime() / 1000, weather ? ["weather"] : [], clockSeconds, slideSeconds)
+  // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
+  WordinkActivity { id: dictation }
+
+  readonly property string view: Wordink.chooseView(dictation.active, !!player, Model.idleView(now.getTime() / 1000, weather ? ["weather"] : [], clockSeconds, slideSeconds))
   readonly property string weatherText: weather ? Model.weatherGlyph(weather.kind) + " " + weather.temperature + weather.unit : ""
-  readonly property string sideText: view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
+  readonly property string sideText: view === "dictation" ? dictation.text : view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
 
   // ------------------------------------------------------------ windows
 
@@ -154,6 +158,14 @@ Item {
           maxWidth: root.earWidth - 8
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
+        }
+
+        // WordInk dictation dot (U4): pulses while recording.
+        WordinkDot {
+          activity: dictation
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.right: parent.right
+          anchors.rightMargin: Math.round(parent.height * 0.45)
         }
 
         // Virtual notch: one centered line.
