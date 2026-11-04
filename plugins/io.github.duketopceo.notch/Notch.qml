@@ -8,6 +8,7 @@ import qs.Commons as Commons
 import "Model.js" as Model
 import "Wordink.js" as Wordink
 import "Watchlist.js" as Watchlist
+import "Expand.js" as Expand  // U5 hover expand
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -120,8 +121,23 @@ Item {
       }) : 0
       readonly property bool notched: cut > 0
 
+      // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
+      property string xstate: "collapsed"
+      readonly property bool expanded: Expand.isExpanded(xstate)
+      readonly property int baseWidth: notched ? root.cameraWidth + 2 * root.earWidth : root.virtualWidth
+      readonly property int baseHeight: notched ? Math.max(cut, root.barHeight) : root.barHeight
+      readonly property var panelSz: Expand.panelSize(modelData.width)
+      function xevent(e) {
+        var r = Expand.step(xstate, e)
+        xstate = r.state
+        if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
+      }
+      Timer { id: xtimer; onTriggered: win.xevent("timer") }
+      // --- end U5 ---
+
       anchors { top: true; left: true; right: true }
-      implicitHeight: island.height
+      // Window stays tall while expanded or still animating; the mask below is what takes input.
+      implicitHeight: expanded || island.height > baseHeight ? panelSz.height + 16 : island.height
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch"
       WlrLayershell.layer: WlrLayer.Overlay
@@ -131,15 +147,36 @@ Item {
 
       Rectangle {
         id: island
-        width: win.notched ? root.cameraWidth + 2 * root.earWidth : root.virtualWidth
-        height: win.notched ? Math.max(win.cut, root.barHeight) : root.barHeight
+        width: win.expanded ? win.panelSz.width : win.baseWidth     // U5
+        height: win.expanded ? win.panelSz.height : win.baseHeight  // U5
+        Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }   // U5
+        Behavior on height { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }  // U5
         x: Math.round((parent.width - width) / 2)
         y: 0
         color: root.islandColor
         topLeftRadius: 0
         topRightRadius: 0
-        bottomLeftRadius: Math.round(height * 0.45)
-        bottomRightRadius: Math.round(height * 0.45)
+        bottomLeftRadius: Math.min(24, Math.round(height * 0.45))
+        bottomRightRadius: Math.min(24, Math.round(height * 0.45))
+
+        // U5: hover opens the panel; keyboard focus stays None (see window above).
+        HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
+        Loader {
+          anchors.fill: parent
+          z: 1
+          active: win.expanded || island.height > win.baseHeight + 1
+          sourceComponent: ExpandedPanel {
+            active: win.expanded
+            progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.panelSz.height - win.baseHeight)))
+            headerHeight: win.baseHeight
+            weather: root.weather
+            now: root.now
+            islandColor: root.islandColor
+            textColor: root.textColor
+            dimColor: root.dimColor
+            family: root.fontFamily
+          }
+        }
 
         // Notched: time in the left ear, date/weather in the right ear.
         Text {
