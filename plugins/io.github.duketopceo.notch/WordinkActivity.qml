@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import "Wordink.js" as Wordink
 
@@ -6,8 +7,8 @@ import "Wordink.js" as Wordink
 // events); while WordInk is not running or the follow has ended it polls
 // `wordink status --json` every 5 s and restarts the follow on return.
 // Talks only to the local `wordink` CLI. Never touches voxtype.
-QtObject {
-  id: wi  // QtObject, not Item: Item already owns a `state` property
+Scope {
+  id: wi  // Scope, not Item: Item already owns a `state` property; Scope holds child objects
 
   // "idle" | "recording" | "transcribing" | "error" | "not-running" | "done"
   readonly property string state: Wordink.current(model, clock)
