@@ -29,8 +29,7 @@ Item {
   }
 
   // Settings (v0.1: constants; later read from the plugin's shell.json entry).
-  readonly property int cameraWidth: 200   // logical px, 14"/16" MacBook Pro
-  readonly property int earWidth: 96       // content room either side of the camera
+  property int cameraOverride: 0           // logical px; 0 = auto-detect from the device model
   readonly property int virtualWidth: 300  // island width on screens without a cutout
   readonly property int clockSeconds: 24
   readonly property int slideSeconds: 7
@@ -51,6 +50,17 @@ Item {
     printErrors: false
     onLoaded: root.cutouts = Model.parseCutouts(text())
     onLoadFailed: root.cutouts = []
+  }
+
+  // Device model from the device tree (NUL-separated compatible strings).
+  property string deviceCompatible: ""
+  FileView {
+    id: compatFile
+    path: "/proc/device-tree/compatible"
+    blockLoading: true
+    printErrors: false
+    onLoaded: root.deviceCompatible = text()
+    onLoadFailed: root.deviceCompatible = ""
   }
 
   property var weather: null
@@ -121,11 +131,13 @@ Item {
         transform: monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
       }) : 0
       readonly property bool notched: cut > 0
+      readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride) || Model.SIZES.cameraWidth
+      readonly property int earW: Model.earWidthFor(modelData.width)
 
       // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
       property string xstate: "collapsed"
       readonly property bool expanded: Expand.isExpanded(xstate)
-      readonly property int baseWidth: notched ? root.cameraWidth + 2 * root.earWidth : root.virtualWidth
+      readonly property int baseWidth: notched ? camW + 2 * earW : root.virtualWidth
       readonly property int baseHeight: notched ? Math.max(cut, root.barHeight) : root.barHeight
       readonly property var panelSz: Expand.panelSize(modelData.width)
       function xevent(e) {
@@ -183,7 +195,7 @@ Item {
         Text {
           visible: win.notched
           anchors.verticalCenter: parent.verticalCenter
-          x: Math.round((root.earWidth - width) / 2)
+          x: Math.round((win.earW - width) / 2)
           text: root.timeText
           color: root.textColor
           font.family: root.fontFamily
@@ -195,21 +207,21 @@ Item {
         WatchlistSlide {
           visible: win.notched && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
+          x: win.earW + win.camW + Math.round((win.earW - width) / 2)
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
-          maxWidth: root.earWidth - 8
+          maxWidth: win.earW - 8
           family: root.fontFamily
         }
         SlideText {
           visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
+          x: win.earW + win.camW + Math.round((win.earW - width) / 2)
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: root.earWidth - 8
+          maxWidth: win.earW - 8
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
         }

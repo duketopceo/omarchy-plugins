@@ -41,16 +41,105 @@ function cutoutTop(cutouts, screenName, logicalWidth, mode) {
   return 0
 }
 
-// Default sizes in logical px. The camera on 14"/16" MacBook Pros is about
-// 200 px wide at scale 2.
+// Default sizes in logical px. cameraWidth is the fallback when a notched
+// panel's camera width is unknown; earWidth is the maximum ear.
 var SIZES = { cameraWidth: 200, earWidth: 96, virtualWidth: 300, barHeight: 32 }
 
+// ---- model detection ------------------------------------------------------
+// Camera-cutout widths in PHYSICAL px, keyed by Apple device-tree codename
+// (the "apple,jNNN" prefix of /proc/device-tree/compatible; trailing letters
+// such as s/c/g/d for Pro/Max/Ultra/base are ignored).
+//
+// Sources and confidence: the MacBook Pro 14"/16" notch is Apple's 185 pt
+// wide shape (NSScreen.auxiliaryTopLeftArea / safeAreaInsets measurements
+// published by notch-app developers, e.g. boring.notch, NotchNook) which is
+// 370 px at 2x; I use 372 px to include the corner radius. The MacBook Air
+// 13.6"/15.3" notch is narrower, about 161 pt, 322 px at 2x (same
+// measurements). Heights come from Omarchy's display-cutouts.json. These are
+// community-measured values, not Apple specs; a camera-width override setting
+// can correct them. Codenames: Apple Asahi Linux device-tree names
+// (j314/j316 M1 Pro/Max, j414/j416 M2 Pro/Max, j504/j514/j516 M3, j604/j614/j616
+// M4, j413/j415 M2 Air, j613/j615 M3 Air, j713/j715 M4 Air).
+var MBP_CAMERA = 372
+var AIR_CAMERA = 322
+var CAMERA_BY_MODEL = {
+  j314: MBP_CAMERA, j316: MBP_CAMERA, j414: MBP_CAMERA, j416: MBP_CAMERA,
+  j504: MBP_CAMERA, j514: MBP_CAMERA, j516: MBP_CAMERA,
+  j604: MBP_CAMERA, j614: MBP_CAMERA, j616: MBP_CAMERA,
+  j413: AIR_CAMERA, j415: AIR_CAMERA, j613: AIR_CAMERA, j615: AIR_CAMERA,
+  j713: AIR_CAMERA, j715: AIR_CAMERA
+}
+// Notchless Apple Silicon Macs: no cutout, so the notch is virtual.
+var PRE_NOTCH = { j293: true, j313: true, j493: true }
+// Panel physical width -> camera width, for when the model is unknown but the
+// panel matches a display-cutouts.json entry.
+var CAMERA_BY_PANEL = { 3024: MBP_CAMERA, 3456: MBP_CAMERA, 2560: AIR_CAMERA, 2880: AIR_CAMERA }
+// Marketing size for --simulate: size -> { width, height, model }.
+var PANEL_BY_INCH = {
+  13: { width: 2560, height: 1664, model: "j413" },
+  14: { width: 3024, height: 1964, model: "j314" },
+  15: { width: 2880, height: 1864, model: "j415" },
+  16: { width: 3456, height: 2234, model: "j316" }
+}
+
+// Split /proc/device-tree/compatible (NUL-separated) into its strings.
+function parseCompatible(text) {
+  return String(text || "").split("\u0000").map(function(x) { return x.trim() }).filter(function(x) { return x !== "" })
+}
+
+// "apple,j316c" (or a whole compatible list/NUL string, or a model string such
+// as "Apple MacBook Pro (16-inch, 2021)") -> "j316", or "" when not Apple.
+function deviceModel(input) {
+  var list = Array.isArray(input) ? input : parseCompatible(input)
+  for (var i = 0; i < list.length; i++) {
+    var m = /^apple,(j\d{3})[a-z]?$/.exec(String(list[i]).trim())
+    if (m) return m[1]
+  }
+  return ""
+}
+
+// Is this a known Apple Silicon Mac without a notch?
+function isPreNotch(modelOrCompatible) {
+  return PRE_NOTCH[deviceModel(modelOrCompatible)] === true
+}
+
+// Camera width in logical px, or 0 when unknown. Physical width/logical width
+// give the scale, so fractional scales work. `override` (logical px, > 0)
+// wins. Known pre-notch models always return 0.
+function cameraWidthFor(modelOrCompatible, physicalWidth, logicalWidth, override) {
+  var o = Number(override)
+  if (o > 0) return Math.round(o)
+  var physical = Number(physicalWidth), logical = Number(logicalWidth)
+  if (!(physical > 0) || !(logical > 0)) return 0
+  var code = deviceModel(modelOrCompatible)
+  if (PRE_NOTCH[code] === true) return 0
+  var px = CAMERA_BY_MODEL[code]
+  if (!px) {
+    var keys = Object.keys(CAMERA_BY_PANEL)
+    for (var i = 0; i < keys.length; i++)
+      if (Math.abs(physical - Number(keys[i])) <= 4) px = CAMERA_BY_PANEL[keys[i]]
+  }
+  return px ? Math.round(px * logical / physical) : 0
+}
+
+// Ear width scaled to the screen so the island stays sensible on a small
+// logical width (13" Air at 1280): 96 px on 1728+, down to 64.
+function earWidthFor(logicalWidth) {
+  var w = Number(logicalWidth)
+  if (!(w > 0)) return SIZES.earWidth
+  return Math.max(64, Math.min(SIZES.earWidth, Math.round(w * 0.0556)))
+}
+
 // The island's rectangle on a screen `screenWidth` logical px wide, given the
-// cutout height (0 for a screen without one). Sizes default to SIZES.
-function islandRect(screenWidth, cut, sizes) {
+// cutout height (0 for a screen without one). `sizes` overrides SIZES (and
+// pins the ear width); `cameraWidth` (logical px, > 0) is the detected or
+// overridden camera width.
+function islandRect(screenWidth, cut, sizes, cameraWidth) {
   var s = sizes || SIZES
   var notched = Number(cut) > 0
-  var width = notched ? s.cameraWidth + 2 * s.earWidth : s.virtualWidth
+  var camera = Number(cameraWidth) > 0 ? Number(cameraWidth) : s.cameraWidth
+  var ear = sizes ? s.earWidth : earWidthFor(screenWidth)
+  var width = notched ? camera + 2 * ear : s.virtualWidth
   var height = notched ? Math.max(Number(cut), s.barHeight) : s.barHeight
   return { x: Math.round((Number(screenWidth) - width) / 2), y: 0, width: width, height: height, notched: notched }
 }
@@ -175,6 +264,12 @@ if (typeof module !== "undefined") {
   module.exports = {
     SIZES: SIZES,
     islandRect: islandRect,
+    cameraWidthFor: cameraWidthFor,
+    earWidthFor: earWidthFor,
+    deviceModel: deviceModel,
+    parseCompatible: parseCompatible,
+    isPreNotch: isPreNotch,
+    PANEL_BY_INCH: PANEL_BY_INCH,
     layoutReport: layoutReport,
     expandLayout: expandLayout,
     parseCutouts: parseCutouts,
