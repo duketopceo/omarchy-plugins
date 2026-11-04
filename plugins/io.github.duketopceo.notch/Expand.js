@@ -88,6 +88,7 @@ function weatherLine(weather) {
 // One short line from the cache's `quotes` (another unit writes them), or ""
 // when absent. Accepts strings or { symbol, price, changePercent|change }.
 function quotesLine(quotes) {
+  if (quotes && Array.isArray(quotes.items)) quotes = quotes.items  // watchlist cache shape
   if (!Array.isArray(quotes)) return ""
   var out = []
   for (var i = 0; i < quotes.length && out.length < 3; i++) {
