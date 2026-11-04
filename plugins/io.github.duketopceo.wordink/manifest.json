@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.wordink",
+  "name": "WordInk",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "WordInk dictation in the bar: mic state icon, click to dictate, panel with engine, microphone picker, recent dictations and usage.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "WordInk",
+    "description": "Dictation toggle with live state, microphone picker, recent dictations and weekly usage",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

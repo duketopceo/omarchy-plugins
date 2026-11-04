@@ -50,6 +50,7 @@ required. See `.env.example`.
 | `io.github.duketopceo.numbat` | AI-agent activity radar: live agent list and findings from Perplexity's numbat monitor |
 | `io.github.duketopceo.pplx` | Quick-ask UI for the Perplexity Search API (`pplx` CLI, bring your own key) |
 | `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
+| `io.github.duketopceo.wordink` | WordInk dictation: mic state icon, click to dictate, mic picker, recent dictations, weekly usage (local `wordink` CLI) |
 
 ### Retired
 
@@ -73,6 +74,7 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
+| `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
 
 Install any of them with:
 
