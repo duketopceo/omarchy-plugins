@@ -99,6 +99,12 @@ Item {
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
 
+  // Agents (N4): herdr agent status. AgentsTab reads it via `agentsActivity` on the root item.
+  // TODO(integrator): add `agents` to N1's `activities` list (active/priority/text/glyph) and
+  // show `agents.badge` ("● 3" working count) in the idle notch.
+  AgentsActivity { id: agents }
+  readonly property var agentsActivity: agents  // exposed for AgentsTab (notch.agentsActivity)
+
   readonly property string view: Wordink.chooseView(dictation.active, !!player, Model.idleView(now.getTime() / 1000, (weather ? ["weather"] : []).concat(quotes.length ? ["watchlist"] : []), clockSeconds, slideSeconds))  // watchlist hook: "watchlist" idle view when quotes exist
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
   readonly property string sideText: view === "dictation" ? dictation.text : view === "media" ? mediaText : (view === "weather" ? weatherText : dateText)
