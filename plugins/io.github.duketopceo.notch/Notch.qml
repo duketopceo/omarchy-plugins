@@ -88,13 +88,14 @@ Item {
 
   readonly property string timeText: Qt.formatTime(now, "h:mm AP")
   readonly property string dateText: Qt.formatDate(now, "ddd d MMM")
-  // Now playing takes over the side text while a player is playing.
-  readonly property var player: {
-    var list = Mpris.players ? Mpris.players.values : []
-    for (var i = 0; i < list.length; i++) if (list[i] && list[i].isPlaying) return list[i]
-    return null
-  }
-  readonly property string mediaText: player ? "\u{F075A} " + String(player.trackTitle || player.identity || "") : ""
+  // Now playing (N3): MediaActivity picks the player (fastpotify, then Spotify,
+  // then any playing MPRIS player). TODO(integrator): once N1's `activities`
+  // list is on this base, register `media` there and drop player/mediaText.
+  MediaActivity { id: media }
+  readonly property var mediaActivity: media   // read by MediaTab.qml
+  readonly property var player: media.active ? media.player : null
+  readonly property string mediaText: media.active ? media.glyph + " " + media.text : ""
+  readonly property int eqSpace: view === "media" ? 14 : 0   // room for the equalizer glyph
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
@@ -205,13 +206,22 @@ Item {
         SlideText {
           visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: root.earWidth + root.cameraWidth + Math.round((root.earWidth - width) / 2)
+          x: root.earWidth + root.cameraWidth + root.eqSpace + Math.round((root.earWidth - root.eqSpace - width) / 2)
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: root.earWidth - 8
+          maxWidth: root.earWidth - 8 - root.eqSpace
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
+        }
+
+        // N3: animated equalizer beside the title while media plays.
+        EqGlyph {
+          visible: win.notched && root.view === "media"
+          playing: media.active
+          color: root.textColor
+          anchors.verticalCenter: parent.verticalCenter
+          x: root.earWidth + root.cameraWidth + 4
         }
 
         // WordInk dictation dot (U4): pulses while recording.
@@ -235,6 +245,12 @@ Item {
             font.pixelSize: 13
             textFormat: Text.PlainText
             font.weight: Font.DemiBold
+          }
+          EqGlyph {
+            visible: root.view === "media"
+            playing: media.active
+            color: root.textColor
+            anchors.verticalCenter: parent.verticalCenter
           }
           // watchlist hook (virtual notch).
           WatchlistSlide {
