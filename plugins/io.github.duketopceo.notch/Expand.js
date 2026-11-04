@@ -38,10 +38,14 @@ function isExpanded(state) {
   return state === "open" || state === "leaving"
 }
 
-// Expanded panel size in logical px, never wider than the screen minus a margin.
-function panelSize(screenWidth) {
+// Expanded panel size in logical px. `size` is a tab's optional `{ w, h }` from
+// Tabs.js (the per-tab size hook); without it the default PANEL_WIDTH x
+// PANEL_HEIGHT. Never wider than the screen minus a margin.
+function panelSize(screenWidth, size) {
   var avail = Number(screenWidth) > 0 ? Math.floor(Number(screenWidth)) - 16 : PANEL_WIDTH
-  return { width: Math.max(0, Math.min(PANEL_WIDTH, avail)), height: PANEL_HEIGHT }
+  var w = size && Number(size.w) > 0 ? Number(size.w) : PANEL_WIDTH
+  var h = size && Number(size.h) > 0 ? Number(size.h) : PANEL_HEIGHT
+  return { width: Math.max(0, Math.min(w, avail)), height: h }
 }
 
 function daysInMonth(year, month) {
@@ -78,6 +82,9 @@ var CONDITIONS = {
 }
 
 // "Provo  46°F  Clear" from Model.parseWeather output, or "" without data.
+// Condition label for a weather kind ("Cloudy" when unknown).
+function conditionText(kind) { return CONDITIONS[kind] || "Cloudy" }
+
 function weatherLine(weather) {
   if (!weather) return ""
   var parts = []
@@ -133,8 +140,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     HOVER_DELAY_MS: HOVER_DELAY_MS, LEAVE_DELAY_MS: LEAVE_DELAY_MS,
     PANEL_WIDTH: PANEL_WIDTH, PANEL_HEIGHT: PANEL_HEIGHT,
-    step: step, isExpanded: isExpanded, panelSize: panelSize,
+    step: step, isExpanded: isExpanded, panelSize: panelSize, PANEL_HEIGHT: PANEL_HEIGHT, PANEL_WIDTH: PANEL_WIDTH,
     daysInMonth: daysInMonth, monthGrid: monthGrid, weekdayLabels: weekdayLabels,
-    weatherLine: weatherLine, quotesLine: quotesLine, parseWisp: parseWisp, parseNord: parseNord
+    weatherLine: weatherLine, conditionText: conditionText, quotesLine: quotesLine, parseWisp: parseWisp, parseNord: parseNord
   }
 }

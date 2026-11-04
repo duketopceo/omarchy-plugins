@@ -28,15 +28,10 @@ function readJson(file) {
 }
 
 // Free space between the island and the nearest widget on each side
-// (negative when a widget reaches under the island).
+// (negative when a widget reaches under the island). Shared with the island's
+// ear sizing: Model.sideRoom.
 function room(rows, island, screenWidth) {
-  const end = island.x + island.width
-  const left = rows.filter(w => w.section === "left")
-  const right = rows.filter(w => w.section !== "left")
-  return {
-    left: island.x - (left.length ? Math.max(...left.map(w => w.x + w.width)) : 0),
-    right: (right.length ? Math.min(...right.map(w => w.x)) : screenWidth) - end,
-  }
+  return M.sideRoom(rows.map(w => Object.assign({ visible: true }, w)), island, screenWidth)
 }
 
 // Device-tree compatible strings (NUL-separated); "" when unreadable.
@@ -68,13 +63,19 @@ function main() {
   const all = [].concat(...Object.values(layout).filter(Array.isArray))
   const titleCfg = all.find(w => w.id === "omarchy.active-window") || {}
   const drawerCount = (layout.tray || []).length
-  const trayHost = widgets.find(w => /tray/i.test(w.id) && w.visible)
+  // Every tray host on the bar: the stock tray hosts the `tray` section (one
+  // slot per widget in it); a replacement tray (io.github.*.tray) hosts the
+  // widgets listed in its own `widgets` setting.
+  const trayHosts = widgets.filter(w => /tray/i.test(w.id) && w.visible)
+  const hostCount = id => id === "omarchy.tray"
+    ? drawerCount
+    : ((((layout.right || []).concat(layout.left || [])).find(e => e.id === id) || {}).widgets || []).length
   const SLOT = 27, SYSTRAY = Number(process.env.NOTCH_SYSTRAY_ICONS || 4)
   const scenarios = [
     ["now", {}],
     ["media playing", { "omarchy.media": 220 }],
     ["long window title", { "omarchy.active-window": Number(titleCfg.maxWidth || 280) + 16 }],
-    ["tray drawer open", trayHost ? { [trayHost.id]: trayHost.width + (drawerCount + SYSTRAY) * SLOT } : {}],
+    ["tray drawer open", Object.assign({}, ...trayHosts.map(h => ({ [h.id]: h.width + (hostCount(h.id) + (h.id === "omarchy.tray" ? 0 : SYSTRAY)) * SLOT })))],
   ]
   scenarios.push(["all at once", Object.assign({}, ...scenarios.slice(1).map(s => s[1]))])
   const onlyNow = !process.argv.includes("--expand")
@@ -108,7 +109,8 @@ function main() {
       const r = M.layoutReport(M.expandLayout(mine, grow), island)
       const sideRoom = room(r.rows, island, logicalWidth)
       if (!onlyNow && r.blocked.length) anyBlocked = true
-      return { scenario: name, blocked: r.blocked, room: sideRoom }
+      const maxEar = M.maxEarWidth(r.rows.map(w => Object.assign({ visible: true }, w)), logicalWidth, camera, Math.round((island.width - camera) / 2), 12, 280)
+      return { scenario: name, blocked: r.blocked, room: sideRoom, maxEar }
     })
     return { screen: mon.name, simulatedInch: simInch || undefined, model: M.deviceModel(compatible), camera, logicalWidth, cutout: cut, island, rows: report.rows, blocked: report.blocked, expansions }
   })
@@ -128,11 +130,13 @@ function main() {
       }
       const now = room(r.rows, i, r.logicalWidth)
       console.log(`  room: ${now.left} px left of the notch, ${now.right} px right of it`)
+      const baseEar = Math.round((i.width - r.camera) / 2)
+      console.log(`  ear: base ${baseEar} px, may grow to ${M.maxEarWidth(r.rows.map(w => Object.assign({ visible: true }, w)), r.logicalWidth, r.camera, baseEar, 12, 280)} px (room minus 12 px margin, cap 280)`)
       console.log(r.blocked.length ? `  BLOCKED now: ${r.blocked.join(", ")}` : "  nothing blocked now")
       console.log("  when widgets expand:")
       for (const e of r.expansions) {
         console.log("    " + e.scenario.padEnd(20) + `room ${String(e.room.left).padStart(4)} left /${String(e.room.right).padStart(4)} right  ` +
-          (e.blocked.length ? "BLOCKED: " + e.blocked.join(", ") : "ok"))
+          `ear<=${String(e.maxEar).padStart(3)}  ` + (e.blocked.length ? "BLOCKED: " + e.blocked.join(", ") : "ok"))
       }
       console.log("")
     }

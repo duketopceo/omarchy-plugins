@@ -144,6 +144,44 @@ function islandRect(screenWidth, cut, sizes, cameraWidth) {
   return { x: Math.round((Number(screenWidth) - width) / 2), y: 0, width: width, height: height, notched: notched }
 }
 
+// Free space between the island and the nearest bar widget on each side, in
+// logical px (negative when a widget reaches under the island). Same logic as
+// bin/notch-layout-check's room: "left" section widgets bound the left side,
+// every other section the right. `widgets` is debugBarGeometry's output.
+function sideRoom(widgets, island, screenWidth) {
+  var rows = (Array.isArray(widgets) ? widgets : []).filter(function(w) { return w && w.visible && w.width > 0 })
+  var end = island.x + island.width
+  var left = rows.filter(function(w) { return w.section === "left" })
+  var right = rows.filter(function(w) { return w.section !== "left" })
+  return {
+    left: island.x - (left.length ? Math.max.apply(null, left.map(function(w) { return w.x + w.width })) : 0),
+    right: (right.length ? Math.min.apply(null, right.map(function(w) { return w.x })) : Number(screenWidth)) - end
+  }
+}
+
+// The widest an ear may grow: the base ear plus the smaller side's free room
+// (the island stays centered on the camera, so both ears grow together) minus
+// `margin` px kept clear of the nearest bar widget, capped at `cap`. Never
+// below the base ear. With no widget geometry yet the base ear is kept.
+function maxEarWidth(widgets, screenWidth, cameraWidth, baseEar, margin, cap) {
+  var base = Number(baseEar)
+  if (!Array.isArray(widgets) || widgets.length === 0) return base
+  var width = Number(cameraWidth) + 2 * base
+  var island = { x: Math.round((Number(screenWidth) - width) / 2), width: width }
+  var r = sideRoom(widgets, island, screenWidth)
+  var spare = Math.min(r.left, r.right) - (margin === undefined ? 12 : Number(margin))
+  var max = base + Math.max(0, Math.floor(spare))
+  return Math.max(base, Math.min(max, cap > 0 ? Number(cap) : max))
+}
+
+// The ear width to use for text `need` px wide: at least the base ear, at most
+// `max`.
+function earWidthFit(need, baseEar, max) {
+  var n = Math.ceil(Number(need))
+  if (!(n > 0)) return Number(baseEar)
+  return Math.max(Number(baseEar), Math.min(Number(max), n))
+}
+
 // Lay bar widgets (from the shell's debugBarGeometry) against the island:
 // each visible widget gets its gap to the previous widget and whether the
 // island covers it. Returns { rows, blocked }.
@@ -263,7 +301,7 @@ function parseWeather(text) {
 if (typeof module !== "undefined") {
   module.exports = {
     SIZES: SIZES,
-    islandRect: islandRect,
+    islandRect: islandRect, sideRoom: sideRoom, maxEarWidth: maxEarWidth, earWidthFit: earWidthFit,
     cameraWidthFor: cameraWidthFor,
     earWidthFor: earWidthFor,
     deviceModel: deviceModel,

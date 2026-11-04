@@ -16,7 +16,7 @@ Scope {
   // --- activity contract ---
   readonly property bool active: !!player && player.isPlaying
   readonly property int priority: 50
-  readonly property string text: player ? Media.formatTitle(player.trackTitle || player.identity, player.trackArtist, 40) : ""
+  readonly property string text: player ? Media.formatTitle(player.trackTitle || player.identity, player.trackArtist, 120) : ""
   readonly property string glyph: player ? (Media.glyphFor(snap(player)) || Media.MUSIC_GLYPH) : ""
 
   // --- details ---

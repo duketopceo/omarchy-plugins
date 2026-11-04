@@ -72,3 +72,13 @@ def test_commands_call_snapdex_ctl_with_absolute_paths():
     assert run("S.indexPath('/home/x')") == "/home/x/Pictures/Screenshots/index.md"
     assert run("S.shortPath('/home/x/Pictures/Screenshots','/home/x')") == "~/Pictures/Screenshots"
     assert run("S.pendingText(0)") == "All captioned" and run("S.pendingText(5)") == "5 unprocessed"
+
+
+def test_folders_use_snapdex_fields_then_fall_back():
+    p = run("S.folders({inbox:'/i', library:'/l', dst:''}, '/h', false)")
+    assert p == {"library": "/l", "inbox": "/i", "separate": True}
+    assert run("S.folders({inbox:'', library:'', dst:''}, '/h', true)") == {
+        "library": "/h/Pictures/Screenshots/Library", "inbox": "/h/Pictures/Screenshots", "separate": True}
+    assert run("S.folders({inbox:'', library:'', dst:''}, '/h', false)") == {
+        "library": "/h/Pictures/Screenshots", "inbox": "/h/Pictures/Screenshots", "separate": False}
+    assert run("S.libraryIndexPath('/h')") == "/h/Pictures/Screenshots/Library/index.md"

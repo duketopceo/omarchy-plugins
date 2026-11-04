@@ -22,8 +22,8 @@ Item {
   readonly property string pluginDir: notch ? notch.pluginDir : ""
   readonly property string pluginId: notch && notch.pluginId ? notch.pluginId : "io.github.duketopceo.notch"
 
-  implicitWidth: 428
-  implicitHeight: 164
+  implicitWidth: 608
+  implicitHeight: 286
 
   // ---------------------------------------------------------------- state
   property var cache: null              // parsed notch.json
@@ -133,12 +133,12 @@ Item {
   }
 
   // ---------------------------------------------------------------- cards
-  readonly property int cardH: 31
+  readonly property int cardH: 34
   readonly property int cardGap: 4
   readonly property int cols: cfg.cards <= 4 ? 2 : 3
   readonly property int cardW: Math.floor((width - (cols - 1) * cardGap) / cols)
   readonly property int pitch: cardH + cardGap
-  readonly property int visibleRows: 2
+  readonly property int visibleRows: 3
   readonly property int rows: Stocks.gridRows(symbols.length, cols)
   readonly property int cardsHeight: visibleRows * pitch - cardGap
   property real scrollY: 0
@@ -170,8 +170,13 @@ Item {
           readonly property var series: Stocks.parseSeries(tab.cache, sym, tab.range)
           readonly property var chg: Stocks.seriesChange(series, tab.range)
           readonly property var quote: tab.quoteFor(sym)
-          readonly property real price: chg ? chg.last : (quote ? Number(quote.price) : NaN)
-          readonly property real pct: chg ? chg.percent : (quote ? Number(quote.changePercent) : NaN)
+          // Cards show TODAY's move (vs the previous close): the quote's
+          // changePercent, else the 1D series against its previous close. The
+          // selected range's change lives only in the chart header.
+          readonly property var daySeries: tab.range === "1D" ? series : Stocks.parseSeries(tab.cache, sym, "1D")
+          readonly property var dayChg: Stocks.seriesChange(daySeries, "1D")
+          readonly property real price: quote && isFinite(Number(quote.price)) ? Number(quote.price) : (chg ? chg.last : NaN)
+          readonly property real pct: Stocks.todayPercent(quote, dayChg)
           readonly property color tone: Stocks.toneColor(pct)
           readonly property bool isSel: sym === tab.selected
           x: (index % tab.cols) * (tab.cardW + tab.cardGap)

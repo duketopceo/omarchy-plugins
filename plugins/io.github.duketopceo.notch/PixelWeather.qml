@@ -9,11 +9,12 @@ Item {
   property string kind: "cloudy"
   property bool active: true       // animate only while visible
   property int frameMs: 650
+  property int px: 1               // screen px per sprite pixel (integer keeps edges hard)
   readonly property int cells: PixelArt.SPRITE_SIZE
   property int frame: 0
 
-  implicitWidth: cells
-  implicitHeight: cells
+  implicitWidth: cells * px
+  implicitHeight: cells * px
   width: implicitWidth
   height: implicitHeight
 
@@ -24,6 +25,7 @@ Item {
     onTriggered: icon.frame = PixelArt.spriteFrame(icon.kind, (icon.frame + 1) * icon.frameMs, icon.frameMs)
   }
 
+  onPxChanged: canvas.requestPaint()
   onKindChanged: { frame = 0; canvas.requestPaint() }
   onFrameChanged: canvas.requestPaint()
 
@@ -41,7 +43,7 @@ Item {
           var c = PixelArt.SPRITE_COLORS[rows[y].charAt(x)]
           if (!c) continue
           ctx.fillStyle = c
-          ctx.fillRect(x, y, 1, 1)
+          ctx.fillRect(x * icon.px, y * icon.px, icon.px, icon.px)
         }
       }
     }

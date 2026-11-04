@@ -293,3 +293,11 @@ def test_watchlist_prefers_notch_setting(monkeypatch, tmp_path):
     assert nd.watchlist_symbols() == ["NVDA", "AAPL"]
     (tmp_path / "shell.json").write_text(json.dumps({"plugins": [{"id": nd.PLUGIN_ID, "stocks.watchlist": ["spy", "qqq"]}]}))
     assert nd.watchlist_symbols() == ["SPY", "QQQ"]
+
+
+@needs_node
+def test_today_percent_uses_quote_not_range():
+    assert run("S.todayPercent({changePercent: 2.3}, {percent: -13.48})") == 2.3
+    assert run("S.todayPercent({changePercent: null}, {percent: 1.5})") == 1.5
+    assert run("S.todayPercent(null, {percent: -0.5})") == -0.5
+    assert run("S.todayPercent(null, null)") is None  # NaN -> null in JSON

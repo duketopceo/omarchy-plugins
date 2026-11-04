@@ -7,7 +7,8 @@ import Quickshell.Services.Mpris
 import qs.Commons as Commons
 import "Model.js" as Model
 import "Watchlist.js" as Watchlist
-import "Expand.js" as Expand  // U5 hover expand
+import "Expand.js" as Expand
+import "Tabs.js" as Tabs  // U5 hover expand
 import "Settings.js" as Settings
 import "Activity.js" as Activity
 import "Plugins.js" as Plugins
@@ -103,6 +104,8 @@ Item {
   readonly property int autoCameraWidth: 200   // logical px, 14"/16" MacBook Pro
   readonly property int cameraWidth: settings.cameraWidth > 0 ? settings.cameraWidth : autoCameraWidth
   readonly property int earWidth: 96       // content room either side of the camera
+  readonly property int earMargin: 12     // px kept clear of the nearest bar widget
+  readonly property int earCap: 280        // widest an ear may grow
   readonly property int earPad: 6          // gap between ear text and the camera edge
   // Camera width override from Settings (0 = auto-detect from the device model).
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
@@ -140,6 +143,20 @@ Item {
     onLoaded: root.deviceCompatible = text()
     onLoadFailed: root.deviceCompatible = ""
   }
+
+  // Live bar widget geometry (shell debugBarGeometry), used to size the ears.
+  property var barWidgets: []
+  property string barSig: ""
+  function refreshBar() {
+    var list = []
+    try { list = shell && shell.bar && typeof shell.bar.debugBarGeometry === "function" ? shell.bar.debugBarGeometry() : [] } catch (e) { list = [] }
+    if (!Array.isArray(list)) list = []
+    var sig = JSON.stringify(list.map(function (w) { return [w.section, w.x, w.width, w.visible] }))
+    if (sig === barSig) return
+    barSig = sig
+    barWidgets = list
+  }
+  Timer { interval: 2000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshBar() }
 
   property var weather: null
   property var quotes: []  // watchlist hook: from the cache "quotes" key
@@ -248,6 +265,42 @@ Item {
 
   // ------------------------------------------------------------ windows
 
+  // Click-outside-to-close: while a screen's island is expanded, a transparent
+  // full-screen catcher (layer Top, below the Overlay island, no keyboard
+  // focus, no exclusive zone) swallows the next press and collapses it. It
+  // only exists while expanded, so it can never block clicks otherwise.
+  property var openScreens: ({})
+  signal collapseRequested()
+  function setOpen(name, open) {
+    if (!!openScreens[name] === open) return
+    var copy = {}
+    for (var k in openScreens) copy[k] = openScreens[k]
+    if (open) copy[name] = true; else delete copy[name]
+    openScreens = copy
+  }
+  Variants {
+    model: Quickshell.screens
+    LazyLoader {
+      id: catcherLoader
+      required property var modelData
+      active: !!root.openScreens[modelData.name]
+      PanelWindow {
+        screen: catcherLoader.modelData
+        anchors { top: true; bottom: true; left: true; right: true }
+        color: "transparent"
+        WlrLayershell.namespace: "omarchy-notch-catcher"
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        exclusionMode: ExclusionMode.Ignore
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.AllButtons
+          onPressed: root.collapseRequested()
+        }
+      }
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -269,20 +322,39 @@ Item {
       // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
       property string xstate: "collapsed"
       readonly property bool expanded: Expand.isExpanded(xstate)
-      readonly property int baseWidth: notched ? camW + 2 * earW : root.virtualWidth
+      readonly property int baseWidth: notched ? camW + 2 * earTarget : root.virtualWidth
       readonly property int baseHeight: notched ? cut : root.barHeight  // exactly the cutout height
-      readonly property var panelSz: Expand.panelSize(modelData.width)
+      property string currentTab: "home"   // the expanded panel's tab; sizes the panel
+      readonly property var panelSz: Expand.panelSize(modelData.width, Tabs.sizeFor(currentTab))
+      readonly property int minPanelHeight: Expand.panelSize(modelData.width).height
+      // Ears: the base width, grown (right ear text, island stays centered on
+      // the camera) up to the live room on the narrower bar side minus margin.
+      readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
+      readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
+      readonly property real sideNeed: root.activity ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) + root.earPad + 8 + root.eqSpace + (dotShown ? 12 : 0) : 0
+      readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
+      // Clicking the island pins it open (hover-leave no longer collapses it);
+      // a click anywhere outside (the catcher below) or Esc collapses it.
+      property bool pinned: false
+      function collapseNow() {
+        pinned = false
+        xtimer.stop()
+        xstate = "collapsed"
+      }
       function xevent(e) {
+        if (pinned && e !== "timer") { if (e === "enter" && xstate !== "open") xstate = "open"; return }
         var r = Expand.step(xstate, e, root.settings.hoverDelay)
         xstate = r.state
         if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
       }
       Timer { id: xtimer; onTriggered: win.xevent("timer") }
+      onExpandedChanged: root.setOpen(modelData.name, expanded)
+      Connections { target: root; function onCollapseRequested() { win.collapseNow() } }
       // --- end U5 ---
 
       anchors { top: true; left: true; right: true }
       // Window stays tall while expanded or still animating; the mask below is what takes input.
-      implicitHeight: expanded || island.height > baseHeight ? panelSz.height + 16 : island.height
+      implicitHeight: expanded || island.height > baseHeight ? Tabs.maxHeight(Expand.PANEL_HEIGHT) + 16 : island.height
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch"
       WlrLayershell.layer: WlrLayer.Overlay
@@ -294,8 +366,18 @@ Item {
         id: island
         width: win.expanded ? win.panelSz.width : win.baseWidth     // U5
         height: win.expanded ? win.panelSz.height : win.baseHeight  // U5
-        Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }   // U5
-        Behavior on height { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }  // U5
+        // Animates both the hover expand and tab-to-tab size changes; ear growth
+        // uses a calm ease so it never overshoots into the bar widgets.
+        Behavior on width { NumberAnimation { duration: 340; easing.type: win.expanded ? Easing.OutBack : Easing.OutCubic; easing.overshoot: 1.1 } }
+        Behavior on height { NumberAnimation { duration: 340; easing.type: win.expanded ? Easing.OutBack : Easing.OutCubic; easing.overshoot: 1.1 } }
+        // Half the island either side of the camera: where the ear text sits.
+        readonly property real earLive: Math.max(0, (width - win.camW) / 2)
+        TextMetrics {
+          id: sideMetrics
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          text: root.sideText
+        }
         x: Math.round((parent.width - width) / 2)
         y: 0
         color: root.islandColor
@@ -306,13 +388,19 @@ Item {
 
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
+        // A click on the island itself (outside any tab content) pins it open.
+        TapHandler { gesturePolicy: TapHandler.ReleaseWithinBounds; onTapped: { win.pinned = true; if (win.xstate !== "open") win.xstate = "open" } }
+        Shortcut { sequence: "Escape"; enabled: win.expanded; onActivated: win.collapseNow() }
         Loader {
           anchors.fill: parent
           z: 1
           active: win.expanded || island.height > win.baseHeight + 1
+          onActiveChanged: if (!active) win.currentTab = "home"
           sourceComponent: ExpandedPanel {
             active: win.expanded
-            progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.panelSz.height - win.baseHeight)))
+            currentTab: win.currentTab
+            onTabSelected: function (id) { win.currentTab = id }
+            progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.minPanelHeight - win.baseHeight)))
             headerHeight: win.baseHeight
             notch: root
             weather: root.weather
@@ -328,9 +416,9 @@ Item {
         Text {
           visible: win.notched
           anchors.verticalCenter: parent.verticalCenter
-          width: Math.min(implicitWidth, win.earW - root.earPad - 2)
+          width: Math.min(implicitWidth, island.earLive - root.earPad - 2)
           elide: Text.ElideRight
-          x: win.earW - width - root.earPad   // right-aligned against the camera edge
+          x: island.earLive - width - root.earPad   // right-aligned against the camera edge
           text: root.timeText + (agents.badge ? " " + agents.badge : "")
           color: root.textColor
           font.family: root.fontFamily
@@ -342,21 +430,21 @@ Item {
         WatchlistSlide {
           visible: win.notched && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + root.earPad   // left-aligned against the camera edge
+          x: island.earLive + win.camW + root.earPad   // left-aligned against the camera edge
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
-          maxWidth: win.earW - root.earPad - 8
+          maxWidth: win.earTarget - root.earPad - 8
           family: root.fontFamily
         }
         SlideText {
           visible: win.notched && root.view !== "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + root.earPad + root.eqSpace
+          x: island.earLive + win.camW + root.earPad + root.eqSpace
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earW - root.earPad - 8 - root.eqSpace - (netDot.visible ? 12 : 0)
+          maxWidth: win.earTarget - root.earPad - 8 - root.eqSpace - (netDot.visible ? 12 : 0)
           color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
           family: root.fontFamily
         }
@@ -367,7 +455,7 @@ Item {
           playing: media.active
           color: root.textColor
           anchors.verticalCenter: parent.verticalCenter
-          x: win.earW + win.camW + root.earPad
+          x: island.earLive + win.camW + root.earPad
         }
 
         // WordInk dictation dot (U4): pulses while recording.
@@ -394,8 +482,8 @@ Item {
         MouseArea {
           visible: win.notched
           enabled: dictation.active && !win.expanded
-          x: win.earW + win.camW
-          width: win.earW
+          x: island.earLive + win.camW
+          width: island.earLive
           height: parent.height
           cursorShape: Qt.PointingHandCursor
           onClicked: dictation.toggle()
@@ -476,16 +564,34 @@ Item {
       Behavior on opacity { NumberAnimation { duration: 220 } }
     }
 
-    Text {
-      id: label
+    // Long text scrolls slowly (pause, glide to the end, pause, glide back)
+    // inside a clipped box instead of eliding.
+    Item {
+      id: box
       x: slide.iconSpace
       width: slide.width - slide.iconSpace
-      text: slide.shown
-      color: slide.color
-      font.family: slide.family
-      font.pixelSize: 13
-      textFormat: Text.PlainText
-      elide: Text.ElideRight
+      height: label.implicitHeight
+      clip: slide.overflow > 0
+      Text {
+        id: label
+        text: slide.shown
+        color: slide.color
+        font.family: slide.family
+        font.pixelSize: 13
+        textFormat: Text.PlainText
+      }
+    }
+    readonly property real overflow: Math.max(0, label.implicitWidth - box.width)
+    onOverflowChanged: if (overflow <= 0) label.x = 0
+    SequentialAnimation {
+      id: marquee
+      running: slide.overflow > 0 && slide.visible
+      loops: Animation.Infinite
+      onRunningChanged: if (!running) label.x = 0
+      PauseAnimation { duration: 1800 }
+      NumberAnimation { target: label; property: "x"; to: -slide.overflow; duration: Math.max(1, slide.overflow * 32); easing.type: Easing.Linear }
+      PauseAnimation { duration: 1400 }
+      NumberAnimation { target: label; property: "x"; to: 0; duration: 500; easing.type: Easing.InOutQuad }
     }
 
     SequentialAnimation {
@@ -494,7 +600,7 @@ Item {
         NumberAnimation { target: label; property: "opacity"; to: 0; duration: 160; easing.type: Easing.InQuad }
         NumberAnimation { target: label; property: "y"; to: -6; duration: 160; easing.type: Easing.InQuad }
       }
-      ScriptAction { script: { slide.shown = slide.target; label.y = 6 } }
+      ScriptAction { script: { slide.shown = slide.target; label.y = 6; label.x = 0 } }
       ParallelAnimation {
         NumberAnimation { target: label; property: "opacity"; to: 1; duration: 220; easing.type: Easing.OutQuad }
         NumberAnimation { target: label; property: "y"; to: 0; duration: 220; easing.type: Easing.OutQuad }

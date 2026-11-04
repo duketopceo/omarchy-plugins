@@ -11,7 +11,13 @@ Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weat
 
 ## Hover expand
 
-Hover the island for about 150 ms and it springs down into a 460x240 panel with a tab strip (the selected tab shows glyph and name, the others just the glyph). Leaving collapses it after about 300 ms. Logic lives in `Expand.js`, UI in `ExpandedPanel.qml`.
+Hover the island for about 150 ms and it springs down into a panel with a tab strip. Leaving collapses it after about 300 ms. Click the island to pin it open; while expanded, a click anywhere outside (a transparent full-screen catcher on layer Top, present only while expanded, no keyboard focus) or Esc (when the panel has focus) collapses it. Logic lives in `Expand.js`, UI in `ExpandedPanel.qml`.
+
+Panel size is per tab: a tab entry in `Tabs.js` may carry `size: { w, h }` (logical px); without it the panel is 460x240. Home is 720x380, Stocks 640x360 (clamped to the screen width minus 16, always centered). The island animates the size change when you switch tabs. The tab strip shows glyph + short label (`short` in `Tabs.js`) on equal-width chips when they all fit, else only the selected chip carries its label.
+
+## Ears
+
+The right ear grows for a long activity text (track title). Max ear width = base ear + the narrower side's free bar room (the same `room` as `bin/notch-layout-check`: `Model.sideRoom`) minus a 12 px margin, capped at 280; the island stays centered on the camera. Text still too long for that scrolls slowly (marquee) instead of eliding. `notch-layout-check` prints the current limit per scenario.
 
 ## Tabs
 
@@ -24,7 +30,7 @@ Tabs:
 - **Network** (`NetworkTab.qml`, `Network.js`, `NetworkState.qml`): Tailscale (state, this device's tailnet IP, peers with online/offline dots, connect/disconnect switch, click an IP to copy it) and NordVPN (state, country/server, connect/disconnect switch). `/usr/bin/tailscale up|down` and the nordvpn plugin's own `probe_nordvpn.py connect|disconnect`. It polls every 8 s only while a tab showing it is visible, plus a cheap status read (no peer list) every 60 s that drives the small status dot on the idle notch (green when either is up, amber while connecting).
 - **Screenshots** (optional, Settings > "Screenshots (snapdex)", off by default): last 8 thumbnails with captions, unprocessed count, "Process now", the Auto switch and "Open folder", all through the snapdex plugin's `snapdex-ctl`. Shots are saved to and renamed in `~/Pictures/Screenshots`. While on, a newly captioned screenshot flashes its caption in the notch for 4 s at priority 30.
 
-The Plugins tab opens a slot by trying the shell's `summon`, then the plugin's own `qs ipc call <id> toggle`, then a per-plugin fallback. Plugins in the bar's `tray` section only have a panel the shell can summon while their widget is live (the built-in tray must be on the bar); otherwise the slot says "not on the bar".
+The Plugins tab opens a slot by trying the shell's `summon`, then the plugin's own `qs ipc call <id> toggle`, then a per-plugin fallback. Plugins in the bar's `tray` section only have a panel the shell can summon while their widget is live, which needs the built-in tray host (`omarchy.tray`, not disabled in `shell.json` `disabledPlugins`) on the bar; otherwise the slot says "not on the bar". The Stocks tab cards show today's change vs the previous close; the big chart header shows the selected range's change.
 
 Click the right ear while a dictation shows to toggle dictation.
 
@@ -80,3 +86,7 @@ v0.1. Next: pixel-art weather icons, stock watchlist slide, WordInk dictation st
 The hover-expand design (timing, expand-downward behavior) takes its cues from omanotch, https://github.com/skuthus/omanotch. No code is copied; the notice is kept for the design reference.
 
 MIT License. Copyright (c) 2026 skuthus
+
+## Screenshots paths
+
+The Screenshots tab reads `inbox` and `library` from `snapdex-ctl panel` JSON; when absent it uses `~/Pictures/Screenshots/Library` if it exists, else `~/Pictures/Screenshots`. "Open folder" opens the library; the inbox pending count is shown separately.

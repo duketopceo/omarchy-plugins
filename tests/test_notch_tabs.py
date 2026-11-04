@@ -28,7 +28,7 @@ def test_tab_list_shape_and_sources():
     tabs = run("T.TABS")
     assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "network", "stocks", "screenshots", "plugins", "settings"]
     for t in tabs:
-        assert {"id", "title", "glyph", "source"} <= set(t) <= {"id", "title", "glyph", "source", "optional"} and t["glyph"] and t["title"]
+        assert {"id", "title", "short", "glyph", "source"} <= set(t) <= {"id", "title", "short", "glyph", "source", "optional", "size"} and len(t["short"]) <= 7 and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
         "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml",
@@ -211,3 +211,10 @@ def test_expand_hover_delay_setting():
     js = f"const E=require({json.dumps(str(NOTCH / 'Expand.js'))});console.log(JSON.stringify([E.step('collapsed','enter',400),E.step('collapsed','enter',0),E.step('collapsed','enter')]))"
     out = json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
     assert [o["timer"] for o in out] == [400, 1, 150]
+
+
+def test_per_tab_size_hook():
+    assert run("T.sizeFor('home')") == {"w": 720, "h": 380}
+    assert run("T.sizeFor('stocks')") == {"w": 640, "h": 360}
+    assert run("T.sizeFor('media')") is None
+    assert run("T.maxHeight(240)") == 380

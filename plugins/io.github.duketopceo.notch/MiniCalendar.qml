@@ -16,10 +16,12 @@ Item {
   readonly property var rows: Expand.monthGrid(today.getFullYear(), today.getMonth(), firstDay)
   readonly property var labels: Expand.weekdayLabels(firstDay)
   readonly property int cellW: Math.floor(width / 7)
-  readonly property int cellH: 14
+  property int cellH: 14
+  property int fontPx: 9
+  property int titlePx: 11
 
   implicitWidth: 7 * 22
-  implicitHeight: 16 + cellH * (rows.length + 1)
+  implicitHeight: titlePx + 8 + cellH * (rows.length + 1)
 
   Text {
     textFormat: Text.PlainText
@@ -27,13 +29,13 @@ Item {
     text: Qt.formatDate(cal.today, "MMMM yyyy")
     color: cal.textColor
     font.family: cal.family
-    font.pixelSize: 11
+    font.pixelSize: cal.titlePx
     font.weight: Font.DemiBold
   }
 
   Grid {
     anchors.top: title.bottom
-    anchors.topMargin: 4
+    anchors.topMargin: 6
     columns: 7
 
     Repeater {
@@ -47,7 +49,7 @@ Item {
         text: modelData
         color: cal.dimColor
         font.family: cal.family
-        font.pixelSize: 9
+        font.pixelSize: cal.fontPx
       }
     }
 
@@ -62,9 +64,9 @@ Item {
 
         Rectangle {
           anchors.centerIn: parent
-          width: 14
-          height: 14
-          radius: 7
+          width: Math.min(cal.cellW, cal.cellH) - 2
+          height: width
+          radius: width / 2
           visible: cell.isToday
           color: cal.accentColor
         }
@@ -74,7 +76,7 @@ Item {
           text: cell.modelData > 0 ? String(cell.modelData) : ""
           color: cell.isToday ? "black" : cal.textColor
           font.family: cal.family
-          font.pixelSize: 9
+          font.pixelSize: cal.fontPx
           font.weight: cell.isToday ? Font.Bold : Font.Normal
         }
       }

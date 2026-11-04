@@ -24,7 +24,8 @@ Item {
   property string family: Commons.Style.font.family
   property date now: new Date()
 
-  property string currentTab: Tabs.DEFAULT_TAB
+  property string currentTab: Tabs.DEFAULT_TAB   // owned by the window (it sizes the panel); bound by the Loader
+  signal tabSelected(string id)
   readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null)
   readonly property var tab: Tabs.select(currentTab, tabs)
   readonly property string pluginDir: notch ? notch.pluginDir : ""
@@ -68,19 +69,50 @@ Item {
     id: body
     anchors.fill: parent
     anchors.topMargin: panel.headerHeight
-    anchors.leftMargin: 16
-    anchors.rightMargin: 16
-    anchors.bottomMargin: 12
+    anchors.leftMargin: panel.tab && panel.tab.id === "home" ? 24 : 16
+    anchors.rightMargin: anchors.leftMargin
+    anchors.bottomMargin: panel.tab && panel.tab.id === "home" ? 20 : 12
     opacity: Math.max(0, (panel.progress - 0.5) * 2)
 
     // ---------------------------------------------------------- tab strip
+    // Equal-width chips with glyph + short label when they all fit; otherwise
+    // the selected chip shows its label and the rest share what is left as
+    // glyph-only chips. Widths come from measured text, so nothing truncates.
     Row {
       id: strip
       anchors.top: parent.top
       anchors.left: parent.left
       anchors.right: parent.right
-      height: 24
+      height: 26
       spacing: 4
+
+      readonly property int count: Math.max(1, panel.tabs.length)
+      readonly property int glyphW: 12
+      readonly property int padX: 10
+      readonly property int equalW: Math.floor((width - (count - 1) * spacing) / count)
+      readonly property bool labelsFit: equalW >= glyphW + 4 + longest.advanceWidth + padX
+      readonly property int selW: glyphW + 4 + current.advanceWidth + padX
+      readonly property int otherW: count > 1 ? Math.max(glyphW + 10, Math.floor((width - selW - (count - 1) * spacing) / (count - 1))) : width
+
+      TextMetrics {
+        id: longest
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.caption
+        text: {
+          var best = ""
+          for (var i = 0; i < panel.tabs.length; i++) {
+            var t = panel.tabs[i].short || panel.tabs[i].title
+            if (t.length > best.length) best = t
+          }
+          return best
+        }
+      }
+      TextMetrics {
+        id: current
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.caption
+        text: panel.tab ? (panel.tab.short || panel.tab.title) : ""
+      }
 
       Repeater {
         model: panel.tabs
@@ -88,11 +120,12 @@ Item {
           id: chip
           required property var modelData
           readonly property bool selected: chip.modelData.id === panel.tab.id
-          // The selected chip shows glyph + title; the others only their glyph.
-          width: selected ? 84 : Math.floor((strip.width - 84 - (panel.tabs.length - 1) * strip.spacing) / Math.max(1, panel.tabs.length - 1))
+          readonly property bool showLabel: strip.labelsFit || selected
+          width: strip.labelsFit ? strip.equalW : (selected ? strip.selW : strip.otherW)
           height: strip.height
-          radius: 12
+          radius: height / 2
           color: selected ? Qt.rgba(1, 1, 1, 0.16) : (hit.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+          Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
           Row {
             anchors.centerIn: parent
             spacing: 4
@@ -101,16 +134,16 @@ Item {
               text: chip.modelData.glyph
               color: chip.selected ? panel.textColor : panel.dimColor
               font.family: panel.family
-              font.pixelSize: 12
+              font.pixelSize: Commons.Style.font.bodySmall
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-              visible: chip.selected
+              visible: chip.showLabel
               textFormat: Text.PlainText
-              text: chip.modelData.title
+              text: chip.modelData.short || chip.modelData.title
               color: chip.selected ? panel.textColor : panel.dimColor
               font.family: panel.family
-              font.pixelSize: 10
+              font.pixelSize: Commons.Style.font.caption
               anchors.verticalCenter: parent.verticalCenter
             }
           }
@@ -119,7 +152,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: panel.currentTab = chip.modelData.id
+            onClicked: panel.tabSelected(chip.modelData.id)
           }
         }
       }
@@ -129,7 +162,7 @@ Item {
     Item {
       id: content
       anchors.top: strip.bottom
-      anchors.topMargin: 8
+      anchors.topMargin: panel.tab && panel.tab.id === "home" ? 14 : 8
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
@@ -139,7 +172,8 @@ Item {
         id: loader
         anchors.fill: parent
         source: panel.resolved.source
-        onLoaded: if (item) item.notch = panel.notch
+        onLoaded: { if (item) item.notch = panel.notch; swapFade.restart() }
+        NumberAnimation { id: swapFade; target: loader; property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutQuad }
         // Re-hand the notch if the root item is replaced.
         Connections {
           target: panel
@@ -154,7 +188,7 @@ Item {
         text: panel.resolved.state === "missing" ? panel.resolved.message : Tabs.failed(panel.tab).message
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: 11
+        font.pixelSize: Commons.Style.font.bodySmall
       }
     }
   }

@@ -133,6 +133,14 @@ function parseSeries(cache, symbol, range) {
 }
 
 // Change over the series: from the previous close on 1D, else from the first
+// Today's change %: the quote's changePercent (vs the previous close) when it
+// is a number, else the 1D series change, else NaN. Never the range change.
+function todayPercent(quote, dayChange) {
+  var q = quote ? Number(quote.changePercent) : NaN
+  if (quote && quote.changePercent !== null && quote.changePercent !== undefined && isFinite(q)) return q
+  return dayChange && isFinite(dayChange.percent) ? dayChange.percent : NaN
+}
+
 // close. { value, percent, last } or null.
 function seriesChange(series, range) {
   if (!series || !series.points.length) return null
@@ -335,7 +343,7 @@ if (typeof module !== "undefined") {
     rangeSpec: rangeSpec, validRange: validRange, requestJson: requestJson,
     normalizeSymbol: normalizeSymbol, cleanList: cleanList, watchlist: watchlist,
     addSymbol: addSymbol, removeSymbol: removeSymbol, settings: settings,
-    parseSeries: parseSeries, seriesChange: seriesChange, direction: direction, toneColor: toneColor,
+    parseSeries: parseSeries, seriesChange: seriesChange, todayPercent: todayPercent, direction: direction, toneColor: toneColor,
     niceTicks: niceTicks, valueRange: valueRange, scalePoints: scalePoints, aggregate: aggregate,
     nearest: nearest, gridRows: gridRows, scrollTarget: scrollTarget, sparkValues: sparkValues,
     formatPrice: formatPrice, formatChange: formatChange, formatDelta: formatDelta,

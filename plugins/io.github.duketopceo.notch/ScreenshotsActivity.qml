@@ -21,19 +21,32 @@ Scope {
 
   Timer { id: flash; onTriggered: sa.clock = Date.now() }
 
+  // Processed shots live in <Screenshots>/Library (index.md there); fall back
+  // to the old flat index.md while the library does not exist.
+  property bool libraryOk: true
+
+  function ingest(t) {
+    if (t.length > 2000000) return
+    var now = Date.now()
+    var next = Screenshots.step(sa.model, Screenshots.parseIndex(t), now)
+    sa.clock = now
+    sa.model = next
+    if (next.flashUntil > now) { flash.interval = next.flashUntil - now + 20; flash.restart() }
+  }
+
   FileView {
-    path: sa.enabled ? Screenshots.indexPath(Quickshell.env("HOME")) : ""
+    path: sa.enabled ? Screenshots.libraryIndexPath(Quickshell.env("HOME")) : ""
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: {
-      var t = text()
-      if (t.length > 2000000) return
-      var now = Date.now()
-      var next = Screenshots.step(sa.model, Screenshots.parseIndex(t), now)
-      sa.clock = now
-      sa.model = next
-      if (next.flashUntil > now) { flash.interval = next.flashUntil - now + 20; flash.restart() }
-    }
+    onLoaded: { sa.libraryOk = true; sa.ingest(text()) }
+    onLoadFailed: sa.libraryOk = false
+  }
+  FileView {
+    path: sa.enabled && !sa.libraryOk ? Screenshots.indexPath(Quickshell.env("HOME")) : ""
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: sa.ingest(text())
   }
 }

@@ -20,7 +20,15 @@ Item {
   property var snap: Screenshots.parsePanel("")
   property bool busy: false
   // Where shots are saved: snapdex's own destination, else the Omarchy 4.5 default.
-  readonly property string folder: snap.dst !== "" ? snap.dst : home + "/Pictures/Screenshots"
+  property bool libraryExists: false
+  FileView {
+    path: Screenshots.libraryIndexPath(tab.home)
+    printErrors: false
+    onLoaded: tab.libraryExists = true
+    onLoadFailed: tab.libraryExists = false
+  }
+  readonly property var dirs: Screenshots.folders(snap, home, libraryExists)
+  readonly property string folder: dirs.library
   property string busyLabel: ""
 
   function refresh() { if (!panelProc.running) { panelProc.command = Screenshots.ctlArgs(tab.home, ["panel"]); panelProc.running = true } }
@@ -158,7 +166,7 @@ Item {
     anchors.left: parent.left
     anchors.right: parent.right
     elide: Text.ElideMiddle
-    text: "Saved to " + Screenshots.shortPath(tab.folder, tab.home) + "  (renamed in place)"
+    text: "Library " + Screenshots.shortPath(tab.dirs.library, tab.home) + (tab.dirs.separate ? "   Inbox " + Screenshots.shortPath(tab.dirs.inbox, tab.home) + " (" + tab.snap.pending + " pending)" : "  (renamed in place)")
     color: tab.dimColor
     font.family: tab.family
     font.pixelSize: 9

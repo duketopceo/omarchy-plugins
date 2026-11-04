@@ -76,6 +76,13 @@ def test_panel_sizing():
     assert run("E.panelSize(0)")["width"] == 460
 
 
+def test_panel_size_per_tab():
+    assert run("E.panelSize(1728, {w: 720, h: 380})") == {"width": 720, "height": 380}
+    assert run("E.panelSize(1728, null)") == {"width": 460, "height": 240}
+    assert run("E.panelSize(1280, {w: 720, h: 380})")["width"] == 720
+    assert run("E.panelSize(600, {w: 720, h: 380})")["width"] == 584
+
+
 def test_lines():
     w = {"place": "Provo", "temperature": 46, "unit": "°F", "kind": "night"}
     assert run(f"E.weatherLine({json.dumps(w)})") == "Provo  46°F  Clear"
@@ -92,3 +99,36 @@ def test_quotes_line_respects_a_small_limit():
     q = [{"symbol": s, "price": 10, "changePercent": 1} for s in ("AAA", "BBB", "CCC", "DDD")]
     assert len(run(f"E.quotesLine({json.dumps(q)},2)").split("   ")) == 2
     assert len(run(f"E.quotesLine({json.dumps(q)})").split("   ")) == 3
+
+
+MODEL = Path(__file__).resolve().parents[1] / "plugins/io.github.duketopceo.notch/Model.js"
+
+
+def model(expr):
+    js = f"const M=require({json.dumps(str(MODEL))});console.log(JSON.stringify({expr}));"
+    return json.loads(subprocess.run(["node", "-e", js], check=True, capture_output=True, text=True).stdout)
+
+
+BAR = [
+    {"section": "left", "x": 8, "width": 239, "visible": True},
+    {"section": "right", "x": 1478, "width": 250, "visible": True},
+]
+
+
+def test_max_ear_width_from_live_room():
+    # 1728 wide, camera 186, base ear 96: island x 675..1053; room 428 left, 425 right.
+    room = model(f"M.sideRoom({json.dumps(BAR)}, {{x: 675, width: 378}}, 1728)")
+    assert room == {"left": 428, "right": 425}
+    # base 96 + (min room 425 - margin 12) = 509, capped
+    assert model(f"M.maxEarWidth({json.dumps(BAR)}, 1728, 186, 96, 12, 1000)") == 509
+    assert model(f"M.maxEarWidth({json.dumps(BAR)}, 1728, 186, 96, 12, 280)") == 280
+    # no geometry yet, or no room: keep the base ear
+    assert model("M.maxEarWidth([], 1728, 186, 96, 12, 280)") == 96
+    crowded = [{"section": "right", "x": 1060, "width": 20, "visible": True}]
+    assert model(f"M.maxEarWidth({json.dumps(crowded)}, 1728, 186, 96, 12, 280)") == 96
+
+
+def test_ear_width_fit():
+    assert model("M.earWidthFit(0, 96, 280)") == 96
+    assert model("M.earWidthFit(150.2, 96, 280)") == 151
+    assert model("M.earWidthFit(900, 96, 280)") == 280
