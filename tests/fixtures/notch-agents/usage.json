@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "primary": "anthropic",
+  "entries": [
+    {
+      "id": "anthropic",
+      "display_name": "Claude",
+      "plan": "Pro",
+      "status": "ready",
+      "sections": [
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "Resets in 3h 26m · 31% elapsed · 21pts under",
+          "headline": "percent",
+          "label": "Session (5h)",
+          "percent": 10,
+          "reset_at": "2026-11-04T12:50:00Z",
+          "severity": "low",
+          "type": "metric",
+          "value": "10%",
+          "window_secs": 18000
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "Resets in 3d 5h · 53% elapsed · 10pts ahead",
+          "headline": "percent",
+          "label": "Weekly (7d)",
+          "percent": 63,
+          "reset_at": "2026-11-07T15:00:00Z",
+          "severity": "mid",
+          "type": "metric",
+          "value": "63%",
+          "window_secs": 604800
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "Resets in 3d 5h",
+          "headline": "percent",
+          "label": "Fable (7d)",
+          "percent": 0,
+          "reset_at": "2026-11-07T15:00:00Z",
+          "severity": "low",
+          "type": "metric",
+          "value": "0%",
+          "window_secs": 604800
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "0% of monthly limit consumed",
+          "headline": "percent",
+          "label": "Extra usage",
+          "percent": 0,
+          "reset_at": null,
+          "severity": "low",
+          "type": "metric",
+          "value": "$0.00 of $0.00"
+        }
+      ]
+    },
+    {
+      "id": "openrouter",
+      "display_name": "OpenRouter",
+      "plan": null,
+      "status": "error",
+      "error": "HTTP 403 authentication rejected",
+      "sections": []
+    },
+    {
+      "id": "cursor",
+      "display_name": "Cursor",
+      "plan": "Pro",
+      "status": "ready",
+      "sections": [
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "Auto + Composer · 11% elapsed · 11pts under",
+          "headline": "percent",
+          "label": "Cursor Models",
+          "percent": 0,
+          "reset_at": "2026-12-01T00:00:00Z",
+          "severity": "low",
+          "type": "metric",
+          "value": "0%",
+          "window_secs": 2592000
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "detail": "Named / API models · on-demand on · 11% elapsed · 11pts under",
+          "headline": "percent",
+          "label": "Other Models",
+          "percent": 0,
+          "reset_at": "2026-12-01T00:00:00Z",
+          "severity": "low",
+          "type": "metric",
+          "value": "0%",
+          "window_secs": 2592000
+        },
+        {
+          "type": "spacer"
+        },
+        {
+          "type": "spacer"
+        }
+      ]
+    }
+  ]
+}

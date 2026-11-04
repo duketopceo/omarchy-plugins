@@ -158,13 +158,18 @@ Item {
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
 
+  // Agents (N4): herdr agent status. AgentsTab reads it via `agentsActivity`.
+  AgentsActivity { id: agents }
+  readonly property var agentsActivity: agents
+
   // Activity contract: each entry is { id, active, priority, text, glyph? }.
   // The side text shows the highest-priority active one (ties: first listed),
   // else the idle cycle. Add a new XActivity as one more line, anywhere in
   // the list; order does not matter beyond ties.
   readonly property var activities: [
     { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
-    { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph }
+    { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
+    { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
@@ -258,7 +263,7 @@ Item {
           visible: win.notched
           anchors.verticalCenter: parent.verticalCenter
           x: Math.round((win.earW - width) / 2)
-          text: root.timeText
+          text: root.timeText + (agents.badge ? "  " + agents.badge : "")
           color: root.textColor
           font.family: root.fontFamily
           font.pixelSize: 13
@@ -312,7 +317,7 @@ Item {
           spacing: 10
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.timeText
+            text: root.timeText + (agents.badge ? "  " + agents.badge : "")
             color: root.textColor
             font.family: root.fontFamily
             font.pixelSize: 13
