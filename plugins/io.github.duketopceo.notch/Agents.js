@@ -180,11 +180,156 @@ function prettyApp(cls) {
   return last.charAt(0).toUpperCase() + last.slice(1)
 }
 
+
+// ---------------------------------------------------------------- tab model
+
+var STATUS_LABEL = { blocked: "needs you", done: "done", working: "working", idle: "idle" }
+var STATUS_ORDER = ["blocked", "done", "working", "idle"]
+
+function statusLabel(status) { return STATUS_LABEL[normStatus(status)] }
+
+// "2 working · 1 needs you": blocked first, zero counts dropped, "" when empty.
+function countsText(counts) {
+  if (!counts) return ""
+  var parts = []
+  for (var i = 0; i < STATUS_ORDER.length; i++) {
+    var k = STATUS_ORDER[i], n = counts[k] || 0
+    if (n > 0) parts.push(n + " " + STATUS_LABEL[k])
+  }
+  return parts.join(" · ")
+}
+
+function countsOf(agents) {
+  var c = { working: 0, blocked: 0, done: 0, idle: 0 }
+  for (var i = 0; i < agents.length; i++) c[normStatus(agents[i].status)]++
+  return c
+}
+
+// Header totals: "6 agents" / "1 agent" / "No agents".
+function totalsText(sum) {
+  if (!sum || !sum.ok || sum.total === 0) return "No agents"
+  return sum.total + (sum.total === 1 ? " agent" : " agents")
+}
+
+// Stable key for a group (machine + space), used for the collapsed set.
+function groupKey(g) { return (g.machine ? g.machine + "/" : "") + g.space }
+
+// Groups with each group's own counts, text and key. Groups holding a blocked
+// agent come first, then done, working, idle; ties keep herdr's order.
+function groupModel(sum) {
+  if (!sum || !sum.ok) return []
+  var out = []
+  for (var i = 0; i < sum.groups.length; i++) {
+    var g = sum.groups[i]
+    var c = countsOf(g.agents)
+    out.push({ key: groupKey(g), space: g.space, machine: g.machine, agents: g.agents, counts: c, countsText: countsText(c), blocked: c.blocked > 0, idx: i })
+  }
+  out.sort(function (a, b) {
+    return statusPriority(b.agents[0].status) - statusPriority(a.agents[0].status) || a.idx - b.idx
+  })
+  return out
+}
+
+// Collapsed-set handling. `collapsed` is an array of group keys (what is
+// stored under the `agents.collapsed` setting). A group with a blocked agent
+// is always shown expanded.
+function normCollapsed(v) {
+  if (!Array.isArray(v)) return []
+  return v.filter(function (x) { return typeof x === "string" && x })
+}
+function isCollapsed(collapsed, group) {
+  return !group.blocked && normCollapsed(collapsed).indexOf(group.key) >= 0
+}
+function toggleCollapsed(collapsed, group) {
+  var list = normCollapsed(collapsed)
+  var i = list.indexOf(group.key)
+  if (i >= 0) list.splice(i, 1)
+  else list.push(group.key)
+  return list
+}
+// The stored value lives in this plugin's shell.json entry (Settings.resolve
+// drops keys it does not know, so read the raw entry).
+function readCollapsed(shellConfig, pluginId) {
+  var list = shellConfig && Array.isArray(shellConfig.plugins) ? shellConfig.plugins : []
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === pluginId) return normCollapsed(list[i]["agents.collapsed"])
+  return []
+}
+
+// ---------------------------------------------------------------- icons
+
+// herdr's own program icons (~/.config/herdr-app/icons/<file>) by app id. Only
+// the ones that render on a dark island: codex/cursor are white-on-white and
+// opencode is currentColor (black), so those use a monogram.
+var ICON_FILES = {
+  "claude-code": "claude.svg", "claude": "claude.svg", "antigravity": "antigravity.svg"
+}
+var MONO_COLORS = {
+  "claude-code": "#d97757", "claude": "#d97757", "devin": "#4f9dff", "codex": "#10a37f", "opencode": "#8a8f98",
+  "cursor": "#9aa0a6", "antigravity": "#7c6cf0", "droid": "#f2762e", "gemini": "#4285f4", "pi": "#c678dd"
+}
+
+// { file, monogram, color } for an app id. `file` is "" when herdr has no icon.
+function iconFor(app) {
+  var key = String(app || "").toLowerCase()
+  var name = appName(key)
+  return {
+    file: ICON_FILES[key] || "",
+    monogram: name.charAt(0).toUpperCase(),
+    color: MONO_COLORS[key] || "#8a8f98"
+  }
+}
+
+// ---------------------------------------------------------------- usage rows
+
+var PROVIDER_COLORS = { anthropic: "#d97757", claude: "#d97757", openai: "#10a37f", codex: "#10a37f", cursor: "#9aa0a6", gemini: "#4285f4", google: "#4285f4" }
+var PROVIDER_ICONS = { anthropic: "claude.svg", claude: "claude.svg" }
+
+function severityKey(sev) { return sev === "critical" ? "critical" : sev === "high" || sev === "mid" ? "warn" : "ok" }
+
+// "3h", "2d", "12m", "now"; coarser than resetIn, for a narrow column.
+function resetShort(resetAt, nowMs) {
+  var t = Date.parse(resetAt)
+  if (!isFinite(t)) return ""
+  var mins = Math.floor((t - nowMs) / 60000)
+  if (mins <= 0) return "now"
+  if (mins >= 1440) return Math.floor(mins / 1440) + "d"
+  if (mins >= 60) return Math.floor(mins / 60) + "h"
+  return mins + "m"
+}
+
+// One row per provider (its busiest metric), busiest provider first.
+// Returns { rows, hidden } where rows holds the first `limit` (all when
+// `expanded`) and hidden is how many the "+N more" expander would reveal.
+function usageRows(usage, nowMs, expanded, limit) {
+  if (!usage || !usage.ok || !Array.isArray(usage.providers)) return { rows: [], hidden: 0, total: 0 }
+  var max = limit > 0 ? limit : 3
+  var all = []
+  for (var i = 0; i < usage.providers.length; i++) {
+    var p = usage.providers[i], best = null
+    for (var j = 0; j < p.rows.length; j++) if (best === null || p.rows[j].percent > best.percent) best = p.rows[j]
+    if (!best) continue
+    var id = String(p.id).toLowerCase()
+    var rs = best.resetAt ? resetShort(best.resetAt, nowMs) : ""
+    all.push({
+      id: p.id, name: p.name, initial: String(p.name || "?").charAt(0).toUpperCase(),
+      color: PROVIDER_COLORS[id] || "#8a8f98", icon: PROVIDER_ICONS[id] || "",
+      label: best.label, percent: best.percent, severity: severityKey(best.severity),
+      resetText: rs ? (rs === "now" ? "resets now" : "resets in " + rs) : "", idx: i
+    })
+  }
+  all.sort(function (a, b) { return b.percent - a.percent || a.idx - b.idx })
+  var shown = expanded ? all : all.slice(0, max)
+  return { rows: shown, hidden: all.length - shown.length, total: all.length }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     PRIORITY_BLOCKED: PRIORITY_BLOCKED, PRIORITY_DONE: PRIORITY_DONE,
     appName: appName, normStatus: normStatus, statusPriority: statusPriority, parseLs: parseLs,
     isActive: isActive, priority: priority, activityText: activityText, glyph: glyph,
-    badgeText: badgeText, topUsage: topUsage, prettyApp: prettyApp, statusColorKey: statusColorKey, parseUsage: parseUsage, resetIn: resetIn
+    badgeText: badgeText, topUsage: topUsage, prettyApp: prettyApp, statusColorKey: statusColorKey, parseUsage: parseUsage, resetIn: resetIn,
+    statusLabel: statusLabel, countsText: countsText, totalsText: totalsText, groupKey: groupKey, groupModel: groupModel,
+    normCollapsed: normCollapsed, isCollapsed: isCollapsed, toggleCollapsed: toggleCollapsed, readCollapsed: readCollapsed,
+    iconFor: iconFor, resetShort: resetShort, usageRows: usageRows
   }
 }
