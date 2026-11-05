@@ -68,7 +68,7 @@ def test_activity_from_fixture():
 @pytest.mark.parametrize("terms,expect", [
     ([term("blocked"), term("blocked", tid="t2")], [True, 80, "2 need you"]),
     ([term("done", app="claude-code")], [False, 40, "Claude done"]),
-    ([term("done"), term("done", tid="t2")], [False, 40, "2 done"]  # "done" never takes the collapsed notch),
+    ([term("done"), term("done", tid="t2")], [False, 40, "2 done"]),  # "done" never takes the collapsed notch
     ([term("working"), term("working", tid="t2"), term("working", tid="t3")], [False, 0, "3 working"]),
     ([term("idle")], [False, 0, ""]),
     ([term("blocked"), term("done", tid="t2")], [True, 80, "Devin needs you"]),
