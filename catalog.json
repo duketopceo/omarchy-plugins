@@ -75,6 +75,24 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-neo"
+    },
+    {
+      "id": "lukedaduke.lidguard",
+      "path": "plugins/lukedaduke.lidguard",
+      "version": "1.0.0",
+      "kinds": [
+        "bar-widget"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-lidguard"
+    },
+    {
+      "id": "io.github.duketopceo.hotkey-tally",
+      "path": "plugins/io.github.duketopceo.hotkey-tally",
+      "version": "0.1.0",
+      "kinds": [
+        "bar-widget"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-hotkey-tally"
     }
   ]
 }
