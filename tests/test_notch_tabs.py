@@ -45,8 +45,23 @@ def test_snapdex_tab_is_optional_and_off_by_default():
 
 
 def test_shipped_tab_files_exist():
-    for name in ("HomeTab", "PluginsTab", "SettingsTab"):
-        assert (NOTCH / f"{name}.qml").is_file()
+    for t in run("T.TABS"):
+        assert (NOTCH / t["source"]).is_file(), t["source"]
+    assert (NOTCH / "Notch.qml").is_file()
+    assert (NOTCH / "bin" / "notch-data").is_file()
+
+
+def test_notch_has_no_required_sibling_plugin_imports():
+    """OOB: QML/JS must not import other plugins; optional paths are detect-only."""
+    forbidden = (
+        "import \"../lukedaduke",
+        "import \"../io.github.duketopceo.",
+        "qs.Plugins.",
+    )
+    for path in list(NOTCH.glob("*.qml")) + list(NOTCH.glob("*.js")):
+        text = path.read_text(encoding="utf-8")
+        for needle in forbidden:
+            assert needle not in text, f"{path.name} contains {needle!r}"
 
 
 def test_select_falls_back_to_home():

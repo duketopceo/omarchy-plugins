@@ -68,8 +68,8 @@ Item {
     shell.mutateShellConfig(Settings.settingsMutator(pluginId, patch))
   }
 
-  // Wisp: open its panel through the shell (needs its bar widget live); if the
-  // shell cannot, fall back to Wisp's own click action, toggle listening.
+  // Optional Wisp open: shell summon/IPC, then wisp-trigger if present. Home
+  // hides the Wisp dot when neither the plugin nor its runtime state is there.
   function openWisp() { openPluginChecked("io.github.duketopceo.wisp", [Quickshell.env("HOME") + "/.local/bin/wisp-trigger"]) }
 
   // Open a plugin's panel. Tries the shell's summon, then the plugin's own IPC

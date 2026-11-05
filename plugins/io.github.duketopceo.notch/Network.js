@@ -1,17 +1,16 @@
 // Pure logic for the notch's Network tab and idle status dot. No Qt types, so
 // tests run it with node.
 //
-// Inputs:
+// Inputs (system CLIs only — no sibling Omarchy plugins required):
 //   `tailscale status --json`  BackendState, Self, Peer{ id: {...} }, AuthURL
-//   the nordvpn plugin's `probe_nordvpn.py` (status / connect / disconnect):
-//       {"ok":true,"cli":bool,"logged_in":bool,"status":{"state":
-//        "connected|disconnected|connecting","server","hostname","ip",
-//        "country","city",...},...}
+//   `nordvpn status` / `nordvpn countries` / `nordvpn connect|disconnect`
+//       text ("Key: value" lines). Absent CLI -> quiet "unavailable".
+// `parseNord` still accepts the optional nordvpn *plugin* probe JSON if a host
+// happens to feed it; live QML paths use the CLI + parseNordText.
 // Everything is parsed defensively: junk in, a quiet "unavailable" out.
 
 var TAILSCALE = "/usr/bin/tailscale"
-var PYTHON = "/usr/bin/python3"
-var NORD_PROBE_REL = "/.config/omarchy/plugins/io.github.duketopceo.nordvpn/bin/probe_nordvpn.py"
+var NORDVPN = "/usr/bin/nordvpn"
 var MAX_PEERS = 64
 
 function isObject(v) { return v !== null && typeof v === "object" && !Array.isArray(v) }
@@ -122,10 +121,11 @@ function parseNord(text) {
   return out
 }
 
-// ["status"] by default; "connect" / "disconnect" are the plugin's own verbs.
+// Absolute `/usr/bin/nordvpn` argv. `home` is unused (kept so callers that
+// once pointed at the optional nordvpn plugin probe keep compiling).
 function nordArgs(home, verb) {
   var v = verb === "connect" || verb === "disconnect" ? verb : "status"
-  return [PYTHON, String(home) + NORD_PROBE_REL, v]
+  return [NORDVPN, v]
 }
 
 function nordToggleVerb(nord) {
@@ -270,11 +270,11 @@ function parseCountries(text) {
   return out
 }
 
-function nordStatusArgs() { return ["/usr/bin/nordvpn", "status"] }
-function nordCountriesArgs() { return ["/usr/bin/nordvpn", "countries"] }
+function nordStatusArgs() { return [NORDVPN, "status"] }
+function nordCountriesArgs() { return [NORDVPN, "countries"] }
 
-// Probe `connect <country>`; no country = the recommended server. The probe
-// matches the name against `nordvpn countries` again before use.
+// `nordvpn connect [Country]`; no country = the recommended server. Country
+// must look like a nordvpn countries id (United_States); junk is dropped.
 function nordConnectArgs(home, country) {
   var c = String(country || "")
   var a = nordArgs(home, "connect")
@@ -315,7 +315,7 @@ function favoriteLabel(country) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    TAILSCALE: TAILSCALE, PYTHON: PYTHON, parseTailscale: parseTailscale, mergePeers: mergePeers,
+    TAILSCALE: TAILSCALE, NORDVPN: NORDVPN, parseTailscale: parseTailscale, mergePeers: mergePeers,
     tailscaleStatusArgs: tailscaleStatusArgs, tailscaleToggleCommand: tailscaleToggleCommand,
     parseNord: parseNord, nordArgs: nordArgs, nordToggleVerb: nordToggleVerb,
     osIcon: osIcon, filterPeers: filterPeers, relTime: relTime, peerStatus: peerStatus, exitNodeFeasible: exitNodeFeasible,

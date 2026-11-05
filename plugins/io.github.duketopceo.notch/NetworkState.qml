@@ -7,13 +7,13 @@ import "Network.js" as Network
 // tab's network dots and the Network tab. A cheap status read (no peer list)
 // runs every 60 s; while a tab that shows the details is visible (`viewers`
 // > 0) it polls every 8 s and fetches the peer list.
-// Controls call the CLIs directly: `/usr/bin/tailscale up|down` and the
-// nordvpn plugin's own probe (`connect` / `disconnect`). Nothing else.
+// Controls call the system CLIs only: `/usr/bin/tailscale up|down` and
+// `/usr/bin/nordvpn connect|disconnect|status`. No sibling plugins required.
 Scope {
   id: net
 
   property var ts: Network.parseTailscale("")
-  property var nord: Network.parseNord("")
+  property var nord: Network.parseNordText("")
   property int viewers: 0                 // tabs currently showing network details
   property string tsBusy: ""              // "up" | "down" while a toggle runs
   property string nordBusy: ""            // "connect" | "disconnect"
@@ -27,7 +27,7 @@ Scope {
   function refresh() {
     var full = net.viewers > 0
     if (!tsProc.running) { tsProc.command = Network.tailscaleStatusArgs(full); tsProc.running = true }
-    if (!nordProc.running && nordBusy === "") { nordProc.command = Network.nordArgs(net.home, "status"); nordProc.running = true }
+    if (!nordProc.running && nordBusy === "") { nordProc.command = Network.nordStatusArgs(); nordProc.running = true }
   }
 
   function toggleTailscale() {
@@ -69,8 +69,9 @@ Scope {
     id: nordProc
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: if (text && text.length < 100000 && net.nordBusy === "") net.nord = Network.parseNord(text)
+      onStreamFinished: if (text && text.length < 100000 && net.nordBusy === "") net.nord = Network.parseNordText(text)
     }
+    onExited: function(code) { if (code !== 0 && net.nordBusy === "") net.nord = Network.parseNordText("") }
   }
 
   Process {
@@ -78,13 +79,9 @@ Scope {
     onExited: { net.tsBusy = ""; net.refresh() }
   }
 
-  // The probe prints the fresh status after connect/disconnect.
+  // CLI connect/disconnect; re-read status when the action exits.
   Process {
     id: nordAct
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: if (text && text.length < 100000) { var n = Network.parseNord(text); if (n.ok) net.nord = n }
-    }
     onExited: { net.nordBusy = ""; net.refresh() }
   }
 
