@@ -80,7 +80,9 @@ function parseLs(text) {
   return sum
 }
 
-function isActive(sum) { return !!sum && sum.ok && (sum.counts.blocked > 0 || sum.counts.done > 0) }
+// Only an agent that needs you is urgent enough for the collapsed notch; "done"
+// and "working" stay in the expanded panel and Home.
+function isActive(sum) { return !!sum && sum.ok && sum.counts.blocked > 0 }
 
 function priority(sum) {
   if (!sum || !sum.ok) return 0
