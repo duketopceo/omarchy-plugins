@@ -258,10 +258,12 @@ Item {
   ]
   readonly property var activity: Activity.pick(activities)
 
-  readonly property string idleView: Model.idleView(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), clockSeconds, slideSeconds)  // watchlist hook: "watchlist" idle view when quotes exist
-  readonly property string view: activity ? "activity" : idleView
+  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
+  readonly property string view: activity ? "activity" : (idleView || "date")
+  readonly property bool slotShown: activity !== null && activity !== undefined || idleView !== ""
+  readonly property string dateLead: dateText + (slotShown ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
-  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : dateText)
+  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : "")
   readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
@@ -320,8 +322,11 @@ Item {
       // Ears: the base width, grown (right ear text, island stays centered on
       // the camera) up to the live room on the narrower bar side minus margin.
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
+      readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real sideNeed: root.activity ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) + root.earPad + 8 + root.eqSpace + (dotShown ? 12 : 0) : 0
+      readonly property real slotNeed: root.activity || root.idleView === "weather" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real dateNeed: dateMetrics.advanceWidth + 6
+      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -382,6 +387,12 @@ Item {
           font.pixelSize: 13
           text: root.sideText
         }
+        TextMetrics {
+          id: dateMetrics
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          text: root.dateLead
+        }
         x: Math.round((parent.width - width) / 2)
         y: 0
         color: root.islandColor
@@ -416,40 +427,51 @@ Item {
           }
         }
 
-        // Notched: time in the left ear, date/weather in the right ear.
+        // Notched: time in the left ear; right ear = date, then the ONE rotating slot.
         Text {
           visible: win.notched
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, island.earLive - root.earPad - 2)
           elide: Text.ElideRight
           x: island.earLive - width - root.earPad   // right-aligned against the camera edge
-          text: root.timeText + (agents.badge ? " " + agents.badge : "")
+          text: root.timeText
           color: root.textColor
           font.family: root.fontFamily
           font.pixelSize: 13
           textFormat: Text.PlainText
           font.weight: Font.DemiBold
         }
+        // Date: fixed in the right ear next to the camera; never cycles.
+        Text {
+          visible: win.notched
+          anchors.verticalCenter: parent.verticalCenter
+          x: island.earLive + win.camW + root.earPad
+          text: root.dateLead
+          color: root.dimColor
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          textFormat: Text.PlainText
+        }
         // watchlist hook: the slide replaces the side text while view === "watchlist".
         WatchlistSlide {
           visible: win.notched && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
-          x: island.earLive + win.camW + root.earPad   // left-aligned against the camera edge
+          x: win.slotX   // after the date
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
-          maxWidth: win.earTarget - root.earPad - 8
+          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW))
           family: root.fontFamily
         }
         SlideText {
-          visible: win.notched && root.view !== "watchlist"
+          visible: win.notched && root.view !== "watchlist" && root.view !== "date"
           anchors.verticalCenter: parent.verticalCenter
-          x: island.earLive + win.camW + root.earPad + root.eqSpace
+          x: win.slotX + root.eqSpace
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earTarget - root.earPad - 8 - root.eqSpace - (netDot.visible ? 12 : 0)
-          color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
+          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
+          color: root.textColor
           family: root.fontFamily
         }
 
@@ -459,7 +481,7 @@ Item {
           playing: media.active
           color: root.textColor
           anchors.verticalCenter: parent.verticalCenter
-          x: island.earLive + win.camW + root.earPad
+          x: win.slotX
         }
 
         // WordInk dictation dot (U4): pulses while recording.
@@ -500,12 +522,20 @@ Item {
           spacing: 10
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.timeText + (agents.badge ? "  " + agents.badge : "")
+            text: root.timeText
             color: root.textColor
             font.family: root.fontFamily
             font.pixelSize: 13
             textFormat: Text.PlainText
             font.weight: Font.DemiBold
+          }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.dateLead
+            color: root.dimColor
+            font.family: root.fontFamily
+            font.pixelSize: 13
+            textFormat: Text.PlainText
           }
           EqGlyph {
             visible: root.mediaShown
@@ -524,13 +554,13 @@ Item {
             family: root.fontFamily
           }
           SlideText {
-            visible: root.view !== "watchlist"
+            visible: root.view !== "watchlist" && root.view !== "date"
             anchors.verticalCenter: parent.verticalCenter
             target: root.sideText
             iconKind: root.weather ? root.weather.kind : ""
             iconOn: root.showIcon
             maxWidth: root.virtualWidth - 110
-            color: root.view === "date" || root.view === "clock" ? root.dimColor : root.textColor
+            color: root.textColor
             family: root.fontFamily
           }
         }

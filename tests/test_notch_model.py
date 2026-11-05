@@ -32,6 +32,12 @@ def test_malformed_cutouts_and_weather():
     assert run("M.parseWeather('{nope')") is None
 
 
+def test_idle_slot_rotates_extras_only():
+    assert run("[0,6,7,12,13].map(s=>M.idleSlot(s,['weather','watchlist'],6))") == ["weather", "watchlist", "watchlist", "weather", "weather"]
+    assert run("M.idleSlot(99,[],6)") == ""
+    assert run("M.idleSlot(99,['weather'],6)") == "weather"
+
+
 def test_idle_cycle_order():
     views = run("[0,23,24,30,31].map(s=>M.idleView(s,['weather'],24,7))")
     assert views == ["clock", "clock", "weather", "weather", "clock"]

@@ -255,6 +255,17 @@ function idleView(seconds, views, clockSeconds, slideSeconds) {
   return extra[Math.min(extra.length - 1, Math.floor((t - hold) / slide))]
 }
 
+// The ONE rotating idle slot beside the date: each live extra view for
+// slideSeconds in turn; "" when none has data (date only). Time and date
+// never cycle.
+function idleSlot(seconds, views, slideSeconds) {
+  var extra = Array.isArray(views) ? views : []
+  if (extra.length === 0) return ""
+  var slide = Math.max(1, Number(slideSeconds) || 6)
+  var n = Math.floor((Number(seconds) || 0) / slide)
+  return extra[((n % extra.length) + extra.length) % extra.length]
+}
+
 // WMO weather code (Open-Meteo) to a small set of icon names.
 function weatherKind(code, isDay) {
   var c = Number(code)
@@ -313,6 +324,7 @@ if (typeof module !== "undefined") {
     parseCutouts: parseCutouts,
     cutoutTop: cutoutTop,
     idleView: idleView,
+    idleSlot: idleSlot,
     weatherKind: weatherKind,
     weatherGlyph: weatherGlyph,
     parseWeather: parseWeather
