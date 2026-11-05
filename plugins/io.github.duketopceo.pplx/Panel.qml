@@ -123,7 +123,7 @@ Panel {
   // group-kill reaches the whole tree even if Python is stuck in a wait.
   function groupKill(proc) {
     if (!proc.running) return
-    var pid = proc.pid
+    var pid = proc.processId
     if (pid > 0)
       Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
     proc.signal(9)

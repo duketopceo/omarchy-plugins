@@ -50,3 +50,17 @@ warnings remain:
 Third-party plugins are not silently forked into this repository. Run the
 checker against a separate checkout when auditing one, then record the owner,
 severity, and follow-up in `docs/reviews/active-plugin-estate.md`.
+
+## Omarchy 4.5 / Qt 6.12 rules
+
+Enforced by `scripts/check-plugin-contract.py`:
+
+- Read theme colors as `Commons.Color.<token>` with `import qs.Commons as Commons`.
+  The bare `Color` singleton collides with Qt 6.12's own type
+  (`bare-color-singleton`, error).
+- `textFormat: Text.PlainText` on every `Text` with a bound `text`.
+- Use `Process.processId` (not `.pid`) when group-killing a helper.
+- IPC targets use the plugin id, never the first-party `omarchy.*` namespace.
+- The 4.5 manifest schema is `schemaVersion: 1` plus `id`, `name`, `version`,
+  `kinds`, `entryPoints`; it defines no min/max shell version field, so there is
+  nothing further to declare per manifest.

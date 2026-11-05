@@ -156,6 +156,23 @@ def _finding(path: Path, plugin_root: Path, source: str, offset: int, rule: str,
 
 def _scan_qml(path: Path, plugin_root: Path, source: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
+    # Omarchy 4.5 / Qt 6.12: the unqualified `Color` singleton from
+    # `import qs.Commons` collides with Qt's own Color type; theme colors must
+    # be read as `Commons.Color.<token>` via `import qs.Commons as Commons`.
+    for match in re.finditer(r"(?<![\w.])Color\.(?!rgb|hsl|hsv)[a-z]\w*", source):
+        line_start = source.rfind("\n", 0, match.start()) + 1
+        if "//" in source[line_start:match.start()]:
+            continue
+        findings.append(
+            _finding(
+                path,
+                plugin_root,
+                source,
+                match.start(),
+                "bare-color-singleton",
+                "use Commons.Color.<token> (import qs.Commons as Commons); bare Color breaks on Qt 6.12",
+            )
+        )
     for offset, block in _blocks(source, "Text"):
         if re.search(r"\btext\s*:", block) and not re.search(
             r"\btextFormat\s*:\s*Text\.PlainText", block

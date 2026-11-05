@@ -315,7 +315,7 @@ Panel {
     interval: 35000
     onTriggered: {
       if (statusProc.running) {
-        var pid = statusProc.pid
+        var pid = statusProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         statusProc.signal(9)
@@ -383,7 +383,7 @@ Panel {
     interval: 30000
     onTriggered: {
       if (catalogProc.running) {
-        var pid = catalogProc.pid
+        var pid = catalogProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         catalogProc.signal(9)

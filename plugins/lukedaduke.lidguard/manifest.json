@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.lidguard",
+  "name": "Lid Guard",
+  "version": "1.0.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Timed lid-close stay-awake — block lid-switch suspend for 1h/2h/4h/8h/∞ so agents and VMs keep running with the lid shut",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Lid Guard",
+    "description": "Timed lid-close stay-awake so agents keep running with the lid shut",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

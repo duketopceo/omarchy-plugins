@@ -1,0 +1,163 @@
+#!/usr/bin/env node
+// Check the live bar against the notch island: which widgets sit where, the
+// spacing between them, and whether the island covers any of them.
+//
+//   notch-layout-check            table per screen, exit 1 if anything is blocked
+//   notch-layout-check --json     machine-readable report
+//   notch-layout-check --simulate 13|14|15|16
+//                                 check as if on that MacBook panel (scale 2),
+//                                 re-anchoring the current eDP bar widgets to it
+//
+// Reads widget geometry from the running Omarchy shell
+// (`qs ipc ... call shell debugBarGeometry`) and screen modes from hyprctl.
+"use strict"
+const { execFileSync } = require("child_process")
+const fs = require("fs")
+const path = require("path")
+const M = require(path.join(__dirname, "..", "Model.js"))
+
+const SHELL = process.env.OMARCHY_SHELL_PATH || "/usr/share/omarchy/shell"
+const CUTOUTS = "/usr/share/omarchy-platform/display-cutouts.json"
+
+function run(cmd, args) {
+  return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+}
+
+function readJson(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")) } catch (e) { return {} }
+}
+
+// Free space between the island and the nearest widget on each side
+// (negative when a widget reaches under the island). Shared with the island's
+// ear sizing: Model.sideRoom.
+// With several screens, debugBarGeometry returns one copy of each widget per
+// bar and no screen name. Keep one copy per widget for this screen: the one
+// with the largest x that still fits on it (right-anchored widgets sit further
+// right on a wider screen). The tray drawer is off-screen by design, so it is
+// exempt from the fit test.
+function pickForScreen(list, screenWidth) {
+  const best = new Map()
+  for (const w of list) {
+    if (w.section !== "tray" && w.x + w.width > screenWidth + 1) continue
+    const key = w.section + "|" + w.id
+    const cur = best.get(key)
+    if (!cur || (w.section !== "tray" ? w.x > cur.x : w.x < cur.x)) best.set(key, w)
+  }
+  return Array.from(best.values())
+}
+
+function room(rows, island, screenWidth) {
+  return M.sideRoom(rows.map(w => Object.assign({ visible: true }, w)), island, screenWidth)
+}
+
+// Device-tree compatible strings (NUL-separated); "" when unreadable.
+function readCompatible() {
+  try { return fs.readFileSync("/proc/device-tree/compatible", "utf8") } catch (e) { return "" }
+}
+
+function main() {
+  const asJson = process.argv.includes("--json")
+  const widgets = JSON.parse(run("qs", ["ipc", "-p", SHELL, "call", "shell", "debugBarGeometry"]))
+  let monitors = JSON.parse(run("hyprctl", ["monitors", "-j"]))
+  let compatible = readCompatible()
+  const simIdx = process.argv.indexOf("--simulate")
+  const simInch = simIdx >= 0 ? Number(process.argv[simIdx + 1]) : 0
+  let simulated = null
+  if (simIdx >= 0) {
+    simulated = M.PANEL_BY_INCH[simInch]
+    if (!simulated) { console.error("--simulate takes 13, 14, 15 or 16"); process.exit(2) }
+  }
+  let cutouts = []
+  try { cutouts = M.parseCutouts(fs.readFileSync(CUTOUTS, "utf8")) } catch (e) { /* no cutout file */ }
+
+  // Widgets that grow while in use, and how far (logical px). Media shows a
+  // title up to 180 px plus its icon; the window title is capped by its
+  // maxWidth setting (280 by default); the tray drawer opens inline with one
+  // icon slot per drawer widget plus the system-tray icons.
+  const shellConfig = readJson(path.join(process.env.HOME, ".config/omarchy/shell.json"))
+  const layout = (shellConfig.bar && shellConfig.bar.layout) || {}
+  const all = [].concat(...Object.values(layout).filter(Array.isArray))
+  const titleCfg = all.find(w => w.id === "omarchy.active-window") || {}
+  const drawerCount = (layout.tray || []).length
+  // Every tray host on the bar: the stock tray hosts the `tray` section (one
+  // slot per widget in it); a replacement tray (io.github.*.tray) hosts the
+  // widgets listed in its own `widgets` setting.
+  const trayHosts = widgets.filter(w => /tray/i.test(w.id) && w.visible)
+  const hostCount = id => id === "omarchy.tray"
+    ? drawerCount
+    : ((((layout.right || []).concat(layout.left || [])).find(e => e.id === id) || {}).widgets || []).length
+  const SLOT = 27, SYSTRAY = Number(process.env.NOTCH_SYSTRAY_ICONS || 4)
+  const scenarios = [
+    ["now", {}],
+    ["media playing", { "omarchy.media": 220 }],
+    ["long window title", { "omarchy.active-window": Number(titleCfg.maxWidth || 280) + 16 }],
+    ["tray drawer open", Object.assign({}, ...trayHosts.map(h => ({ [h.id]: h.width + (hostCount(h.id) + (h.id === "omarchy.tray" ? 0 : SYSTRAY)) * SLOT })))],
+  ]
+  scenarios.push(["all at once", Object.assign({}, ...scenarios.slice(1).map(s => s[1]))])
+  const onlyNow = !process.argv.includes("--expand")
+
+  let anyBlocked = false
+  // Simulation: take the built-in screen's widgets and re-anchor them to the
+  // simulated logical width (left widgets keep x, right ones stay flush right).
+  let simWidgets = null
+  if (simulated) {
+    const real = monitors.find(m => /^eDP/.test(m.name)) || monitors[0]
+    const realLogical = Math.round(real.width / real.scale)
+    const simLogical = Math.round(simulated.width / 2)
+    const shift = simLogical - realLogical
+    simWidgets = widgets.filter(w => !w.screen || w.screen === real.name)
+      .map(w => Object.assign({}, w, { x: w.section === "left" ? w.x : w.x + shift }))
+    compatible = "apple," + simulated.model
+    monitors = [{ name: "eDP-1", width: simulated.width, height: simulated.height, scale: 2, transform: 0 }]
+  }
+
+  const reports = monitors.map(mon => {
+    const logicalWidth = Math.round(mon.width / mon.scale)
+    const cut = M.cutoutTop(cutouts, mon.name, logicalWidth, { width: mon.width, height: mon.height, transform: mon.transform })
+    const camera = M.cameraWidthFor(compatible, mon.width, logicalWidth)
+    const island = M.islandRect(logicalWidth, cut, null, camera)
+    // debugBarGeometry carries no screen; widgets with a `screen` field are
+    // filtered to it, the rest are checked against every screen.
+    const mine = pickForScreen((simWidgets || widgets).filter(w => !w.screen || w.screen === mon.name), logicalWidth)
+    const report = M.layoutReport(mine, island)
+    if (report.blocked.length) anyBlocked = true
+    const expansions = scenarios.slice(1).map(([name, grow]) => {
+      const r = M.layoutReport(M.expandLayout(mine, grow), island)
+      const sideRoom = room(r.rows, island, logicalWidth)
+      if (!onlyNow && r.blocked.length) anyBlocked = true
+      const maxEar = M.maxEarWidth(r.rows.map(w => Object.assign({ visible: true }, w)), logicalWidth, camera, Math.round((island.width - camera) / 2), 12, 280)
+      return { scenario: name, blocked: r.blocked, room: sideRoom, maxEar }
+    })
+    return { screen: mon.name, simulatedInch: simInch || undefined, model: M.deviceModel(compatible), camera, logicalWidth, cutout: cut, island, rows: report.rows, blocked: report.blocked, expansions }
+  })
+
+  if (asJson) {
+    console.log(JSON.stringify(reports, null, 2))
+  } else {
+    for (const r of reports) {
+      const i = r.island
+      console.log(`${r.screen}${simInch ? ` (simulated ${simInch}")` : ""}  ${r.model || "unknown model"}  ${r.logicalWidth}px wide  ${r.cutout ? "camera cutout " + r.cutout + "px, camera " + r.camera + "px" : "no cutout (virtual notch)"}`)
+      console.log(`  island  x ${i.x}-${i.x + i.width}  (${i.width}x${i.height})`)
+      console.log("  " + "widget".padEnd(32) + "section".padEnd(9) + "x".padStart(6) + "width".padStart(7) + "gap".padStart(6) + "  status")
+      for (const w of r.rows) {
+        const gap = w.gap === null ? "" : String(w.gap)
+        const status = w.blocked ? "BLOCKED by notch" : (w.gap !== null && w.gap < 0 ? "overlaps previous" : "ok")
+        console.log("  " + w.id.slice(0, 31).padEnd(32) + String(w.section).padEnd(9) + String(w.x).padStart(6) + String(w.width).padStart(7) + gap.padStart(6) + "  " + status)
+      }
+      const now = room(r.rows, i, r.logicalWidth)
+      console.log(`  room: ${now.left} px left of the notch, ${now.right} px right of it`)
+      const baseEar = Math.round((i.width - r.camera) / 2)
+      console.log(`  ear: base ${baseEar} px, may grow to ${M.maxEarWidth(r.rows.map(w => Object.assign({ visible: true }, w)), r.logicalWidth, r.camera, baseEar, 12, 280)} px (room minus 12 px margin, cap 280)`)
+      console.log(r.blocked.length ? `  BLOCKED now: ${r.blocked.join(", ")}` : "  nothing blocked now")
+      console.log("  when widgets expand:")
+      for (const e of r.expansions) {
+        console.log("    " + e.scenario.padEnd(20) + `room ${String(e.room.left).padStart(4)} left /${String(e.room.right).padStart(4)} right  ` +
+          `ear<=${String(e.maxEar).padStart(3)}  ` + (e.blocked.length ? "BLOCKED: " + e.blocked.join(", ") : "ok"))
+      }
+      console.log("")
+    }
+  }
+  process.exit(anyBlocked ? 1 : 0)
+}
+
+main()

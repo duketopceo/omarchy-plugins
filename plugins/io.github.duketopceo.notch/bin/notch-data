@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""Fetch the notch island's weather and stock quotes into a small JSON cache.
+
+Weather uses Open-Meteo (free, no key). The place comes from Omarchy's weather
+setting (~/.local/state/omarchy/settings/weather.json "name"), else the
+NOTCH_PLACE environment variable. Fetches at most once per --max-age
+seconds; otherwise leaves the cache alone. Prints nothing on success.
+
+Quotes use Yahoo Finance's public spark endpoint (free, no key), the same
+one the finance bar plugin uses, for the symbols in
+~/.local/state/omarchy/settings/finance.json "watchlist". They refresh at
+most once per --quotes-age seconds (default 300), independent of weather,
+with exponential backoff after errors; the old quotes stay on failure.
+
+Series (the Stocks tab): per watchlist symbol, Yahoo's chart endpoint
+(v8/finance/chart, free, no key) fills cache["series"][SYMBOL][RANGE] with
+{t,o,h,l,c,v,prev,fetchedAt,...}. Ranges: 1D@5m, 5D@30m, 1M@1d, 6M@1d, 1Y@1wk.
+Only the default range (setting "stocks.range") and the ranges the tab asked
+for in ~/.cache/omarchy/notch-stocks-request.json are fetched; 1D refreshes at
+most every 5 min, longer ranges hourly, with per-entry backoff on errors
+(old data stays). The watchlist is the plugin's "stocks.watchlist" setting in
+~/.config/omarchy/shell.json, else finance.json.
+
+Usage: notch-data [--max-age SECONDS] [--quotes-age SECONDS] [--unit fahrenheit|celsius]
+"""
+import argparse
+import json
+import os
+import sys
+import tempfile
+import time
+import urllib.parse
+import urllib.request
+
+HOME = os.path.expanduser("~")
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.join(HOME, ".cache")), "omarchy", "notch.json")
+PLACE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "weather.json")
+FINANCE_FILE = os.path.join(HOME, ".local", "state", "omarchy", "settings", "finance.json")
+SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark?range=1d&interval=5m&symbols="
+SHELL_FILE = os.path.join(HOME, ".config", "omarchy", "shell.json")
+REQUEST_FILE = os.path.join(os.path.dirname(CACHE), "notch-stocks-request.json")
+PLUGIN_ID = "io.github.duketopceo.notch"
+CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/"
+# range key -> (yahoo range, interval, min seconds between fetches)
+RANGES = {
+    "1D": ("1d", "5m", 300),
+    "5D": ("5d", "30m", 3600),
+    "1M": ("1mo", "1d", 3600),
+    "6M": ("6mo", "1d", 3600),
+    "1Y": ("1y", "1wk", 3600),
+}
+SERIES_BUDGET = 45  # seconds of network time per run
+MAX_SYMBOLS = 12
+BACKOFF_BASE = 60
+BACKOFF_MAX = 3600
+UA = {"User-Agent": "omarchy-notch/0.1"}
+
+
+def get_json(url):
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.load(resp)
+
+
+def read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def write_cache(data):
+    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(CACHE), prefix=".notch-")
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, CACHE)
+
+
+def place_name():
+    name = str(read_json(PLACE_FILE).get("name") or "").strip()
+    return name or os.environ.get("NOTCH_PLACE", "").strip()
+
+
+def geocode(name, cache):
+    cached = cache.get("geo") or {}
+    if cached.get("query") == name and "lat" in cached:
+        return cached
+    q = urllib.parse.urlencode({"name": name, "count": 1, "language": "en", "format": "json"})
+    res = (get_json("https://geocoding-api.open-meteo.com/v1/search?" + q).get("results") or [])
+    if not res:
+        return None
+    r = res[0]
+    return {"query": name, "lat": r["latitude"], "lon": r["longitude"], "place": r.get("name", name)}
+
+
+def parse_spark(data, wanted):
+    """Quotes [{symbol, price, changePercent}] in `wanted` order from a spark response."""
+    found = {}
+    for item in ((data or {}).get("spark") or {}).get("result") or []:
+        try:
+            meta = item["response"][0]["meta"]
+            price = meta.get("regularMarketPrice")
+            if not isinstance(price, (int, float)):
+                continue
+            pct = meta.get("regularMarketChangePercent")
+            prev = meta.get("previousClose") or meta.get("chartPreviousClose")
+            if not isinstance(pct, (int, float)) and isinstance(prev, (int, float)) and prev:
+                pct = (price - prev) / prev * 100
+            if not isinstance(pct, (int, float)):
+                continue
+            sym = str(item.get("symbol") or meta.get("symbol") or "")
+            if sym:
+                found[sym] = {"symbol": sym, "price": price, "changePercent": pct}
+        except (KeyError, IndexError, TypeError, AttributeError):
+            continue
+    return [found[s] for s in wanted if s in found]
+
+
+def plugin_settings():
+    """This plugin's entry in shell.json plugins[] ({} when absent)."""
+    for p in read_json(SHELL_FILE).get("plugins") or []:
+        if isinstance(p, dict) and p.get("id") == PLUGIN_ID:
+            return p
+    return {}
+
+
+def watchlist_symbols():
+    raw = plugin_settings().get("stocks.watchlist")
+    if not isinstance(raw, list) or not raw:
+        raw = read_json(FINANCE_FILE).get("watchlist")
+    out = []
+    for s in raw if isinstance(raw, list) else []:
+        s = str(s).strip().upper()
+        if s and s not in out:
+            out.append(s)
+    return out[:MAX_SYMBOLS]
+
+
+def refresh_quotes(cache, quotes_age):
+    """Update cache["quotes"] in place; returns True if the cache changed."""
+    symbols = watchlist_symbols()
+    if not symbols:
+        return False
+    q = cache.get("quotes") or {}
+    now = time.time()
+    if now < float(q.get("retryAt") or 0):
+        return False
+    if now - float(q.get("fetchedAt") or 0) < quotes_age and q.get("symbols") == symbols:
+        return False
+    try:
+        data = get_json(SPARK_URL + urllib.parse.quote(",".join(symbols)))
+        items = parse_spark(data, symbols)
+        if not items:
+            raise ValueError("no quotes in response")
+    except Exception as error:  # keep the old quotes, back off
+        fails = int(q.get("failures") or 0) + 1
+        q["failures"] = fails
+        q["retryAt"] = now + min(BACKOFF_MAX, BACKOFF_BASE * 2 ** (fails - 1))
+        cache["quotes"] = q
+        print("notch-data: quotes: " + str(error), file=sys.stderr)
+        return True
+    cache["quotes"] = {"items": items, "symbols": symbols, "fetchedAt": now, "failures": 0, "retryAt": 0}
+    return True
+
+
+def parse_chart(data):
+    """{t,o,h,l,c,v,prev} from a v8 chart response; rows with a null close are dropped."""
+    res = ((data or {}).get("chart") or {}).get("result") or []
+    if not res:
+        raise ValueError("no chart result")
+    r = res[0]
+    ts = r.get("timestamp") or []
+    q = ((r.get("indicators") or {}).get("quote") or [{}])[0]
+    out = {k: [] for k in "tohlcv"}
+    for i, t in enumerate(ts):
+        try:
+            c = q["close"][i]
+        except (KeyError, IndexError, TypeError):
+            continue
+        if not isinstance(c, (int, float)):
+            continue
+
+        def pick(key, fallback):
+            try:
+                x = q[key][i]
+            except (KeyError, IndexError, TypeError):
+                return fallback
+            return x if isinstance(x, (int, float)) else fallback
+        out["t"].append(t)
+        out["o"].append(pick("open", c))
+        out["h"].append(pick("high", c))
+        out["l"].append(pick("low", c))
+        out["c"].append(c)
+        out["v"].append(pick("volume", 0))
+    if not out["t"]:
+        raise ValueError("empty series")
+    meta = r.get("meta") or {}
+    prev = meta.get("chartPreviousClose") or meta.get("previousClose")
+    out["prev"] = prev if isinstance(prev, (int, float)) else None
+    return out
+
+
+def wanted_ranges():
+    """Default range plus whatever the tab asked for (and only fresh asks)."""
+    default = plugin_settings().get("stocks.range")
+    out = [default if default in RANGES else "1M"]
+    req = read_json(REQUEST_FILE)
+    if time.time() - float(req.get("at") or 0) < 24 * 3600:
+        for r in req.get("ranges") or []:
+            if r in RANGES and r not in out:
+                out.append(r)
+    return out
+
+
+def refresh_series(cache, symbols):
+    """Update cache["series"] in place; returns True if the cache changed."""
+    if not symbols:
+        return False
+    series = cache.get("series")
+    if not isinstance(series, dict):
+        series = {}
+    prepost = bool(plugin_settings().get("stocks.prepost", False))
+    now = time.time()
+    started = time.monotonic()
+    changed = False
+    for rng in wanted_ranges():
+        yrange, interval, min_age = RANGES[rng]
+        intraday = rng in ("1D", "5D")
+        for sym in symbols:
+            if time.monotonic() - started > SERIES_BUDGET:
+                break
+            bucket = series.setdefault(sym, {})
+            ent = bucket.get(rng) or {}
+            if now < float(ent.get("retryAt") or 0):
+                continue
+            pp = prepost and intraday
+            if now - float(ent.get("fetchedAt") or 0) < min_age and ent.get("prepost", False) == pp and ent.get("t"):
+                continue
+            url = (CHART_URL + urllib.parse.quote(sym) + "?range=" + yrange + "&interval=" + interval
+                   + "&includePrePost=" + ("true" if pp else "false"))
+            try:
+                new = parse_chart(get_json(url))
+            except Exception as error:  # keep the old series, back off
+                fails = int(ent.get("failures") or 0) + 1
+                ent["failures"] = fails
+                ent["retryAt"] = now + min(BACKOFF_MAX, BACKOFF_BASE * 2 ** (fails - 1))
+                bucket[rng] = ent
+                print("notch-data: series " + sym + " " + rng + ": " + str(error), file=sys.stderr)
+                changed = True
+                continue
+            new.update({"fetchedAt": now, "failures": 0, "retryAt": 0, "prepost": pp, "interval": interval})
+            bucket[rng] = new
+            changed = True
+    # drop symbols no longer on the watchlist
+    for sym in [k for k in series if k not in symbols]:
+        del series[sym]
+        changed = True
+    if changed:
+        cache["series"] = series
+    return changed
+
+
+def refresh_weather(cache, max_age, unit):
+    """Update cache["geo"/"weather"] in place; returns (changed, ok)."""
+    fetched = float((cache.get("weather") or {}).get("fetchedAt") or 0)
+    if time.time() - fetched < max_age and (cache.get("weather") or {}).get("unitName") == unit:
+        return False, True
+    name = place_name()
+    if not name:
+        return False, True
+    try:
+        geo = geocode(name, cache)
+        if not geo:
+            return False, True
+        q = urllib.parse.urlencode({
+            "latitude": geo["lat"], "longitude": geo["lon"],
+            "current": "temperature_2m,weather_code,is_day",
+            "temperature_unit": unit, "timezone": "auto",
+        })
+        cur = get_json("https://api.open-meteo.com/v1/forecast?" + q).get("current") or {}
+    except Exception as error:  # network or parse trouble: keep the old cache
+        print("notch-data: " + str(error), file=sys.stderr)
+        return False, False
+    cache["geo"] = geo
+    cache["weather"] = {
+        "temperature": cur.get("temperature_2m"),
+        "code": cur.get("weather_code"),
+        "isDay": bool(cur.get("is_day", 1)),
+        "unit": "°F" if unit == "fahrenheit" else "°C",
+        "unitName": unit,
+        "place": geo.get("place", name),
+        "fetchedAt": time.time(),
+    }
+    return True, True
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--max-age", type=int, default=900)
+    ap.add_argument("--quotes-age", type=int, default=300)
+    ap.add_argument("--unit", choices=["fahrenheit", "celsius"], default="fahrenheit")
+    args = ap.parse_args()
+
+    cache = read_json(CACHE)
+    w_changed, w_ok = refresh_weather(cache, args.max_age, args.unit)
+    q_changed = refresh_quotes(cache, args.quotes_age)
+    s_changed = refresh_series(cache, watchlist_symbols())
+    if w_changed or q_changed or s_changed:
+        write_cache(cache)
+    return 0 if w_ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,26 @@
+{
+  "spaces": [
+    {"id": "sp-home", "name": "Home", "folder": "/home/user", "machine": null, "active": true, "tabs": [
+      {"id": "tb-1", "name": "main", "active": true, "settled": false, "terminals": [
+        {"terminal": "t1", "pane": "p1", "status": "working", "app": "claude-code", "name": null, "sub_agents": []},
+        {"terminal": "t2", "pane": "p2", "status": "idle", "app": "devin", "name": null, "sub_agents": []},
+        {"terminal": "t3", "pane": "p3", "status": null, "app": null, "name": null, "sub_agents": []}
+      ]},
+      {"id": "tb-2", "name": "review", "active": false, "settled": false, "terminals": [
+        {"terminal": "t4", "pane": "p4", "status": "blocked", "app": "codex", "name": null, "sub_agents": []}
+      ]}
+    ]},
+    {"id": "sp-proj", "name": "Project", "folder": "/home/user/proj", "machine": null, "active": false, "tabs": [
+      {"id": "tb-3", "name": "build", "active": false, "settled": false, "terminals": [
+        {"terminal": "t5", "pane": "p5", "status": "done", "app": "opencode", "name": null, "sub_agents": []},
+        {"terminal": "t6", "pane": "p6", "status": "working", "app": "devin", "name": null, "sub_agents": []}
+      ]}
+    ]},
+    {"id": "box1/sp-remote", "name": "Remote", "folder": "", "machine": "box1", "active": false, "tabs": [
+      {"id": "box1/tb-4", "name": "agent", "active": true, "settled": false, "terminals": [
+        {"terminal": "box1/t1", "pane": "box1/p1", "status": "idle", "app": "antigravity", "name": null, "sub_agents": []}
+      ]}
+    ]}
+  ],
+  "recent": []
+}

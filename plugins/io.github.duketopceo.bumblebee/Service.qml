@@ -382,7 +382,7 @@ Item {
     interval: 8000
     onTriggered: {
       if (ageProc.running) {
-        var pid = ageProc.pid
+        var pid = ageProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         ageProc.signal(9)
@@ -433,7 +433,7 @@ Item {
     interval: 35000
     onTriggered: {
       if (scanProc.running) {
-        var pid = scanProc.pid
+        var pid = scanProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         scanProc.signal(9)
@@ -487,7 +487,7 @@ Item {
     interval: 30000
     onTriggered: {
       if (catalogRefreshProc.running) {
-        var pid = catalogRefreshProc.pid
+        var pid = catalogRefreshProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         catalogRefreshProc.signal(9)

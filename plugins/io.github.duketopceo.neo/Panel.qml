@@ -116,7 +116,7 @@ Panel {
 
   function groupKill(proc) {
     if (proc.running) {
-      var pid = proc.pid
+      var pid = proc.processId
       if (pid > 0)
         Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
       proc.signal(9)

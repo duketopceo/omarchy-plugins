@@ -393,7 +393,7 @@ Item {
     interval: 8000
     onTriggered: {
       if (tailProc.running) {
-        var pid = tailProc.pid
+        var pid = tailProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         tailProc.signal(9)
@@ -439,7 +439,7 @@ Item {
     interval: 70000
     onTriggered: {
       if (probeProc.running) {
-        var pid = probeProc.pid
+        var pid = probeProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         probeProc.signal(9)

@@ -311,7 +311,7 @@ Panel {
     interval: 70000
     onTriggered: {
       if (statusProc.running) {
-        var pid = statusProc.pid
+        var pid = statusProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         statusProc.signal(9)
@@ -354,7 +354,7 @@ Panel {
     interval: 50000
     onTriggered: {
       if (jevProc.running) {
-        var pid = jevProc.pid
+        var pid = jevProc.processId
         if (pid > 0)
           Quickshell.execDetached(["/usr/bin/kill", "-KILL", "--", "-" + pid.toString()])
         jevProc.signal(9)
