@@ -8,8 +8,8 @@ import "Network.js" as Network
 // first, then re-reads the real state when the command exits.
 //   Tailscale: `tailscale status --json`, `debug prefs` (operator check),
 //              `up|down`, `set --exit-node=<ip>`
-//   NordVPN:   `nordvpn status` / `nordvpn countries` (text), connect and
-//              disconnect through the nordvpn plugin's probe.
+//   NordVPN:   `/usr/bin/nordvpn status|countries|connect|disconnect` only
+//              (no sibling plugin required; missing CLI -> unavailable).
 Scope {
   id: ops
 
