@@ -15,6 +15,7 @@ import "Plugins.js" as Plugins
 import "Agents.js" as Agents
 import "Screenshots.js" as Screenshots
 import "Motion.js" as Motion
+import "Dayflow.js" as Dayflow  // local: dayflow integration
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -217,6 +218,11 @@ Item {
   // Snapdex (v3): flashes the caption of a newly captioned screenshot.
   ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
 
+  // Dayflow (local customization): work-journal state for the idle slot, Home
+  // tile and Dayflow tab; a paused capture shows as a low-priority activity.
+  DayflowState { id: dayflowState; enabled: root.settings.dayflow }
+  readonly property var dayflow: dayflowState
+
   // AI usage, shared by Home (and anything else): refreshed at most every 5 min
   // and only when a visible view asks for it.
   property var usage: ({ ok: false, providers: [] })
@@ -253,17 +259,18 @@ Item {
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
     { id: "messages", active: messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
-    { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph }
+    { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph },
+    { id: "dayflow", active: dayflowState.active, priority: dayflowState.priority, text: dayflowState.text, glyph: dayflowState.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
 
-  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
+  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, Dayflow.idleViews((weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), settings.dayflow, dayflowState.status, dayflowState.today), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
   readonly property string view: activity ? "activity" : (idleView || "date")
   readonly property bool slotShown: activity !== null && activity !== undefined || idleView !== ""
   readonly property string dateLead: dateText + (slotShown ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
-  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : "")
+  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : idleView === "dayflow" ? dayflowState.slot : "")
   readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
@@ -324,7 +331,7 @@ Item {
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
       readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real slotNeed: root.activity || root.idleView === "weather" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
       readonly property real dateNeed: dateMetrics.advanceWidth + 6
       readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW

@@ -23,6 +23,7 @@ var TABS = [
   { id: "system", title: "System", short: "System", glyph: "\u{F061A}", source: "SystemTab.qml", size: PANEL_SIZE },
   { id: "stocks", title: "Stocks", short: "Stocks", glyph: "\u{F012A}", source: "StocksTab.qml", size: PANEL_SIZE },
   { id: "screenshots", title: "Shots", short: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex", size: PANEL_SIZE },
+  { id: "dayflow", title: "Dayflow", short: "Day", glyph: "\u{F0CA2}", source: "DayflowTab.qml", optional: "dayflow", size: PANEL_SIZE },  // local customization
   { id: "plugins", title: "Plugins", short: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml", size: PANEL_SIZE },
   { id: "settings", title: "Settings", short: "Prefs", glyph: "\u{F0493}", source: "SettingsTab.qml", size: PANEL_SIZE }
 ]

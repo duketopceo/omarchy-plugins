@@ -54,6 +54,11 @@ Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateS
 | `cameraWidth` | 0 | 0 = auto, else logical px |
 | `hoverDelay` | 150 | ms before hover expands |
 | `snapdex` | false | Screenshots tab and caption flash (needs the snapdex plugin) |
+| `dayflow` | false | Dayflow tab, Home tile, idle slot and paused indicator (local customization, needs the `dayflow` CLI) |
+
+## Dayflow (local customization, branch `local/notch-dayflow`, not upstream)
+
+With `dayflow` on: a **Dayflow** tab (recording state + pause/resume, today's timeline strip coloured by category with the current block outlined, focus share, top apps, current block title, agent sessions by tool, briefing workstreams, forecast), a Home tile (focus %, current block; click opens the tab), an idle-cycle slot while recording (`● Coding · 45m`: category and streak only, never block titles, which can name people) and a "Dayflow paused" activity at priority 20 while capture is paused. `DayflowState.qml` polls `dayflow status --json` every 10 s and `dayflow today --json` every 60 s only while the setting is on; `agents --no-recaps`, `briefing` and `forecast` run niced, one at a time, only while the tab is visible, at most every 10 / 30 / 60 min. Logic in `Dayflow.js`, tests in `tests/test_notch_dayflow.py`.
 
 ## Activity contract
 

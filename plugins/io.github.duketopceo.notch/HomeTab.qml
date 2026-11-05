@@ -8,6 +8,7 @@ import "Model.js" as Model
 import "Expand.js" as Expand
 import "Agents.js" as Agents
 import "Network.js" as Network
+import "Dayflow.js" as Dayflow  // local: dayflow tile
 
 // Home tab: a header row and three equal columns in the 688 x ~298 content
 // area of the 720 x 380 panel (same gutters as every other tab).
@@ -35,6 +36,8 @@ Item {
   readonly property var agentCounts: notch && notch.agentsActivity ? notch.agentsActivity.summary.counts : ({ working: 0, blocked: 0, done: 0, idle: 0 })
   readonly property int unread: notch && notch.messages ? notch.messages.unread : 0
   readonly property var topUsage: Agents.topUsage(notch ? notch.usage : null)
+  // Dayflow tile (local customization): only with Settings > Dayflow on.
+  readonly property var df: notch && notch.settings && notch.settings.dayflow === true ? notch.dayflow : null
   readonly property string appName: {
     var t = Hyprland.activeToplevel
     return t ? Agents.prettyApp(t.lastIpcObject ? t.lastIpcObject.class : "") : ""
@@ -388,7 +391,56 @@ Item {
       }
     }
 
+    // Dayflow tile (local): focus share + current block; click opens the tab.
     Item {
+      id: dfTile
+      visible: panel.df !== null
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: netBox.top
+      anchors.bottomMargin: 8
+      height: 36
+      readonly property var st: panel.df ? panel.df.status : Dayflow.parseStatus("")
+      readonly property var td: panel.df ? panel.df.today : Dayflow.emptyToday()
+      Row {
+        id: dfHead
+        width: parent.width
+        Caption { text: "Dayflow"; width: parent.width - dfPct.implicitWidth }
+        Text {
+          id: dfPct
+          textFormat: Text.PlainText
+          text: dfTile.td.focusPct >= 0 ? dfTile.td.focusPct + "% focus" : ""
+          color: dfTile.td.focusPct >= 60 ? Commons.Color.accent : panel.textColor
+          font.family: panel.family
+          font.pixelSize: Commons.Style.font.bodySmall
+          font.features: ({ "tnum": 1 })
+        }
+      }
+      Row {
+        anchors.top: dfHead.bottom
+        anchors.topMargin: 4
+        width: parent.width
+        spacing: 6
+        Rectangle {
+          width: 8; height: 8; radius: 4
+          anchors.verticalCenter: parent.verticalCenter
+          color: dfTile.st.paused ? Commons.Color.urgent : dfTile.td.current ? Dayflow.categoryColor(dfTile.td.current.category) : panel.dimColor
+        }
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width - 14
+          elide: Text.ElideRight
+          text: dfTile.st.paused ? "Capture paused" : !dfTile.st.ok ? "Dayflow unavailable" : dfTile.td.current ? dfTile.td.current.title : "No current block"
+          color: dfTile.st.paused ? Commons.Color.urgent : dfTile.td.current ? panel.textColor : panel.dimColor
+          font.family: panel.family
+          font.pixelSize: Commons.Style.font.bodySmall
+        }
+      }
+      MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (panel.notch) panel.notch.openTabRequested("dayflow") }
+    }
+
+    Item {
+      id: netBox
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
