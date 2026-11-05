@@ -74,7 +74,7 @@ Item {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: cell.modelData > 0 ? String(cell.modelData) : ""
-          color: cell.isToday ? "black" : cal.textColor
+          color: cell.isToday ? Commons.Color.background : cal.textColor
           font.family: cal.family
           font.pixelSize: cal.fontPx
           font.weight: cell.isToday ? Font.Bold : Font.Normal

@@ -13,6 +13,7 @@ var DEFAULTS = {
   clockHours: 12,     // 12 | 24
   cameraWidth: 0,     // 0 = auto, else logical px
   hoverDelay: 150,    // ms before hover expands the panel
+  reduceMotion: false, // swap springs and slides for quick fades
   snapdex: false      // optional personal integration: Screenshots tab + caption flash
 }
 
@@ -27,6 +28,7 @@ var FIELDS = [
     options: [{ value: 12, label: "12 h" }, { value: 24, label: "24 h" }] },
   { key: "cameraWidth", label: "Camera width", type: "int", min: 0, max: 400, step: 10, suffix: " px", zero: "auto" },
   { key: "hoverDelay", label: "Hover delay", type: "int", min: 0, max: 1000, step: 50, suffix: " ms" },
+  { key: "reduceMotion", label: "Reduce motion", type: "bool" },
   { key: "snapdex", label: "Screenshots (snapdex)", type: "bool" }
 ]
 

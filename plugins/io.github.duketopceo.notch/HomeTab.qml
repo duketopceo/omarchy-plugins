@@ -9,14 +9,14 @@ import "Expand.js" as Expand
 import "Agents.js" as Agents
 import "Network.js" as Network
 
-// Home tab: a three-column dashboard in the 672 x ~290 content area of the
-// 720 x 380 Home panel.
-//   left:   big time and date, now playing (art, title, prev/play/next)
-//   middle: weather (large pixel icon, temperature, condition, place), calendar
-//   right:  agents (working / need you / done), unread messages, top AI usage
-//           bar, up to 3 quotes, network dots (Tailscale, NordVPN toggle,
-//           Wisp, Dictate)
-// Type sizes come from the theme scale (Commons.Style.font).
+// Home tab: a header row and three equal columns in the 688 x ~298 content
+// area of the 720 x 380 panel (same gutters as every other tab).
+//   header: time + date | greeting and status line | working / unread
+//   col 1:  now playing (art, title, prev/play/next), weather
+//   col 2:  agents (working / need you / done), top AI usage bar, network dots
+//   col 3:  calendar, watchlist (two quotes)
+// Type sizes come from the theme scale (Commons.Style.font); colours from
+// Commons.Color (accent = live, urgent = needs attention / down).
 // Everything is read from the root Notch item (`notch`) or small local files;
 // the AI usage fetch is shared and rate-limited in Notch.qml.
 Item {
@@ -55,7 +55,7 @@ Item {
     return first
   }
 
-  readonly property var quoteList: notch && Array.isArray(notch.quotes) ? notch.quotes.slice(0, 3) : []
+  readonly property var quoteList: notch && Array.isArray(notch.quotes) ? notch.quotes.slice(0, 2) : []
 
   property var wisp: null
   FileView {
@@ -68,16 +68,25 @@ Item {
   }
 
   // Network dots share NetworkState's slow poll; no fast polling from Home.
-  function dotColor(kind) { return kind === "on" ? "#6fbf73" : kind === "busy" ? "#e0b050" : "#555a60" }
+  function dotColor(kind) { return kind === "on" ? Commons.Color.accent : kind === "busy" ? Commons.Color.foreground : Commons.Color.muted }
+  function greeting() {
+    var h = now.getHours()
+    return h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"
+  }
+  function statusLine() {
+    var c = agentCounts
+    if (c.blocked > 0) return c.blocked === 1 ? "1 agent needs you" : c.blocked + " agents need you"
+    if (c.working > 0) return c.working === 1 ? "1 agent working" : c.working + " agents working"
+    if (unread > 0) return unread === 1 ? "1 unread message" : unread + " unread messages"
+    return appName !== "" ? "In " + appName : "All quiet"
+  }
 
-  readonly property var font_: Commons.Style.font
-  readonly property color up: "#6fbf73"
-  readonly property color down: "#e0786f"
-  readonly property color warn: "#f5a742"
-  readonly property int gap: 28
+  readonly property int gap: 16
+  readonly property int headerH: 52
   readonly property int colW: Math.floor((width - 2 * gap) / 3)
-  implicitWidth: 672
-  implicitHeight: 290
+  readonly property int bodyTop: headerH + 12
+  implicitWidth: 688
+  implicitHeight: 298
 
   component Caption: Text {
     textFormat: Text.PlainText
@@ -98,7 +107,7 @@ Item {
     property string label: ""
     property string value: "0"
     property color tint: panel.textColor
-    spacing: 2
+    spacing: 0
     Text {
       textFormat: Text.PlainText
       text: stat.value
@@ -147,47 +156,85 @@ Item {
     MouseArea { id: rbHit; anchors.fill: parent; hoverEnabled: true; enabled: !!panel.player; cursorShape: Qt.PointingHandCursor; onClicked: rb.clicked() }
   }
 
-  // ------------------------------------------------------------ left: time + now playing
-  Column {
-    id: leftCol
-    x: 0
-    width: panel.colW
-    spacing: 4
+  // ------------------------------------------------------------ header
+  Item {
+    id: header
+    width: parent.width
+    height: panel.headerH
 
-    Text {
-      textFormat: Text.PlainText
-      text: notch ? notch.timeText : Qt.formatTime(panel.now, "h:mm AP")
-      color: panel.textColor
-      font.family: panel.family
-      font.pixelSize: 40
-      font.weight: Font.DemiBold
-      font.features: ({ "tnum": 1 })
-    }
-    Text {
-      textFormat: Text.PlainText
-      text: Qt.formatDate(panel.now, "dddd, d MMMM")
-      color: panel.dimColor
-      font.family: panel.family
-      font.pixelSize: Commons.Style.font.subtitle
-    }
-    Item { width: 1; height: 22 }
-    Caption { text: "Now playing" }
-    Item { width: 1; height: 4 }
-
-    Item {
-      width: leftCol.width; height: 84
-      Row {
-        anchors.left: art.right
-        anchors.leftMargin: 14
-        anchors.bottom: parent.bottom
-        spacing: 6
-        RoundButton { glyph: "\u{F04AE}"; size: 28; onClicked: if (panel.player) panel.player.previous() }
-        RoundButton { glyph: panel.player && panel.player.isPlaying ? "\u{F03E4}" : "\u{F040A}"; size: 32; onClicked: if (panel.player) panel.player.togglePlaying() }
-        RoundButton { glyph: "\u{F04AD}"; size: 28; onClicked: if (panel.player) panel.player.next() }
+    Column {
+      x: 0
+      width: panel.colW
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: 0
+      Text {
+        textFormat: Text.PlainText
+        text: notch ? notch.timeText : Qt.formatTime(panel.now, "h:mm AP")
+        color: panel.textColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.displayLarge
+        font.weight: Font.DemiBold
+        font.features: ({ "tnum": 1 })
       }
+      Text {
+        textFormat: Text.PlainText
+        text: Qt.formatDate(panel.now, "dddd, d MMMM")
+        color: panel.dimColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.bodySmall
+      }
+    }
+
+    Column {
+      x: panel.colW + panel.gap
+      width: panel.colW
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: 2
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        elide: Text.ElideRight
+        text: panel.greeting()
+        color: panel.textColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.heading
+        font.weight: Font.DemiBold
+      }
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        elide: Text.ElideRight
+        text: panel.statusLine()
+        color: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.dimColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.bodySmall
+      }
+    }
+
+    Row {
+      x: 2 * (panel.colW + panel.gap)
+      width: panel.colW
+      anchors.verticalCenter: parent.verticalCenter
+      Stat { width: Math.floor(parent.width / 2); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 2); label: "Unread"; value: String(panel.unread); tint: panel.unread > 0 ? Commons.Color.accent : panel.textColor }
+    }
+  }
+  Rectangle { y: panel.headerH + 5; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+
+  // ------------------------------------------------------------ col 1: now playing + weather
+  Item {
+    id: col1
+    x: 0
+    y: panel.bodyTop
+    width: panel.colW
+    height: panel.height - panel.bodyTop
+
+    Caption { id: npCap; text: "Now playing" }
     Rectangle {
       id: art
-      width: 84; height: 84; radius: 10
+      anchors.top: npCap.bottom
+      anchors.topMargin: 8
+      width: 80; height: 80; radius: 10
       color: Qt.rgba(1, 1, 1, 0.08)
       clip: true
       Text {
@@ -208,66 +255,79 @@ Item {
         visible: status === Image.Ready
       }
     }
+    Column {
+      anchors.left: art.right
+      anchors.leftMargin: 12
+      anchors.right: parent.right
+      anchors.top: art.top
+      anchors.bottom: art.bottom
+      spacing: 2
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        elide: Text.ElideRight
+        text: panel.player ? String(panel.player.trackTitle || panel.player.identity || "") : "Nothing playing"
+        color: panel.player ? panel.textColor : panel.dimColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.body
+        font.weight: Font.DemiBold
+      }
+      Text {
+        textFormat: Text.PlainText
+        width: parent.width
+        elide: Text.ElideRight
+        text: panel.player ? String(panel.player.trackArtist || "") : " "
+        color: panel.dimColor
+        font.family: panel.family
+        font.pixelSize: Commons.Style.font.bodySmall
+      }
     }
-    Item { width: 1; height: 4 }
-    Text {
-      textFormat: Text.PlainText
-      width: leftCol.width
-      elide: Text.ElideRight
-      text: panel.player ? String(panel.player.trackTitle || panel.player.identity || "") : "Nothing playing"
-      color: panel.player ? panel.textColor : panel.dimColor
-      font.family: panel.family
-      font.pixelSize: Commons.Style.font.body
-      font.weight: Font.DemiBold
+    Row {
+      anchors.left: art.right
+      anchors.leftMargin: 12
+      anchors.bottom: art.bottom
+      spacing: 6
+      RoundButton { glyph: "\u{F04AE}"; size: 26; onClicked: if (panel.player) panel.player.previous() }
+      RoundButton { glyph: panel.player && panel.player.isPlaying ? "\u{F03E4}" : "\u{F040A}"; size: 30; onClicked: if (panel.player) panel.player.togglePlaying() }
+      RoundButton { glyph: "\u{F04AD}"; size: 26; onClicked: if (panel.player) panel.player.next() }
     }
-    Text {
-      textFormat: Text.PlainText
-      width: leftCol.width
-      elide: Text.ElideRight
-      text: panel.player ? String(panel.player.trackArtist || "") : " "
-      color: panel.dimColor
-      font.family: panel.family
-      font.pixelSize: Commons.Style.font.bodySmall
-    }
-  }
-  Divider { x: panel.colW + panel.gap / 2; height: panel.height }
 
-  // ------------------------------------------------------------ middle: weather + calendar
-  Column {
-    id: midCol
-    x: panel.colW + panel.gap
-    width: panel.colW
-    spacing: 18
-
+    // weather, pinned to the column's bottom
     Item {
-      width: parent.width
-      height: 60
-      visible: panel.weather !== null
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      height: 64
+      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
       PixelWeather {
         id: wIcon
-        px: 4
+        px: 3
+        visible: panel.weather !== null
         kind: panel.weather ? panel.weather.kind : "cloudy"
         active: panel.visible
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 6
       }
       Column {
         anchors.left: wIcon.right
-        anchors.leftMargin: 16
+        anchors.leftMargin: 14
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
+        anchors.verticalCenter: wIcon.verticalCenter
+        spacing: 0
         Text {
           textFormat: Text.PlainText
-          text: panel.weather ? panel.weather.temperature + panel.weather.unit : ""
-          color: panel.textColor
+          text: panel.weather ? panel.weather.temperature + panel.weather.unit : "No weather yet"
+          color: panel.weather ? panel.textColor : panel.dimColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.displayLarge
+          font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Commons.Style.font.bodySmall
           font.weight: Font.DemiBold
         }
         Text {
           textFormat: Text.PlainText
           width: parent.width
           elide: Text.ElideRight
+          visible: panel.weather !== null
           text: panel.weather ? Expand.conditionText(panel.weather.kind) + (panel.weather.place ? "  \u00B7  " + panel.weather.place : "") : ""
           color: panel.dimColor
           font.family: panel.family
@@ -275,46 +335,31 @@ Item {
         }
       }
     }
-    Item { visible: panel.weather === null; width: 1; height: 60
-      Text { textFormat: Text.PlainText; anchors.verticalCenter: parent.verticalCenter; text: "No weather yet"; color: panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall }
-    }
-
-    MiniCalendar {
-      width: parent.width
-      today: panel.now
-      cellH: 24
-      fontPx: Commons.Style.font.bodySmall
-      titlePx: Commons.Style.font.body
-      family: panel.family
-      textColor: panel.textColor
-      dimColor: panel.dimColor
-    }
   }
+  Divider { x: panel.colW + panel.gap / 2; y: panel.bodyTop; height: panel.height - panel.bodyTop }
 
-  Divider { x: 2 * panel.colW + panel.gap * 1.5; height: panel.height }
-
-  // ------------------------------------------------------------ right: status
-  Column {
-    id: rightCol
-    x: 2 * (panel.colW + panel.gap)
+  // ------------------------------------------------------------ col 2: agents + usage + network
+  Item {
+    id: col2
+    x: panel.colW + panel.gap
+    y: panel.bodyTop
     width: panel.colW
-    spacing: 16
+    height: panel.height - panel.bodyTop
 
+    Caption { id: agCap; text: "Agents" }
     Row {
+      id: agRow
+      anchors.top: agCap.bottom
+      anchors.topMargin: 6
       width: parent.width
-      spacing: 0
       Stat { width: Math.floor(parent.width / 3); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
-      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? panel.warn : panel.textColor }
-      Stat { width: Math.floor(parent.width / 3); label: "Done"; value: String(panel.agentCounts.done); tint: panel.agentCounts.done > 0 ? panel.up : panel.textColor }
-    }
-
-    Row {
-      spacing: 8
-      Text { textFormat: Text.PlainText; text: "\u{F0361}"; color: panel.unread > 0 ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.title; anchors.verticalCenter: parent.verticalCenter }
-      Text { textFormat: Text.PlainText; text: panel.unread === 1 ? "1 unread message" : panel.unread + " unread messages"; color: panel.unread > 0 ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.body; anchors.verticalCenter: parent.verticalCenter }
+      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 3); label: "Done"; value: String(panel.agentCounts.done); tint: panel.textColor }
     }
 
     Column {
+      anchors.top: agRow.bottom
+      anchors.topMargin: 22
       width: parent.width
       spacing: 6
       visible: panel.topUsage !== null
@@ -337,36 +382,70 @@ Item {
         Rectangle {
           width: parent.width * Math.max(0, Math.min(1, (panel.topUsage ? panel.topUsage.percent : 0) / 100))
           height: parent.height; radius: 3
-          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : (panel.topUsage && panel.topUsage.percent >= 70 ? panel.warn : Commons.Color.accent)
-          Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : Commons.Color.accent
+          Behavior on width { SpringAnimation { spring: 3; damping: 0.4; epsilon: 0.25 } }
         }
       }
     }
 
-    Column {
+    Item {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      height: 64
+      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+      Caption { id: netCap; anchors.top: parent.top; anchors.topMargin: 10; text: "Network" }
+      Flow {
+        anchors.top: netCap.bottom
+        anchors.topMargin: 6
+        width: parent.width
+        spacing: 12
+        DotButton { name: "Tail"; state: panel.net ? panel.net.tsDot : "off"; onClicked: if (panel.notch) panel.notch.network.copyIp(panel.net.ts.selfIp) }
+        DotButton { name: "Nord"; state: panel.net ? panel.net.nordDot : "off"; onClicked: if (panel.net) panel.net.toggleNord() }
+        DotButton { name: "Wisp"; state: panel.wisp ? "on" : "off"; onClicked: if (panel.notch) panel.notch.openWisp() }
+        DotButton { name: "Dict"; state: panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state === "recording" ? "busy" : (panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state !== "not-running" ? "on" : "off"); onClicked: if (panel.notch) panel.notch.dictationActivity.toggle() }
+      }
+    }
+  }
+  Divider { x: 2 * panel.colW + panel.gap * 1.5; y: panel.bodyTop; height: panel.height - panel.bodyTop }
+
+  // ------------------------------------------------------------ col 3: calendar + watchlist
+  Item {
+    id: col3
+    x: 2 * (panel.colW + panel.gap)
+    y: panel.bodyTop
+    width: panel.colW
+    height: panel.height - panel.bodyTop
+
+    MiniCalendar {
+      id: cal
       width: parent.width
-      spacing: 5
+      today: panel.now
+      cellH: 20
+      fontPx: Commons.Style.font.bodySmall
+      titlePx: Commons.Style.font.body
+      family: panel.family
+      textColor: panel.textColor
+      dimColor: panel.dimColor
+    }
+
+    Column {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      spacing: 3
       visible: panel.quoteList.length > 0
       Caption { text: "Watchlist" }
       Repeater {
         model: panel.quoteList
         Row {
           required property var modelData
-          width: rightCol.width
+          width: col3.width
           Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.weight: Font.DemiBold }
           Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
-          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.up : panel.down; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Commons.Color.urgent; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
         }
       }
-    }
-
-    Flow {
-      width: parent.width
-      spacing: 10
-      DotButton { name: "Tail"; state: panel.net ? panel.net.tsDot : "off"; onClicked: if (panel.notch) panel.notch.network.copyIp(panel.net.ts.selfIp) }
-      DotButton { name: "Nord"; state: panel.net ? panel.net.nordDot : "off"; onClicked: if (panel.net) panel.net.toggleNord() }
-      DotButton { name: "Wisp"; state: panel.wisp ? "on" : "off"; onClicked: if (panel.notch) panel.notch.openWisp() }
-      DotButton { name: "Dict"; state: panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state === "recording" ? "busy" : (panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state !== "not-running" ? "on" : "off"); onClicked: if (panel.notch) panel.notch.dictationActivity.toggle() }
     }
   }
 }

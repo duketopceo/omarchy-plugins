@@ -20,12 +20,12 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property bool active: visible
 
-  readonly property color cpuTone: "#6fa8ff"
-  readonly property color gpuTone: "#b58cff"
-  readonly property color ramTone: "#6fbf73"
-  readonly property color aneTone: "#e0b050"
-  readonly property color tempTone: "#e07a5f"
-  readonly property color powerTone: "#5fc9c9"
+  readonly property color cpuTone: Commons.Color.accent
+  readonly property color gpuTone: Commons.Color.accent
+  readonly property color ramTone: Commons.Color.accent
+  readonly property color aneTone: Commons.Color.accent
+  readonly property color tempTone: Commons.Color.accent
+  readonly property color powerTone: Commons.Color.accent
 
   // ---- state
   property var prevStat: null
@@ -188,8 +188,8 @@ Item {
     }
   }
 
-  // ---- layout (content area is about 428 x 164)
-  readonly property int leftW: 250
+  // ---- layout (content area 688 x ~298; left block 368 wide, right column the rest)
+  readonly property int leftW: 368
 
   function pct(v) { return v >= 0 ? Math.round(v) + "%" : "n/a" }
 
@@ -201,55 +201,55 @@ Item {
 
     // CPU
     Column {
-      width: 62; spacing: 1
+      width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
         anchors.horizontalCenter: parent.horizontalCenter
-        width: 46; height: 46
+        width: 68; height: 68
         value: tab.cpuAll / 100; tone: tab.cpuTone
         text: tab.pct(tab.cpuAll); family: tab.family; textColor: tab.textColor
       }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "CPU"; color: tab.textColor; font.family: tab.family; font.pixelSize: 11; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "P" + (tab.cpuP >= 0 ? Math.round(tab.cpuP) : "-") + " E" + (tab.cpuE >= 0 ? Math.round(tab.cpuE) : "-"); color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.clusters.p ? Sys.fmtGHz(tab.clusters.p.khz) : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "CPU"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "P" + (tab.cpuP >= 0 ? Math.round(tab.cpuP) : "-") + " E" + (tab.cpuE >= 0 ? Math.round(tab.cpuE) : "-"); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.clusters.p ? Sys.fmtGHz(tab.clusters.p.khz) : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
     // GPU
     Column {
-      width: 62; spacing: 1
+      width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
         anchors.horizontalCenter: parent.horizontalCenter
-        width: 46; height: 46
+        width: 68; height: 68
         value: -1; tone: tab.gpuTone
         text: "n/a"; family: tab.family; textColor: tab.dimColor
       }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "GPU"; color: tab.textColor; font.family: tab.family; font.pixelSize: 11; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "32-core AGX"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "needs root"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "GPU"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "32-core AGX"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "needs root"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
     // RAM
     Column {
-      width: 62; spacing: 1
+      width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
         anchors.horizontalCenter: parent.horizontalCenter
-        width: 46; height: 46
+        width: 68; height: 68
         value: tab.mem.pct / 100; tone: tab.ramTone
         text: tab.mem.ok ? tab.mem.pct + "%" : "n/a"; family: tab.family; textColor: tab.textColor
       }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "RAM"; color: tab.textColor; font.family: tab.family; font.pixelSize: 11; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: Sys.fmtGiB(tab.mem.usedKb) + " / " + Sys.fmtGiB(tab.mem.totalKb).replace(" GB", ""); color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "zram " + Sys.fmtGiB(tab.mem.swapUsedKb); color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "RAM"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: Sys.fmtGiB(tab.mem.usedKb) + " / " + Sys.fmtGiB(tab.mem.totalKb).replace(" GB", ""); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "zram " + Sys.fmtGiB(tab.mem.swapUsedKb); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
     // ANE
     Column {
-      width: 62; spacing: 1
+      width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
         anchors.horizontalCenter: parent.horizontalCenter
-        width: 46; height: 46
+        width: 68; height: 68
         value: tab.aneBusy / 100; tone: tab.aneTone
         text: tab.aneStats.ok ? tab.pct(tab.aneBusy) : "n/a"; family: tab.family; textColor: tab.textColor
       }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "ANE"; color: tab.textColor; font.family: tab.family; font.pixelSize: 11; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneCheck.state; color: tab.aneCheck.ready ? "#6fbf73" : tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneStats.ok ? tab.aneStats.jobs + " jobs" : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 9 }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "ANE"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneCheck.state; color: tab.aneCheck.ready ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneStats.ok ? tab.aneStats.jobs + " jobs" : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
   }
 
@@ -258,18 +258,18 @@ Item {
     id: sparks
     anchors.left: parent.left
     anchors.top: rings.bottom
-    anchors.topMargin: 5
+    anchors.topMargin: 10
     spacing: 4
-    SystemSpark { width: 59; height: 32; values: tab.hCpu; tone: tab.cpuTone; label: "CPU"; readout: tab.pct(tab.cpuAll); family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor }
-    SystemSpark { width: 59; height: 32; values: tab.hGpu; tone: tab.gpuTone; label: "GPU"; emptyText: "n/a"; family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor }
+    SystemSpark { width: Math.floor((tab.leftW - 12) / 4); height: 76; values: tab.hCpu; tone: tab.cpuTone; label: "CPU"; readout: tab.pct(tab.cpuAll); family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor }
+    SystemSpark { width: Math.floor((tab.leftW - 12) / 4); height: 76; values: tab.hGpu; tone: tab.gpuTone; label: "GPU"; emptyText: "n/a"; family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor }
     SystemSpark {
-      width: 59; height: 32; values: tab.hTemp; tone: tab.tempTone; label: "TEMP"
+      width: Math.floor((tab.leftW - 12) / 4); height: 76; values: tab.hTemp; tone: tab.tempTone; label: "TEMP"
       minValue: 20; maxValue: 90
       readout: tab.hw.hottest ? Math.round(tab.hw.hottest.c) + "°" : ""
       family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor
     }
     SystemSpark {
-      width: 59; height: 32; values: tab.hPower; tone: tab.powerTone; label: "PWR"
+      width: Math.floor((tab.leftW - 12) / 4); height: 76; values: tab.hPower; tone: tab.powerTone; label: "PWR"
       minValue: 0; maxValue: 100
       readout: Sys.totalPower(tab.hw.powers) !== null ? Math.round(Sys.totalPower(tab.hw.powers)) + " W" : ""
       family: tab.family; textColor: tab.textColor; dimColor: tab.dimColor
@@ -280,23 +280,23 @@ Item {
   Column {
     anchors.left: parent.left
     anchors.top: sparks.bottom
-    anchors.topMargin: 5
+    anchors.topMargin: 12
     width: tab.leftW - 4
-    spacing: 3
+    spacing: 5
     Text {
       textFormat: Text.PlainText
       width: parent.width; elide: Text.ElideRight
-      color: tab.aneRt.trim() === "active" ? "#6fbf73" : tab.dimColor; font.family: tab.family; font.pixelSize: 10
+      color: tab.aneRt.trim() === "active" ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
       text: "ANE " + Sys.aneState(tab.aneRt) + (tab.aneCheck.version !== "" ? " v" + tab.aneCheck.version : "") + " · " + (Sys.jobsPerMin(tab.aneJobs) !== null ? Sys.jobsPerMin(tab.aneJobs) + " jobs/min" : "-- jobs/min") + " · used " + Sys.fmtAgo(tab.aneLastUsed, tab.nowMs)
     }
     Text {
       textFormat: Text.PlainText
       width: parent.width; elide: Text.ElideRight
-      color: tab.dimColor; font.family: tab.family; font.pixelSize: 10
+      color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
       text: "ANE users: " + (tab.scan.aneProcs.length > 0 ? tab.scan.aneProcs.join(", ") : "none open")
     }
     Item {
-      width: parent.width; height: 14
+      width: parent.width; height: 18
       Text {
         textFormat: Text.PlainText
         anchors.left: parent.left
@@ -304,22 +304,22 @@ Item {
         anchors.rightMargin: 4
         anchors.verticalCenter: parent.verticalCenter
         elide: Text.ElideRight
-        color: tab.scan.mlx.length > 0 ? "#6fbf73" : tab.dimColor
-        font.family: tab.family; font.pixelSize: 10
+        color: tab.scan.mlx.length > 0 ? Commons.Color.accent : tab.dimColor
+        font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
         text: (tab.scan.mlx.length > 0 ? "MLX x" + tab.scan.mlx.length + " " + (tab.mlxModels.length > 0 ? tab.mlxModels.join(", ") : (tab.scan.mlx[0].model || "serving") + " :" + tab.scan.mlx[0].port) : "MLX not running") + (tab.resv.count > 0 ? " · rsv " + tab.resv.gib + "G" : "")
       }
       Rectangle {
         id: copyBtn
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        width: 54; height: 14; radius: 7
+        width: 64; height: 18; radius: 9
         color: copyHit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
         Text {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: tab.copied ? "copied" : "copy cmd"
-          color: tab.copied ? "#6fbf73" : tab.textColor
-          font.family: tab.family; font.pixelSize: 9
+          color: tab.copied ? Commons.Color.accent : tab.textColor
+          font.family: tab.family; font.pixelSize: Commons.Style.font.caption
         }
         MouseArea { id: copyHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copyMlx() }
       }
@@ -332,64 +332,68 @@ Item {
     anchors.right: parent.right
     anchors.top: parent.top
     width: parent.width - tab.leftW - 12
-    spacing: 2
+    spacing: 3
 
-    Text { textFormat: Text.PlainText; text: "Temps"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 9; font.weight: Font.DemiBold }
+    Text { textFormat: Text.PlainText; text: "Temps"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption; font.weight: Font.DemiBold }
     Repeater {
-      model: tab.hw.temps.slice(0, 4)
+      model: tab.hw.temps.slice(0, 6)
       delegate: Item {
         required property var modelData
-        width: rightCol.width; height: 13
-        Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: 10 }
+        width: rightCol.width; height: 20
+        Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
         Rectangle {
           anchors.verticalCenter: parent.verticalCenter
           x: 58; height: 3; radius: 1.5
           width: Math.max(2, (rightCol.width - 58 - 34) * Math.max(0, Math.min(1, (modelData.c - 20) / 70)))
-          color: modelData.c >= 70 ? "#e07a5f" : modelData.c >= 55 ? "#e0b050" : "#6fbf73"
+          color: modelData.c >= 70 ? Commons.Color.urgent : Commons.Color.accent
         }
-        Text { textFormat: Text.PlainText; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: Math.round(modelData.c) + "°C"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 10 }
+        Text { textFormat: Text.PlainText; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: Math.round(modelData.c) + "°C"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
       }
     }
-    Text { visible: !tab.hw.ok || tab.hw.temps.length === 0; textFormat: Text.PlainText; text: "no sensors"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 10 }
+    Text { visible: !tab.hw.ok || tab.hw.temps.length === 0; textFormat: Text.PlainText; text: "no sensors"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
 
     Item { width: 1; height: 3 }
-    Text { textFormat: Text.PlainText; text: "Fans · " + Sys.fanModeTitle(tab.shownMode); color: tab.dimColor; font.family: tab.family; font.pixelSize: 9; font.weight: Font.DemiBold }
+    Text { textFormat: Text.PlainText; text: "Fans · " + Sys.fanModeTitle(tab.shownMode); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption; font.weight: Font.DemiBold }
     Repeater {
-      model: tab.hw.fans.slice(0, 2)
+      model: tab.hw.fans.slice(0, 3)
       delegate: Item {
         required property var modelData
-        width: rightCol.width; height: 13
-        Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "F" + modelData.id.replace("fan", ""); color: tab.textColor; font.family: tab.family; font.pixelSize: 10 }
+        width: rightCol.width; height: 20
+        Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "F" + modelData.id.replace("fan", ""); color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
         Rectangle {
           anchors.verticalCenter: parent.verticalCenter
           x: 22; height: 3; radius: 1.5
           width: Math.max(2, (rightCol.width - 22 - 74) * Sys.fanFraction(modelData))
-          color: "#6fa8ff"
+          color: Commons.Color.accent
         }
         Text {
           textFormat: Text.PlainText
           anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
           text: Sys.fmtRpm(modelData.rpm) + (modelData.target !== null && modelData.target > 0 ? " →" + modelData.target : "")
-          color: tab.dimColor; font.family: tab.family; font.pixelSize: 10
+          color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
         }
       }
     }
-    Text { visible: tab.hw.fans.length === 0; textFormat: Text.PlainText; text: "no fans"; color: tab.dimColor; font.family: tab.family; font.pixelSize: 10 }
+    Text { visible: tab.hw.fans.length === 0; textFormat: Text.PlainText; text: "no fans"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
 
-    Row {
-      spacing: 3
+  }
+
+  // fan mode pills, pinned to the bottom of the right column
+  Row {
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    spacing: 3
       Repeater {
         model: Sys.FAN_MODES.filter(function (m) { return m.id !== "med" })
         delegate: Rectangle {
           required property var modelData
           readonly property bool sel: tab.shownMode === modelData.id
-          width: Math.floor((rightCol.width - 6) / 3); height: 17; radius: 8.5
+          width: Math.floor((rightCol.width - 6) / 3); height: 26; radius: 13
           opacity: tab.canSetMode ? 1 : 0.45
-          color: sel ? Qt.rgba(0.44, 0.66, 1, 0.30) : (pillHit.containsMouse && tab.canSetMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
-          Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: modelData.title; color: tab.textColor; font.family: tab.family; font.pixelSize: 10 }
+          color: sel ? Qt.rgba(1, 1, 1, 0.22) : (pillHit.containsMouse && tab.canSetMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+          Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: modelData.title; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
           MouseArea { id: pillHit; anchors.fill: parent; hoverEnabled: true; enabled: tab.canSetMode; cursorShape: Qt.PointingHandCursor; onClicked: tab.setMode(modelData.id) }
         }
       }
     }
-  }
 }

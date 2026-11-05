@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons as Commons
 import "Plugins.js" as Plugins
 
 // Plugins tab: one slot per plugin in the bar's tray section. Name and icon
@@ -15,6 +16,11 @@ Item {
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property string home: Quickshell.env("HOME")
   readonly property var ids: Plugins.trayIds(notch ? notch.shellConfig : null)
+  readonly property int gap: 8
+  readonly property int cols: ids.length > 9 ? 4 : 3
+  readonly property int rows: Math.max(1, Math.ceil(ids.length / cols))
+  // Tiles share the whole height when they fit (up to 120 px); more rows scroll.
+  readonly property int tileH: Math.max(64, Math.min(120, Math.floor((height - (rows - 1) * gap) / rows)))
 
   Text {
     textFormat: Text.PlainText
@@ -23,19 +29,19 @@ Item {
     text: "No tray plugins on the bar"
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: 11
+    font.pixelSize: Commons.Style.font.bodySmall
   }
 
   NotchScroll {
     anchors.fill: parent
-    rowHeight: 42
+    rowHeight: tab.tileH + tab.gap
     contentHeight: flow.height
     contentWidth: width
 
   Flow {
     id: flow
     width: parent.width
-    spacing: 6
+    spacing: tab.gap
 
     Repeater {
       model: tab.ids
@@ -44,9 +50,9 @@ Item {
         id: slot
         required property string modelData
         property var info: Plugins.slotInfo(slot.modelData, "", tab.home)
-        width: Math.floor((tab.width - 3 * 6) / 4)
-        height: 36
-        radius: 8
+        width: Math.floor((tab.width - (tab.cols - 1) * tab.gap) / tab.cols)
+        height: tab.tileH
+        radius: 12
         color: hit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
 
         // Only hand an icon file to Image once it is known to exist (no warnings).
@@ -65,21 +71,20 @@ Item {
           onLoadFailed: slot.info = Plugins.slotInfo(slot.modelData, "", tab.home)
         }
 
-        Row {
-          anchors.fill: parent
-          anchors.leftMargin: 8
-          anchors.rightMargin: 6
-          spacing: 6
+        Column {
+          anchors.centerIn: parent
+          width: parent.width - 16
+          spacing: 8
 
           Item {
-            width: 18; height: parent.height
+            width: parent.width; height: 32
             Image {
               id: iconImg
               anchors.centerIn: parent
-              width: 16; height: 16
+              width: 28; height: 28
               visible: slot.imageOk && status === Image.Ready
               source: slot.imageOk ? "file://" + slot.info.image : ""
-              sourceSize: Qt.size(32, 32)
+              sourceSize: Qt.size(56, 56)
               fillMode: Image.PreserveAspectFit
               asynchronous: true
             }
@@ -90,18 +95,18 @@ Item {
               text: slot.info.glyph
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 14
+              font.pixelSize: Commons.Style.font.display
             }
           }
           Text {
             textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 24
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
             text: tab.notch && tab.notch.openFailed === slot.modelData ? "not on the bar" : slot.info.name
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Commons.Style.font.body
           }
         }
 

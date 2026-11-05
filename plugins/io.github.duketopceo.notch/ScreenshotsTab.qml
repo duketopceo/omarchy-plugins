@@ -66,16 +66,16 @@ Item {
     anchors.top: parent.top
     anchors.left: parent.left
     anchors.right: parent.right
-    height: 24
+    height: 28
 
     Text {
       textFormat: Text.PlainText
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       text: tab.busy ? tab.busyLabel : (tab.snap.ok ? Screenshots.pendingText(tab.snap.pending) : "Snapdex unavailable")
-      color: tab.snap.pending > 0 && !tab.busy ? "#e0b050" : tab.dimColor
+      color: tab.snap.pending > 0 && !tab.busy ? Commons.Color.accent : tab.dimColor
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Commons.Style.font.body
       font.weight: Font.DemiBold
     }
 
@@ -87,8 +87,8 @@ Item {
       Rectangle {
         id: folderBtn
         width: folderLabel.implicitWidth + 20
-        height: 20
-        radius: 10
+        height: 24
+        radius: 12
         opacity: tab.folder !== "" ? 1 : 0.4
         color: folderHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
         Text {
@@ -98,7 +98,7 @@ Item {
           text: "Open folder"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Commons.Style.font.bodySmall
         }
         MouseArea {
           id: folderHit
@@ -113,8 +113,8 @@ Item {
       Rectangle {
         id: processBtn
         width: processLabel.implicitWidth + 20
-        height: 20
-        radius: 10
+        height: 24
+        radius: 12
         opacity: tab.snap.ok && !tab.busy ? 1 : 0.4
         color: processHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
         Text {
@@ -124,7 +124,7 @@ Item {
           text: "Process now"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Commons.Style.font.bodySmall
         }
         MouseArea {
           id: processHit
@@ -145,7 +145,7 @@ Item {
           text: "Auto"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Commons.Style.font.bodySmall
         }
         PillSwitch {
           anchors.verticalCenter: parent.verticalCenter
@@ -169,20 +169,23 @@ Item {
     text: "Library " + Screenshots.shortPath(tab.dirs.library, tab.home) + (tab.dirs.separate ? "   Inbox " + Screenshots.shortPath(tab.dirs.inbox, tab.home) + " (" + tab.snap.pending + " pending)" : "  (renamed in place)")
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: 9
+    font.pixelSize: Commons.Style.font.caption
   }
 
   // ------------------------------------------------------------ thumbnails
   Grid {
     id: grid
     anchors.top: pathLine.bottom
-    anchors.topMargin: 6
+    anchors.topMargin: 8
     anchors.left: parent.left
     anchors.right: parent.right
+    anchors.bottom: parent.bottom
     columns: 4
-    rowSpacing: 6
-    columnSpacing: 6
+    rowSpacing: 8
+    columnSpacing: 8
     readonly property int cellW: Math.floor((width - 3 * columnSpacing) / 4)
+    // Two rows share the full height; the caption sits under each thumbnail.
+    readonly property int cellH: Math.floor((height - rowSpacing) / 2)
 
     Repeater {
       model: tab.snap.items
@@ -190,24 +193,24 @@ Item {
         id: cell
         required property var modelData
         width: grid.cellW
-        height: 56
+        height: grid.cellH
 
         Rectangle {
           id: thumb
           width: parent.width
-          height: 40
-          radius: 6
+          height: cell.height - 20
+          radius: 8
           color: Qt.rgba(1, 1, 1, 0.08)
           clip: true
           Image {
             anchors.fill: parent
             source: "file://" + cell.modelData.path
-            sourceSize.width: 240
+            sourceSize.width: 360
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: false
           }
-          Rectangle { anchors.fill: parent; radius: 6; color: Qt.rgba(1, 1, 1, hit.containsMouse ? 0.12 : 0) }
+          Rectangle { anchors.fill: parent; radius: 8; color: Qt.rgba(1, 1, 1, hit.containsMouse ? 0.12 : 0) }
           MouseArea {
             id: hit
             anchors.fill: parent
@@ -219,13 +222,13 @@ Item {
         Text {
           textFormat: Text.PlainText
           anchors.top: thumb.bottom
-          anchors.topMargin: 2
+          anchors.topMargin: 4
           width: parent.width
           elide: Text.ElideRight
           text: cell.modelData.caption
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Commons.Style.font.caption
         }
       }
     }
@@ -238,6 +241,6 @@ Item {
     text: tab.snap.ok ? "No captioned screenshots yet" : ""
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: 11
+    font.pixelSize: Commons.Style.font.bodySmall
   }
 }

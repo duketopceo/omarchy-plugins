@@ -14,6 +14,7 @@ import "Activity.js" as Activity
 import "Plugins.js" as Plugins
 import "Agents.js" as Agents
 import "Screenshots.js" as Screenshots
+import "Motion.js" as Motion
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -270,6 +271,19 @@ Item {
   // clears the grab and collapses it. Nothing covers the screen.
   property var openScreens: ({})
   signal collapseRequested()
+  signal openTabRequested(string id)
+  readonly property bool reduceMotion: Commons.Style.reduceMotion || (settings && settings.reduceMotion === true)
+  function primaryScreenName() {
+    var list = Quickshell.screens
+    for (var i = 0; i < list.length; i++) if (list[i].name === "eDP-1") return "eDP-1"
+    return list.length ? list[0].name : ""
+  }
+  // `qs ipc call notch openTab <id>` pins the island open on a tab (used for screenshots).
+  IpcHandler {
+    target: "notch"
+    function openTab(id: string): void { root.openTabRequested(id) }
+    function close(): void { root.collapseRequested() }
+  }
   function setOpen(name, open) {
     if (!!openScreens[name] === open) return
     var copy = {}
@@ -325,7 +339,16 @@ Item {
       }
       Timer { id: xtimer; onTriggered: win.xevent("timer") }
       onExpandedChanged: root.setOpen(modelData.name, expanded)
-      Connections { target: root; function onCollapseRequested() { win.collapseNow() } }
+      Connections {
+        target: root
+        function onCollapseRequested() { win.collapseNow() }
+        function onOpenTabRequested(id) {
+          if (modelData.name !== (Quickshell.screens.length ? root.primaryScreenName() : "")) return
+          win.currentTab = id
+          win.pinned = true
+          if (win.xstate !== "open") win.xstate = "open"
+        }
+      }
       HyprlandFocusGrab {
         active: win.pinned && win.expanded
         windows: [win]
@@ -345,12 +368,12 @@ Item {
 
       Rectangle {
         id: island
-        width: win.expanded ? win.panelSz.width : win.baseWidth     // U5
-        height: win.expanded ? win.panelSz.height : win.baseHeight  // U5
-        // Animates both the hover expand and tab-to-tab size changes; ear growth
-        // uses a calm ease so it never overshoots into the bar widgets.
-        Behavior on width { NumberAnimation { duration: 340; easing.type: win.expanded ? Easing.OutBack : Easing.OutCubic; easing.overshoot: 1.1 } }
-        Behavior on height { NumberAnimation { duration: 340; easing.type: win.expanded ? Easing.OutBack : Easing.OutCubic; easing.overshoot: 1.1 } }
+        // Spring morph (Motion.js): opening bounces a little, closing is quicker and settles.
+        // Reduce motion snaps the shape and lets the content fade instead.
+        width: wSpring.value
+        height: hSpring.value
+        SpringValue { id: wSpring; target: win.expanded ? win.panelSz.width : win.baseWidth; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
+        SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
         // Half the island either side of the camera: where the ear text sits.
         readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         TextMetrics {
