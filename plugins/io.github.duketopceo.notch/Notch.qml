@@ -15,6 +15,7 @@ import "Plugins.js" as Plugins
 import "Agents.js" as Agents
 import "Screenshots.js" as Screenshots
 import "Motion.js" as Motion
+import "Capabilities.js" as Caps
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -102,15 +103,32 @@ Item {
     }
   }
 
-  readonly property int autoCameraWidth: 200   // logical px, 14"/16" MacBook Pro
-  readonly property int cameraWidth: settings.cameraWidth > 0 ? settings.cameraWidth : autoCameraWidth
   readonly property int earWidth: 96       // content room either side of the camera
   readonly property int earMargin: 12     // px kept clear of the nearest bar widget
   readonly property int earCap: 280        // widest an ear may grow
   readonly property int earPad: 6          // gap between ear text and the camera edge
-  // Camera width override from Settings (0 = auto-detect from the device model).
+  // Camera width override from Settings (0 = auto-detect from model / panel / cutout).
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
   readonly property int virtualWidth: 300  // island width on screens without a cutout
+
+  // Optional-module probe (bin/notch-probe). Feeds Settings first-run setup.
+  property var capabilities: Caps.emptyProbe()
+  Process {
+    id: capProbe
+    command: [root.pluginDir + "/bin/notch-probe"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text && text.length < 100000) root.capabilities = Caps.parseProbe(text)
+    }
+    onExited: function(code) { if (code !== 0) root.capabilities = Caps.emptyProbe() }
+  }
+  Timer {
+    interval: 400
+    running: true
+    repeat: false
+    onTriggered: if (!capProbe.running) capProbe.running = true
+  }
+  readonly property string platformNote: Caps.platformTruth(capabilities)
   readonly property int clockSeconds: settings.clockSeconds
   readonly property int slideSeconds: settings.slideSeconds
 
@@ -209,6 +227,7 @@ Item {
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
   readonly property var dictationActivity: dictation
+  readonly property bool wordinkOn: settings.optWordink !== false
 
   // Tailscale + NordVPN (v3): idle status dot, Home dots, Network tab.
   NetworkState { id: networkState }
@@ -241,7 +260,7 @@ Item {
   readonly property var messages: messagesAct
 
   // Agents (N4): herdr agent status. AgentsTab reads it via `agentsActivity`.
-  AgentsActivity { id: agents }
+  AgentsActivity { id: agents; enabled: root.settings.optAgents === true }
   readonly property var agentsActivity: agents
 
   // Activity contract: each entry is { id, active, priority, text, glyph? }.
@@ -249,10 +268,10 @@ Item {
   // else the idle cycle. Add a new XActivity as one more line, anywhere in
   // the list; order does not matter beyond ties.
   readonly property var activities: [
-    { id: "dictation", active: dictation.active, priority: 90, text: dictation.text },
+    { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
-    { id: "messages", active: messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
+    { id: "messages", active: root.settings.optMessages === true && messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
     { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph }
     // activities:end
   ]
@@ -308,7 +327,7 @@ Item {
         transform: monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
       }) : 0
       readonly property bool notched: cut > 0
-      readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride) || Model.SIZES.cameraWidth
+      readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride, cut) || Model.SIZES.cameraWidth
       readonly property int earW: Model.earWidthFor(modelData.width)
 
       // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
@@ -404,7 +423,14 @@ Item {
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
         // A click on the island itself (outside any tab content) pins it open.
-        TapHandler { gesturePolicy: TapHandler.ReleaseWithinBounds; onTapped: { win.pinned = true; if (win.xstate !== "open") win.xstate = "open" } }
+        TapHandler {
+          gesturePolicy: TapHandler.ReleaseWithinBounds
+          onTapped: {
+            win.pinned = true
+            if (Caps.needsSetup(root.settings)) win.currentTab = "settings"
+            if (win.xstate !== "open") win.xstate = "open"
+          }
+        }
         Shortcut { sequence: "Escape"; enabled: win.expanded; onActivated: win.collapseNow() }
         Loader {
           anchors.fill: parent

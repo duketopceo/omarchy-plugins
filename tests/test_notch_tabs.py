@@ -35,13 +35,18 @@ def test_tab_list_shape_and_sources():
         "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
 
 
-def test_snapdex_tab_is_optional_and_off_by_default():
+def test_optional_tabs_off_by_default_and_setup_keys_exist():
     off = [t["id"] for t in run("T.visibleTabs(S.resolve(null))")]
-    assert "screenshots" not in off and "network" in off
-    on = [t["id"] for t in run("T.visibleTabs(S.resolve({snapdex:true}))")]
-    assert "screenshots" in on
+    assert "screenshots" not in off and "agents" not in off and "messages" not in off
+    assert "network" in off and "stocks" in off and "plugins" in off
+    on = [t["id"] for t in run("T.visibleTabs(S.resolve({snapdex:true,optAgents:true,optMessages:true}))")]
+    assert set(["screenshots", "agents", "messages"]).issubset(on)
     assert run("S.DEFAULTS.snapdex") is False
+    assert run("S.DEFAULTS.optAgents") is False
+    assert run("S.DEFAULTS.setupDone") is False
     assert run("S.field('snapdex').type") == "bool"
+    prefs = [f["key"] for f in run("S.prefFields()")]
+    assert "setupDone" not in prefs and "snapdex" not in prefs and "clockSeconds" in prefs
 
 
 def test_shipped_tab_files_exist():

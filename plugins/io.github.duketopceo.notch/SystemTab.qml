@@ -72,7 +72,16 @@ Item {
     onFileChanged: reload()
   }
   readonly property string shownMode: pendingMode !== "" ? pendingMode : helper.mode
-  readonly property bool canSetMode: helper.present && helper.controllable && fanSetReady
+  readonly property bool fanOptIn: !(notch && notch.settings) || notch.settings.optFan !== false
+  readonly property bool canSetMode: fanOptIn && helper.present && helper.controllable && fanSetReady
+  // GPU / NPU labels from the host probe (or local hwmon); never hardcode AGX.
+  readonly property var gpuInfo: (notch && notch.capabilities && notch.capabilities.gpu)
+    ? notch.capabilities.gpu
+    : Sys.detectGpu(hw && hw.name ? hw.name : "", "")
+  readonly property var npuInfo: (notch && notch.capabilities && notch.capabilities.npu)
+    ? notch.capabilities.npu
+    : Sys.detectNpu(aneStats && aneStats.ok ? "busy_ns 1" : "", false)
+  readonly property bool showNpu: npuInfo.present === true || (aneStats && aneStats.ok)
 
   function sample() {
     var now = Date.now()
@@ -223,7 +232,7 @@ Item {
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "P" + (tab.cpuP >= 0 ? Math.round(tab.cpuP) : "-") + " E" + (tab.cpuE >= 0 ? Math.round(tab.cpuE) : "-"); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.clusters.p ? Sys.fmtGHz(tab.clusters.p.khz) : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
-    // GPU
+    // GPU (label from probe; util not wired on any vendor yet)
     Column {
       width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
@@ -233,8 +242,8 @@ Item {
         text: "n/a"; family: tab.family; textColor: tab.dimColor
       }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "GPU"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "32-core AGX"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "needs root"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.gpuInfo.label; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.gpuInfo.note || "n/a"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
     // RAM
     Column {
@@ -249,17 +258,17 @@ Item {
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: Sys.fmtGiB(tab.mem.usedKb) + " / " + Sys.fmtGiB(tab.mem.totalKb).replace(" GB", ""); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "zram " + Sys.fmtGiB(tab.mem.swapUsedKb); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
-    // ANE
+    // NPU / ANE (hidden label stays honest when absent)
     Column {
       width: Math.floor(tab.leftW / 4); spacing: 2
       SystemRing {
         anchors.horizontalCenter: parent.horizontalCenter
         width: 68; height: 68
-        value: tab.aneBusy / 100; tone: tab.aneTone
+        value: tab.showNpu ? tab.aneBusy / 100 : -1; tone: tab.aneTone
         text: tab.aneStats.ok ? tab.pct(tab.aneBusy) : "n/a"; family: tab.family; textColor: tab.textColor
       }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "ANE"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneCheck.state; color: tab.aneCheck.ready ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.npuInfo.label; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.showNpu ? tab.aneCheck.state : "not present"; color: tab.aneCheck.ready ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneStats.ok ? tab.aneStats.jobs + " jobs" : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
   }

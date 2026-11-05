@@ -77,7 +77,9 @@ Item {
     onLoadFailed: panel.wisp = null
     onFileChanged: reload()
   }
-  readonly property bool showWisp: wispPresent || wisp !== null
+  readonly property bool wispOptIn: !(notch && notch.settings) || notch.settings.optWisp !== false
+  readonly property bool dictOptIn: !(notch && notch.settings) || notch.settings.optWordink !== false
+  readonly property bool showWisp: wispOptIn && (wispPresent || wisp !== null)
 
   // Network dots share NetworkState's slow poll; no fast polling from Home.
   function dotColor(kind) { return kind === "on" ? Commons.Color.accent : kind === "busy" ? Commons.Color.foreground : Commons.Color.muted }
@@ -415,7 +417,7 @@ Item {
         DotButton { name: "Tail"; state: panel.net ? panel.net.tsDot : "off"; onClicked: if (panel.notch) panel.notch.network.copyIp(panel.net.ts.selfIp) }
         DotButton { name: "Nord"; state: panel.net ? panel.net.nordDot : "off"; onClicked: if (panel.net) panel.net.toggleNord() }
         DotButton { visible: panel.showWisp; name: "Wisp"; state: panel.wisp ? "on" : "off"; onClicked: if (panel.notch) panel.notch.openWisp() }
-        DotButton { name: "Dict"; state: panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state === "recording" ? "busy" : (panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state !== "not-running" ? "on" : "off"); onClicked: if (panel.notch) panel.notch.dictationActivity.toggle() }
+        DotButton { visible: panel.dictOptIn; name: "Dict"; state: panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state === "recording" ? "busy" : (panel.notch && panel.notch.dictationActivity && panel.notch.dictationActivity.state !== "not-running" ? "on" : "off"); onClicked: if (panel.notch) panel.notch.dictationActivity.toggle() }
       }
     }
   }

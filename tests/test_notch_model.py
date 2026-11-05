@@ -58,6 +58,17 @@ WIDGETS = json.dumps([
 ])
 
 
+def test_camera_width_auto_for_known_and_unknown_cutouts():
+    # 16" MBP j316 at 2x: 372 physical -> 186 logical on 1728-wide mode
+    assert run("M.cameraWidthFor('apple,j316c',3456,1728,0)") == 186
+    # unknown model but panel width in CAMERA_BY_PANEL
+    assert run("M.cameraWidthFor('',3024,1512,0)") == 186
+    # unknown notched panel: ~12% physical scaled to logical when cutHeight > 0
+    assert run("M.cameraWidthFor('',3840,1920,0,40)") == 231  # Math.round(461 * 1920 / 3840)
+    assert run("M.cameraWidthFor('',3840,1920,0,0)") == 0  # no cutout → no estimate
+    assert run("M.cameraWidthFor('apple,j316c',3456,1728,210)") == 210  # override wins
+
+
 def test_island_rect_and_blocking():
     island = run("M.islandRect(1728,32)")
     assert island == {"x": 668, "y": 0, "width": 392, "height": 32, "notched": True}
