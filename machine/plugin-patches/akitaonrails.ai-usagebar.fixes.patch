@@ -1,0 +1,101 @@
+diff --git i/omarchy/Panel.qml w/omarchy/Panel.qml
+index 5f5c757..efe01f6 100644
+--- i/omarchy/Panel.qml
++++ w/omarchy/Panel.qml
+@@ -766,9 +766,8 @@ Panel {
+   Process {
+     id: usageProcess
+     running: false
+-    // /usr/bin/env always starts on Omarchy and reports a missing ai-usagebar
+-    // as exit 127. Keep the command as structured argv: no shell is needed.
+-    command: ["/usr/bin/env", "ai-usagebar", "usage", "--json"]
++    // Runs through OmaSeal-aware wrapper to dynamically resolve OpenRouter management key
++    command: ["/home/lukekimball/.local/bin/ai-usagebar-omaseal", "usage", "--json"]
+ 
+     stdout: StdioCollector {
+       waitForEnd: true
+@@ -964,7 +963,7 @@ Panel {
+             id: providerList
+             visible: !root.settingsOpen && root.visibleEntries.length > 1
+             width: parent.width
+-            height: visible ? childrenRect.height : 0
++            height: visible ? implicitHeight : 0
+             flow: Flow.LeftToRight
+             spacing: Style.spacing.md
+ 
+@@ -998,7 +997,7 @@ Panel {
+             id: cursorPoolToggles
+             visible: !root.settingsOpen && root.cursorEntry
+             width: parent.width
+-            height: visible ? childrenRect.height : 0
++            height: visible ? implicitHeight : 0
+             flow: Flow.LeftToRight
+             spacing: Style.spacing.md
+ 
+@@ -1069,16 +1068,25 @@ Panel {
+             }
+           }
+ 
+-          Column {
++          // GNOME-style card: the usage & balance rows sit inside a rounded
++          // surface instead of floating on the panel background, matching the
++          // Resource & Fan panel's card language.
++          Rectangle {
+             id: usageSection
+             visible: !root.settingsOpen && root.entrySections.length > 0
+             width: parent.width
+-            spacing: Style.space(8)
++            radius: Style.cornerRadius
++            color: Style.normalFillFor(root.foreground, Color.accent)
++            border.color: root.alpha(root.foreground, 0.08)
++            border.width: 1
++            implicitHeight: usageCard.implicitHeight + Style.space(24)
+ 
+-            PanelSeparator {
+-              width: parent.width
+-              foreground: root.foreground
+-            }
++            Column {
++              id: usageCard
++              x: Style.space(12)
++              y: Style.space(12)
++              width: usageSection.width - Style.space(24)
++              spacing: Style.space(8)
+ 
+             PanelSectionHeader {
+               text: root.tr("section.usage_balance")
+@@ -1091,7 +1099,7 @@ Panel {
+ 
+               Column {
+                 required property var modelData
+-                width: usageSection.width
++                width: usageCard.width
+ 
+                 // `visible` alone is not enough: QML evaluates the bindings of
+                 // hidden items too, so every row used to be handed to all three
+@@ -1123,6 +1131,7 @@ Panel {
+                 }
+               }
+             }
++            }
+           }
+ 
+           Text {
+@@ -1330,13 +1339,14 @@ Panel {
+     }
+ 
+     Text {
++      readonly property bool isGraph: blockRow.row && blockRow.row.body && blockRow.row.body.some(function(l) { return l.indexOf("■") !== -1 || l.indexOf("█") !== -1 })
+       width: parent.width
+       text: blockRow.row && blockRow.row.body ? blockRow.row.body.join("\n") : ""
+       textFormat: Text.PlainText
+       color: root.dim
+-      font.family: root.fontFamily
+-      font.pixelSize: Style.font.caption
+-      wrapMode: Text.WordWrap
++      font.family: isGraph ? "monospace" : root.fontFamily
++      font.pixelSize: isGraph ? Style.font.caption - 1 : Style.font.caption
++      wrapMode: isGraph ? Text.NoWrap : Text.WordWrap
+     }
+   }
+ }

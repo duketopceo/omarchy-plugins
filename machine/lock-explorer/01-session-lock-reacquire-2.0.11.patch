@@ -1,0 +1,20 @@
+diff --git i/Service.qml w/Service.qml
+index 24fa893..329a0a2 100644
+--- i/Service.qml
++++ w/Service.qml
+@@ -3768,12 +3768,9 @@ echo "$out"
+       }
+ 
+       if (!locked && root.lockRequested) {
+-        root.lockRequested = false
+-        root.pendingSessionLock = false
+-        sessionLockStabilizeTimer.stop()
+-        pendingSessionLockTimer.stop()
+-        root.resetAuthenticationState()
+-        root.runWake()
++        // Losing the compositor surface is not an authenticated unlock.
++        root.logEvent("session-lock-lost: reacquiring")
++        root.requestSessionLock()
+       }
+     }
+ 
