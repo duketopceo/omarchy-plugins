@@ -43,6 +43,33 @@ def test_formatted_dynamic_qml_text_passes(tmp_path: Path) -> None:
     assert not any(item["rule"] == "qml-plain-text" for item in findings)
 
 
+def test_bare_color_singleton_is_rejected(tmp_path: Path) -> None:
+    module = load_module()
+    plugin = tmp_path / "demo"
+    plugin.mkdir()
+    (plugin / "Panel.qml").write_text(
+        "import QtQuick\nimport qs.Commons\nRectangle { color: Color.accent }\n"
+    )
+
+    findings = module.scan_plugin(plugin)
+
+    assert any(item["rule"] == "bare-color-singleton" for item in findings)
+
+
+def test_qualified_color_singleton_passes(tmp_path: Path) -> None:
+    module = load_module()
+    plugin = tmp_path / "demo"
+    plugin.mkdir()
+    (plugin / "Panel.qml").write_text(
+        "import QtQuick\nimport qs.Commons as Commons\n"
+        "Rectangle { color: Commons.Color.accent }\n"
+    )
+
+    findings = module.scan_plugin(plugin)
+
+    assert not any(item["rule"] == "bare-color-singleton" for item in findings)
+
+
 def test_ambient_interpreter_is_rejected(tmp_path: Path) -> None:
     module = load_module()
     plugin = tmp_path / "demo"

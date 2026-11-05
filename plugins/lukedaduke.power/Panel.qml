@@ -283,7 +283,7 @@ Panel {
   }
 
   IpcHandler {
-    target: "omarchy.power"
+    target: "lukedaduke.power"
 
     function open() { root.open() }
     function close() { root.close() }
