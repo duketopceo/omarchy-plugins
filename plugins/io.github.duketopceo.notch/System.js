@@ -259,6 +259,23 @@ function fanModeTitle(id) {
   return id || "Auto"
 }
 
+// GPU kind from hwmon name dump + optional DRM vendor ids. Utilization is
+// not wired for any vendor here (Asahi AGX has no userspace counter).
+function detectGpu(hwmonText, drmVendorText) {
+  var blob = (String(hwmonText || "") + " " + String(drmVendorText || "")).toLowerCase()
+  if (/macsmc|asahi|agx/.test(blob)) return { kind: "asahi-agx", label: "Asahi AGX", util: false, note: "no util counter" }
+  if (/nvidia|10de/.test(blob)) return { kind: "nvidia", label: "NVIDIA", util: false, note: "util not wired" }
+  if (/amdgpu|radeon|1002/.test(blob)) return { kind: "amd", label: "AMD", util: false, note: "util not wired" }
+  if (/i915|\bxe\b|8086/.test(blob)) return { kind: "intel", label: "Intel", util: false, note: "util not wired" }
+  return { kind: "none", label: "GPU", util: false, note: "n/a" }
+}
+
+function detectNpu(aneStatsText, accelPresent) {
+  if (aneStatsText && parseAneStats(aneStatsText).ok) return { kind: "ane", label: "ANE", present: true }
+  if (accelPresent) return { kind: "accel", label: "NPU", present: true }
+  return { kind: "none", label: "NPU", present: false }
+}
+
 // ----------------------------------------------------------------- Neural Engine
 // /sys/class/accel/accel0/device/ane_stats: "busy_ns N\njobs N\n<pmp state>"
 function parseAneStats(text) {
@@ -482,6 +499,7 @@ if (typeof module !== "undefined") {
     groupHwmon: groupHwmon, tempName: tempName, powerName: powerName, parseHwmon: parseHwmon,
     fanFraction: fanFraction, fmtRpm: fmtRpm, totalPower: totalPower,
     parseFanHelper: parseFanHelper, fanModeArg: fanModeArg, fanModeTitle: fanModeTitle,
+    detectGpu: detectGpu, detectNpu: detectNpu,
     parseAneStats: parseAneStats, aneUtil: aneUtil, parseAneCheck: parseAneCheck, parseFuserPids: parseFuserPids,
     parseMlxProcs: parseMlxProcs, parseAneProcs: parseAneProcs, mlxListenPorts: mlxListenPorts,
     modelsCommand: modelsCommand, parseModelIds: parseModelIds, aneState: aneState, pushJobs: pushJobs,
