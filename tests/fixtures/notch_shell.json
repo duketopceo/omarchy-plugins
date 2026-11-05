@@ -1,0 +1,20 @@
+{
+  "bar": {
+    "layout": {
+      "left": [{ "id": "omarchy.workspaces" }],
+      "tray": [
+        { "id": "example.alpha" },
+        { "id": "example.beta", "iconAlwaysUnlit": true },
+        "example.gamma",
+        { "id": "example.alpha" },
+        { "label": "no id" },
+        { "id": "" },
+        null
+      ]
+    }
+  },
+  "plugins": [
+    { "id": "other.plugin", "x": 1 },
+    { "id": "io.github.duketopceo.notch", "clockSeconds": 40, "unit": "C", "showStocks": false, "cameraWidth": 188 }
+  ]
+}

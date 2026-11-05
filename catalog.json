@@ -93,6 +93,15 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-hotkey-tally"
+    },
+    {
+      "id": "io.github.duketopceo.notch",
+      "path": "plugins/io.github.duketopceo.notch",
+      "version": "0.1.0",
+      "kinds": [
+        "panel"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-notch"
     }
   ]
 }

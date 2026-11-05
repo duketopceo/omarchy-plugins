@@ -1,0 +1,28 @@
+{
+  "bar": {
+    "layout": {
+      "center": [],
+      "left": [
+        { "id": "omarchy.workspaces" },
+        { "id": "io.github.duketopceo.snapdex" },
+        { "id": "omarchy.menu" },
+        { "id": "omarchy.active-window", "maxWidth": 160 },
+        { "id": "omarchy.indicators" },
+        { "id": "io.github.duketopceo.nordvpn" },
+        { "id": "mohamedmansour.finance", "showChange": false },
+        { "id": "omarchy.elsewhen", "cities": [{ "name": "Example", "zone": "UTC" }] },
+        { "id": "io.github.duketopceo.wisp" },
+        { "id": "omarchy.microphone" }
+      ],
+      "right": [
+        { "id": "example.tray" },
+        { "id": "nixfred.blip" },
+        { "id": "omarchy.tailscale" },
+        { "id": "omarchy.network" },
+        { "id": "io.github.duketopceo.wordink" }
+      ],
+      "tray": [{ "id": "example.panel" }]
+    }
+  },
+  "plugins": [{ "id": "io.github.duketopceo.notch", "snapdex": true }]
+}
