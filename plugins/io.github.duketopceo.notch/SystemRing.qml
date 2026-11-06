@@ -7,10 +7,10 @@ Item {
   id: ring
 
   property real value: -1
-  property color tone: "#6fa8ff"
-  property color track: Qt.rgba(1, 1, 1, 0.10)
+  property color tone: Tk.sky
+  property color track: Tk.tint(0.10)
   property string text: ""
-  property color textColor: Commons.Color.foreground
+  property color textColor: Tk.text
   property string family: Commons.Style.font.family
   property real thickness: 5
 

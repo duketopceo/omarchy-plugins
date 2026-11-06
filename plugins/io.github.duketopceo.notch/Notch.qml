@@ -64,6 +64,10 @@ Item {
   // changes `theme` (settings is reactive via shellConfig/pending).
   readonly property var themeObj: Theme.resolve(settings.theme)
   readonly property string themeId: themeObj.id
+  Binding { target: Tk; property: "id"; value: root.themeId }
+  Binding { target: Tk; property: "reduce"; value: root.reduceMotion }
+
+  function toggleTheme() { setSetting("theme", themeId === "pxl" ? "swift" : "pxl") }
 
   function setSetting(key, value) {
     var copy = {}
@@ -131,7 +135,7 @@ Item {
   readonly property color goodColor: themeObj.good
   readonly property color warnColor: themeObj.warn
   readonly property color badColor: themeObj.bad
-  readonly property string fontFamily: themeObj.fontFamily || Commons.Style.font.family
+  readonly property string fontFamily: Tk.family
   readonly property int islandRadius: themeObj.islandRadius
   readonly property int cardRadius: themeObj.cardRadius
   readonly property int pillRadius: themeObj.pillRadius
@@ -308,6 +312,7 @@ Item {
     target: "notch"
     function openTab(id: string): void { root.openTabRequested(id) }
     function close(): void { root.collapseRequested() }
+    function toggleTheme(): void { root.toggleTheme() }
   }
   function setOpen(name, open) {
     if (!!openScreens[name] === open) return
@@ -400,9 +405,10 @@ Item {
         // Reduce motion snaps the shape and lets the content fade instead.
         width: wSpring.value
         height: hSpring.value
-        SpringValue { id: wSpring; target: win.expanded ? win.panelSz.width : win.baseWidth; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
-        SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
+        SpringValue { id: wSpring; target: win.expanded ? win.panelSz.width : win.baseWidth; instant: root.reduceMotion; stepped: Tk.pxl; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
+        SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; stepped: Tk.pxl; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
         // Half the island either side of the camera: where the ear text sits.
+        readonly property bool earsOn: win.notched && (!Tk.pxl || !(win.expanded || height > win.baseHeight + 1))
         readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         TextMetrics {
           id: sideMetrics
@@ -418,12 +424,13 @@ Item {
         }
         x: Math.round((parent.width - width) / 2)
         y: 0
-        color: root.islandColor
+        color: Tk.pxl ? "transparent" : root.islandColor
         topLeftRadius: 0
         topRightRadius: 0
         bottomLeftRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
         bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
 
+        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: Tk.edge }
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
         // A click on the island itself (outside any tab content) pins it open.
@@ -452,21 +459,21 @@ Item {
 
         // Notched: time in the left ear; right ear = date, then the ONE rotating slot.
         Text {
-          visible: win.notched
+          visible: island.earsOn
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, island.earLive - root.earPad - 2)
           elide: Text.ElideRight
           x: island.earLive - width - root.earPad   // right-aligned against the camera edge
           text: root.timeText
           color: root.textColor
-          font.family: root.fontFamily
+          font.family: Tk.label
           font.pixelSize: 13
           textFormat: Text.PlainText
           font.weight: Font.DemiBold
         }
         // Date: fixed in the right ear next to the camera; never cycles.
         Text {
-          visible: win.notched
+          visible: island.earsOn
           anchors.verticalCenter: parent.verticalCenter
           x: island.earLive + win.camW + root.earPad
           text: root.dateLead
@@ -477,7 +484,7 @@ Item {
         }
         // watchlist hook: the slide replaces the side text while view === "watchlist".
         WatchlistSlide {
-          visible: win.notched && root.view === "watchlist"
+          visible: island.earsOn && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
           x: win.slotX   // after the date
           quotes: root.quotes
@@ -488,7 +495,7 @@ Item {
           family: root.fontFamily
         }
         SlideText {
-          visible: win.notched && root.view !== "watchlist" && root.view !== "date"
+          visible: island.earsOn && root.view !== "watchlist" && root.view !== "date"
           anchors.verticalCenter: parent.verticalCenter
           x: win.slotX + root.eqSpace
           target: root.sideText
@@ -501,7 +508,7 @@ Item {
 
         // N3: animated equalizer beside the title while media plays.
         EqGlyph {
-          visible: win.notched && root.mediaShown
+          visible: island.earsOn && root.mediaShown
           playing: media.active
           color: root.textColor
           anchors.verticalCenter: parent.verticalCenter
@@ -520,8 +527,8 @@ Item {
         // one connects; hidden otherwise and while a dictation dot shows.
         Rectangle {
           id: netDot
-          visible: win.notched && root.network.idleDot !== "" && !dictation.active
-          width: 5; height: 5; radius: 3
+          visible: island.earsOn && root.network.idleDot !== "" && !dictation.active
+          width: 5; height: 5; radius: Tk.r(3)
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
           anchors.rightMargin: Math.round(parent.height * 0.45)
@@ -530,7 +537,7 @@ Item {
 
         // Click the right ear while dictation is showing to stop/toggle it.
         MouseArea {
-          visible: win.notched
+          visible: island.earsOn
           enabled: dictation.active && !win.expanded
           x: island.earLive + win.camW
           width: island.earLive

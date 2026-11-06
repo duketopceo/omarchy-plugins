@@ -11,8 +11,8 @@ Item {
   property var notch: null
   readonly property var media: notch ? notch.mediaActivity : null
   readonly property var player: media ? media.player : null
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property bool fp: !!media && media.isFastpotify && media.cliReady
   property bool dragging: false
@@ -43,14 +43,14 @@ Item {
     property bool on: false
     property bool dim: false
     signal clicked()
-    width: 44; height: 32; radius: 16
-    color: ma.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, b.on ? 0.18 : 0.08)
+    width: 44; height: 32; radius: Tk.r(16)
+    color: ma.containsMouse ? Tk.tint(0.22) : Tk.tint(b.on ? 0.18 : 0.08)
     opacity: b.dim ? 0.35 : 1
     Text {
       anchors.centerIn: parent
       textFormat: Text.PlainText
       text: b.glyph
-      color: b.on ? Commons.Color.accent : tab.textColor
+      color: b.on ? Tk.accent : tab.textColor
       font.family: tab.family
       font.pixelSize: Commons.Style.font.icon
     }
@@ -61,8 +61,8 @@ Item {
 
   Rectangle {
     id: art
-    width: tab.artSize; height: tab.artSize; radius: 14
-    color: Qt.rgba(1, 1, 1, 0.08)
+    width: tab.artSize; height: tab.artSize; radius: Tk.r(14)
+    color: Tk.tint(0.08)
     clip: true
     Image {
       anchors.fill: parent
@@ -124,8 +124,7 @@ Item {
     Item {
       width: parent.width
       height: 16
-      Rectangle { id: track; anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 6; radius: 3; color: Qt.rgba(1, 1, 1, 0.15) }
-      Rectangle { anchors.verticalCenter: parent.verticalCenter; width: Math.round(track.width * tab.frac); height: 6; radius: 3; color: Commons.Color.accent }
+      SegBar { id: track; anchors.verticalCenter: parent.verticalCenter; width: parent.width; value: tab.frac; track: Tk.tint(0.15) }
       MouseArea {
         anchors.fill: parent
         enabled: !!tab.player
@@ -173,8 +172,8 @@ Item {
         id: chip
         required property var modelData
         readonly property bool current: !!tab.player && !!chip.modelData && tab.player.dbusName === chip.modelData.dbusName
-        height: 24; width: Math.min(130, chipText.implicitWidth + 16); radius: 12
-        color: current ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(1, 1, 1, 0.07)
+        height: 24; width: Math.min(130, chipText.implicitWidth + 16); radius: Tk.r(12)
+        color: current ? Tk.tint(0.2) : Tk.tint(0.07)
         Text {
           id: chipText
           anchors.centerIn: parent
@@ -191,8 +190,8 @@ Item {
     Item { width: 1; height: 1 }
     Rectangle {
       visible: !!media && media.cliReady
-      height: 24; width: openText.implicitWidth + 16; radius: 12
-      color: openHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+      height: 24; width: openText.implicitWidth + 16; radius: Tk.r(12)
+      color: openHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
       Text {
         id: openText
         anchors.centerIn: parent

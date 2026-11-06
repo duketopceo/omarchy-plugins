@@ -7,7 +7,7 @@ Canvas {
   id: spark
 
   property var values: []                 // closes, oldest first
-  property color tone: "#8b8f98"
+  property color tone: Tk.gray
   property real lineWidth: 1.4
 
   onValuesChanged: requestPaint()
@@ -25,14 +25,14 @@ Canvas {
     var r = Stocks.valueRange(pts, false)
     var sc = Stocks.scalePoints(pts, { w: width, h: height, left: 1, right: 1, top: 2, bottom: 2 }, r.min, r.max)
     var grad = ctx.createLinearGradient(0, 0, 0, height)
-    grad.addColorStop(0, Qt.rgba(tone.r, tone.g, tone.b, 0.30))
-    grad.addColorStop(1, Qt.rgba(tone.r, tone.g, tone.b, 0.0))
+    grad.addColorStop(0, Tk.alpha(tone, 0.30))
+    grad.addColorStop(1, Tk.alpha(tone, 0.0))
     ctx.beginPath()
     ctx.moveTo(sc.xs[0], height)
     for (var a = 0; a < sc.xs.length; a++) ctx.lineTo(sc.xs[a], sc.ys[a])
     ctx.lineTo(sc.xs[sc.xs.length - 1], height)
     ctx.closePath()
-    ctx.fillStyle = grad
+    ctx.fillStyle = Tk.pxl ? Tk.card : grad
     ctx.fill()
     ctx.beginPath()
     ctx.moveTo(sc.xs[0], sc.ys[0])

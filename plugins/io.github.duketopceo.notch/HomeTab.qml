@@ -28,7 +28,7 @@ Item {
   readonly property bool active: visible
   readonly property var weather: notch ? notch.weather : null
   readonly property date now: notch ? notch.now : new Date()
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property string home: Quickshell.env("HOME")
@@ -71,7 +71,7 @@ Item {
   }
 
   // Network dots share NetworkState's slow poll; no fast polling from Home.
-  function dotColor(kind) { return kind === "on" ? Commons.Color.accent : kind === "busy" ? Commons.Color.foreground : Commons.Color.muted }
+  function dotColor(kind) { return kind === "on" ? Tk.accent : kind === "busy" ? Tk.text : Tk.dim }
   function greeting() {
     var h = now.getHours()
     return h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"
@@ -94,15 +94,15 @@ Item {
   component Caption: Text {
     textFormat: Text.PlainText
     color: panel.dimColor
-    font.family: panel.family
+    font.family: Tk.label
     font.pixelSize: Commons.Style.font.caption
     font.letterSpacing: 0.8
     font.capitalization: Font.AllUppercase
   }
 
   component Divider: Rectangle {
-    width: 1
-    color: Qt.rgba(1, 1, 1, 0.07)
+    width: Tk.bw(1)
+    color: Tk.tint(0.07)
   }
 
   component Stat: Column {
@@ -134,7 +134,7 @@ Item {
       id: dbRow
       spacing: 6
       anchors.verticalCenter: parent.verticalCenter
-      Rectangle { width: 8; height: 8; radius: 4; color: panel.dotColor(db.state); anchors.verticalCenter: parent.verticalCenter }
+      Rectangle { width: 8; height: 8; radius: Tk.r(4); color: panel.dotColor(db.state); anchors.verticalCenter: parent.verticalCenter }
       Text { textFormat: Text.PlainText; text: db.name; color: dbHit.containsMouse ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea { id: dbHit; anchors.fill: parent; anchors.margins: -4; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: db.clicked() }
@@ -145,8 +145,8 @@ Item {
     property string glyph: ""
     property int size: 28
     signal clicked()
-    width: size; height: size; radius: size / 2
-    color: rbHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+    width: size; height: size; radius: Tk.r(size / 2)
+    color: rbHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
     opacity: panel.player ? 1 : 0.4
     Text {
       textFormat: Text.PlainText
@@ -174,7 +174,7 @@ Item {
         textFormat: Text.PlainText
         text: notch ? notch.timeText : Qt.formatTime(panel.now, "h:mm AP")
         color: panel.textColor
-        font.family: panel.family
+        font.family: Tk.label
         font.pixelSize: Commons.Style.font.displayLarge
         font.weight: Font.DemiBold
         font.features: ({ "tnum": 1 })
@@ -208,7 +208,7 @@ Item {
         width: parent.width
         elide: Text.ElideRight
         text: panel.statusLine()
-        color: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.dimColor
+        color: panel.agentCounts.blocked > 0 ? Tk.urgent : panel.dimColor
         font.family: panel.family
         font.pixelSize: Commons.Style.font.bodySmall
       }
@@ -218,11 +218,11 @@ Item {
       x: 2 * (panel.colW + panel.gap)
       width: panel.colW
       anchors.verticalCenter: parent.verticalCenter
-      Stat { width: Math.floor(parent.width / 2); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
-      Stat { width: Math.floor(parent.width / 2); label: "Unread"; value: String(panel.unread); tint: panel.unread > 0 ? Commons.Color.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 2); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Tk.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 2); label: "Unread"; value: String(panel.unread); tint: panel.unread > 0 ? Tk.accent : panel.textColor }
     }
   }
-  Rectangle { y: panel.headerH + 5; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+  Rectangle { y: panel.headerH + 5; width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
 
   // ------------------------------------------------------------ col 1: now playing + weather
   Item {
@@ -237,8 +237,8 @@ Item {
       id: art
       anchors.top: npCap.bottom
       anchors.topMargin: 8
-      width: 80; height: 80; radius: 10
-      color: Qt.rgba(1, 1, 1, 0.08)
+      width: 80; height: 80; radius: Tk.r(10)
+      color: Tk.tint(0.08)
       clip: true
       Text {
         textFormat: Text.PlainText
@@ -301,7 +301,7 @@ Item {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: 64
-      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+      Rectangle { width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
       PixelWeather {
         id: wIcon
         px: 3
@@ -355,8 +355,8 @@ Item {
       anchors.top: agCap.bottom
       anchors.topMargin: 6
       width: parent.width
-      Stat { width: Math.floor(parent.width / 3); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
-      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 3); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Tk.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? Tk.urgent : panel.textColor }
       Stat { width: Math.floor(parent.width / 3); label: "Done"; value: String(panel.agentCounts.done); tint: panel.textColor }
     }
 
@@ -373,21 +373,16 @@ Item {
           id: pctLabel
           textFormat: Text.PlainText
           text: panel.topUsage ? panel.topUsage.percent + "%" : ""
-          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : panel.textColor
+          color: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : panel.textColor
           font.family: panel.family
           font.pixelSize: Commons.Style.font.bodySmall
           font.features: ({ "tnum": 1 })
         }
       }
-      Rectangle {
-        width: parent.width; height: 6; radius: 3
-        color: Qt.rgba(1, 1, 1, 0.1)
-        Rectangle {
-          width: parent.width * Math.max(0, Math.min(1, (panel.topUsage ? panel.topUsage.percent : 0) / 100))
-          height: parent.height; radius: 3
-          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : Commons.Color.accent
-          Behavior on width { SpringAnimation { spring: 3; damping: 0.4; epsilon: 0.25 } }
-        }
+      SegBar {
+        width: parent.width
+        value: (panel.topUsage ? panel.topUsage.percent : 0) / 100
+        fill: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : Tk.accent
       }
     }
 
@@ -410,7 +405,7 @@ Item {
           id: dfPct
           textFormat: Text.PlainText
           text: dfTile.td.focusPct >= 0 ? dfTile.td.focusPct + "% focus" : ""
-          color: dfTile.td.focusPct >= 60 ? Commons.Color.accent : panel.textColor
+          color: dfTile.td.focusPct >= 60 ? Tk.accent : panel.textColor
           font.family: panel.family
           font.pixelSize: Commons.Style.font.bodySmall
           font.features: ({ "tnum": 1 })
@@ -422,16 +417,16 @@ Item {
         width: parent.width
         spacing: 6
         Rectangle {
-          width: 8; height: 8; radius: 4
+          width: 8; height: 8; radius: Tk.r(4)
           anchors.verticalCenter: parent.verticalCenter
-          color: dfTile.st.paused ? Commons.Color.urgent : dfTile.td.current ? Dayflow.categoryColor(dfTile.td.current.category) : panel.dimColor
+          color: dfTile.st.paused ? Tk.urgent : dfTile.td.current ? Dayflow.categoryColor(dfTile.td.current.category) : panel.dimColor
         }
         Text {
           textFormat: Text.PlainText
           width: parent.width - 14
           elide: Text.ElideRight
           text: dfTile.st.paused ? "Capture paused" : !dfTile.st.ok ? "Dayflow unavailable" : dfTile.td.current ? dfTile.td.current.title : "No current block"
-          color: dfTile.st.paused ? Commons.Color.urgent : dfTile.td.current ? panel.textColor : panel.dimColor
+          color: dfTile.st.paused ? Tk.urgent : dfTile.td.current ? panel.textColor : panel.dimColor
           font.family: panel.family
           font.pixelSize: Commons.Style.font.bodySmall
         }
@@ -445,7 +440,7 @@ Item {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: 64
-      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+      Rectangle { width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
       Caption { id: netCap; anchors.top: parent.top; anchors.topMargin: 10; text: "Network" }
       Flow {
         anchors.top: netCap.bottom
@@ -495,7 +490,7 @@ Item {
           width: col3.width
           Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.weight: Font.DemiBold }
           Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
-          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Commons.Color.urgent; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Tk.urgent; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
         }
       }
     }

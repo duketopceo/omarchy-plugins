@@ -10,12 +10,12 @@ Rectangle {
   property var values: []
   property real minValue: 0
   property real maxValue: 100
-  property color tone: "#6fa8ff"
+  property color tone: Tk.sky
   property string label: ""
   property string readout: ""
   property string emptyText: "n/a"
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
+  property color textColor: Tk.text
+  property color dimColor: Tk.dim
   property string family: Commons.Style.font.family
   readonly property bool hasData: {
     var v = values || []
@@ -23,8 +23,8 @@ Rectangle {
     return false
   }
 
-  radius: 6
-  color: Qt.rgba(1, 1, 1, 0.05)
+  radius: Tk.r(6)
+  color: Tk.tint(0.05)
   clip: true
 
   onValuesChanged: canvas.requestPaint()
@@ -54,14 +54,14 @@ Rectangle {
       function flush(end) {
         if (segStart < 0) return
         var grad = ctx.createLinearGradient(0, top, 0, height)
-        grad.addColorStop(0, Qt.rgba(tone.r, tone.g, tone.b, 0.28))
-        grad.addColorStop(1, Qt.rgba(tone.r, tone.g, tone.b, 0))
+        grad.addColorStop(0, Tk.alpha(tone, 0.28))
+        grad.addColorStop(1, Tk.alpha(tone, 0))
         ctx.beginPath()
         ctx.moveTo(X(segStart), height)
         for (var a = segStart; a <= end; a++) ctx.lineTo(X(a), Y(vals[a]))
         ctx.lineTo(X(end), height)
         ctx.closePath()
-        ctx.fillStyle = grad
+        ctx.fillStyle = Tk.pxl ? Tk.card : grad
         ctx.fill()
         ctx.beginPath()
         ctx.moveTo(X(segStart), Y(vals[segStart]))

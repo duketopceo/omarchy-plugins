@@ -15,8 +15,8 @@ Item {
 
   // Root Notch item (N1 tabs contract); AgentsActivity lives there as `agentsActivity`.
   property var notch: null
-  property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  property color textColor: notch ? notch.textColor : Tk.text
+  property color dimColor: notch ? notch.dimColor : Tk.dim
   property string family: notch ? notch.fontFamily : Commons.Style.font.family
 
   readonly property var summary: notch && notch.agentsActivity ? notch.agentsActivity.summary : Agents.parseLs("")
@@ -41,14 +41,14 @@ Item {
   readonly property var groups: Agents.groupModel(summary)
   readonly property var urows: Agents.usageRows(usage, nowMs, usageExpanded, 3)
 
-  readonly property color warnColor: notch && notch.themeObj ? notch.themeObj.warn : "#f5a742"
-  readonly property color goodColor: notch && notch.themeObj ? notch.themeObj.good : "#6fbf73"
+  readonly property color warnColor: notch && notch.themeObj ? notch.themeObj.warn : Tk.amber
+  readonly property color goodColor: notch && notch.themeObj ? notch.themeObj.good : Tk.good
   function statusColor(status) {
     var s = Agents.normStatus(status)
-    return s === "blocked" ? Commons.Color.urgent : s === "done" ? goodColor : s === "working" ? Commons.Color.accent : Commons.Color.muted
+    return s === "blocked" ? Tk.urgent : s === "done" ? goodColor : s === "working" ? Tk.accent : Tk.dim
   }
   function sevColor(sev) {
-    return sev === "critical" ? Commons.Color.urgent : sev === "warn" ? warnColor : goodColor
+    return sev === "critical" ? Tk.urgent : sev === "warn" ? warnColor : goodColor
   }
 
   function refreshUsage() {
@@ -86,7 +86,7 @@ Item {
     Rectangle {
       anchors.fill: parent
       visible: img.status !== Image.Ready
-      radius: ic.size * 0.28
+      radius: Tk.r(ic.size * 0.28)
       color: Qt.rgba(Qt.color(ic.info.color).r, Qt.color(ic.info.color).g, Qt.color(ic.info.color).b, 0.22)
       Text {
         anchors.centerIn: parent
@@ -138,8 +138,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: openLbl.implicitWidth + 16
         height: 20
-        radius: 10
-        color: Qt.rgba(1, 1, 1, openHit.containsMouse ? 0.16 : 0.08)
+        radius: Tk.r(10)
+        color: Tk.tint(openHit.containsMouse ? 0.16 : 0.08)
         Text {
           id: openLbl
           anchors.centerIn: parent
@@ -213,21 +213,17 @@ Item {
             textFormat: Text.PlainText
             elide: Text.ElideRight
           }
-          Rectangle {
+          SegBar {
             id: track
             anchors.left: uname.right
             anchors.leftMargin: 4
             anchors.right: uright.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
-            height: 4; radius: 2
-            color: Qt.rgba(1, 1, 1, 0.12)
-            Rectangle {
-              width: Math.max(urow.modelData.percent > 0 ? 3 : 0, Math.round(parent.width * urow.modelData.percent / 100))
-              height: parent.height; radius: 2
-              color: tab.sevColor(urow.modelData.severity)
-              Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-            }
+            swiftHeight: 4
+            track: Tk.tint(0.12)
+            value: urow.modelData.percent / 100
+            fill: tab.sevColor(urow.modelData.severity)
           }
         }
       }
@@ -259,7 +255,7 @@ Item {
         Layout.topMargin: 3
         Layout.bottomMargin: 3
         implicitHeight: 1
-        color: Qt.rgba(1, 1, 1, 0.08)
+        color: Tk.tint(0.08)
       }
 
       // ---- Agents
@@ -297,7 +293,7 @@ Item {
               font.pixelSize: 10
               textFormat: Text.PlainText
               rotation: grp.folded ? 0 : 90
-              Behavior on rotation { NumberAnimation { duration: 120 } }
+              Behavior on rotation { NumberAnimation { duration: Tk.ms(120) } }
             }
             Text {
               id: gname
@@ -320,8 +316,8 @@ Item {
               anchors.leftMargin: 6
               anchors.verticalCenter: parent.verticalCenter
               width: visible ? mtxt.implicitWidth + 10 : 0
-              height: 14; radius: 7
-              color: Qt.rgba(1, 1, 1, 0.10)
+              height: 14; radius: Tk.r(7)
+              color: Tk.tint(0.10)
               Text {
                 id: mtxt
                 anchors.centerIn: parent
@@ -339,7 +335,7 @@ Item {
               anchors.verticalCenter: parent.verticalCenter
               horizontalAlignment: Text.AlignRight
               text: grp.modelData.countsText
-              color: grp.modelData.blocked ? Commons.Color.urgent : tab.dimColor
+              color: grp.modelData.blocked ? Tk.urgent : tab.dimColor
               font.family: tab.family
               font.pixelSize: 10
               textFormat: Text.PlainText
@@ -363,8 +359,8 @@ Item {
 
               Rectangle {
                 anchors.fill: parent
-                radius: 6
-                color: Commons.Color.foreground
+                radius: Tk.r(6)
+                color: Tk.text
                 opacity: hit.containsMouse ? 0.10 : 0
               }
               AppIcon {
@@ -394,8 +390,8 @@ Item {
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 width: plabel.implicitWidth + 14
-                height: 16; radius: 8
-                color: Qt.rgba(row.sc.r, row.sc.g, row.sc.b, 0.20)
+                height: 16; radius: Tk.r(8)
+                color: Tk.alpha(row.sc, 0.20)
                 SequentialAnimation on opacity {
                   running: row.modelData.status === "working" && tab.visible
                   loops: Animation.Infinite

@@ -194,10 +194,10 @@ def test_tiles_are_at_least_3_5x_the_old_grid():
     area = run("P.tileArea(688)")
     assert area >= 1.2 * old["w"] * old["h"]  # smaller for 3-4 across, still larger than old
     width = run("P.tileWidth(688)")
-    assert width == 339
-    assert run("P.TILE_H") == 224
-    # Two columns plus one gap fill the 720 px panel's 688 px content width.
-    assert 2 * width + run("P.HUB_GAP") == 688
+    assert width == 222
+    assert run("P.TILE_H") == 132
+    # Three columns plus two gaps fill the 720 px panel's 688 px content width.
+    assert 3 * width + 2 * run("P.HUB_GAP") == 686
 
 
 def test_tile_width_never_collapses():

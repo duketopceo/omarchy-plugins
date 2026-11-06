@@ -16,8 +16,8 @@ Item {
   id: tab
 
   property var notch: null
-  readonly property color textColor: notch && notch.textColor ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch && notch.dimColor ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch && notch.textColor ? notch.textColor : Tk.text
+  readonly property color dimColor: notch && notch.dimColor ? notch.dimColor : Tk.dim
   readonly property string family: notch && notch.fontFamily ? notch.fontFamily : Commons.Style.font.family
 
   implicitWidth: 428
@@ -81,14 +81,14 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         height: 15
         width: Math.max(15, countLabel.implicitWidth + 8)
-        radius: 8
-        color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff"
+        radius: Tk.r(8)
+        color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : Tk.info
         Text {
           id: countLabel
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: tab.feed ? tab.feed.badge || String(tab.unreadCount) : String(tab.unreadCount)
-          color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubbleText : "#06121f"
+          color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubbleText : Tk.bubbleText
           font.family: tab.family
           font.pixelSize: 9
           font.bold: true
@@ -102,8 +102,8 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: openLabel.implicitWidth + 16
       height: 20
-      radius: 10
-      color: openHit.containsMouse ? Qt.rgba(1, 1, 1, 0.24) : Qt.rgba(1, 1, 1, 0.1)
+      radius: Tk.r(10)
+      color: openHit.containsMouse ? Tk.tint(0.24) : Tk.tint(0.1)
       Text {
         id: openLabel
         textFormat: Text.PlainText
@@ -130,8 +130,8 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: readLabel.implicitWidth + 16
       height: 20
-      radius: 10
-      color: readHit.containsMouse ? Qt.rgba(1, 1, 1, 0.24) : Qt.rgba(1, 1, 1, 0.1)
+      radius: Tk.r(10)
+      color: readHit.containsMouse ? Tk.tint(0.24) : Tk.tint(0.1)
       Text {
         id: readLabel
         textFormat: Text.PlainText
@@ -157,10 +157,10 @@ Item {
       anchors.rightMargin: 6
       anchors.verticalCenter: parent.verticalCenter
       height: 20
-      radius: 10
-      color: Qt.rgba(1, 1, 1, 0.07)
+      radius: Tk.r(10)
+      color: Tk.tint(0.07)
       border.width: search.activeFocus ? 1 : 0
-      border.color: Qt.rgba(1, 1, 1, 0.3)
+      border.color: Tk.tint(0.3)
       TextInput {
         id: search
         anchors.fill: parent
@@ -194,8 +194,8 @@ Item {
     anchors.top: head.bottom
     anchors.topMargin: 4
     height: visible ? 16 : 0
-    radius: 8
-    color: Qt.rgba(1, 1, 1, 0.06)
+    radius: Tk.r(8)
+    color: Tk.tint(0.06)
     opacity: 0.7
     Text {
       textFormat: Text.PlainText
@@ -244,8 +244,8 @@ Item {
             readonly property bool hasPhoto: !!tab.avatarSet[modelData.avatar]
             width: list.width
             height: 44
-            radius: 8
-            color: rowHit.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+            radius: Tk.r(8)
+            color: rowHit.containsMouse ? Tk.tint(0.1) : "transparent"
 
             Item {
               id: avatar
@@ -256,13 +256,13 @@ Item {
 
               Rectangle {
                 anchors.fill: parent
-                radius: 16
+                radius: Tk.r(16)
                 color: row.modelData.color
                 Text {
                   textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: row.modelData.initials
-                  color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubble : "#f2f2f4"
+                  color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubble : Tk.bubble
                   font.family: tab.family
                   font.pixelSize: 12
                   font.bold: true
@@ -270,7 +270,7 @@ Item {
               }
               ClippingRectangle {
                 anchors.fill: parent
-                radius: 16
+                radius: Tk.r(16)
                 color: "transparent"
                 visible: photo.status === Image.Ready
                 Image {
@@ -293,7 +293,7 @@ Item {
               anchors.top: parent.top
               anchors.topMargin: 7
               text: Messages.relTime(row.modelData.ts, tab.now)
-              color: row.modelData.unread > 0 ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff") : tab.dimColor
+              color: row.modelData.unread > 0 ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : Tk.info) : tab.dimColor
               font.family: tab.family
               font.pixelSize: 10
             }
@@ -331,12 +331,12 @@ Item {
             Rectangle {
               id: dot
               visible: row.modelData.unread > 0
-              width: 8; height: 8; radius: 4
+              width: 8; height: 8; radius: Tk.r(4)
               anchors.right: parent.right
               anchors.rightMargin: 10
               anchors.bottom: parent.bottom
               anchors.bottomMargin: 8
-              color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff"
+              color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : Tk.info
             }
             MouseArea {
               id: rowHit

@@ -15,7 +15,7 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property color faintColor: notch && notch.faintColor ? notch.faintColor : dimColor
   readonly property color accentColor: notch && notch.accentColor ? notch.accentColor : textColor
@@ -23,7 +23,7 @@ Item {
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property string home: Quickshell.env("HOME")
   readonly property int gap: Plugins.HUB_GAP
-  readonly property int radius: notch && notch.cardRadius ? notch.cardRadius : 12
+  readonly property int radius: Tk.r(notch && notch.cardRadius ? notch.cardRadius : 12)
 
   // Tabs this panel can actually show. An embedded tile only opens in place
   // when its tab is shipped and visible; otherwise it degrades to the chain.
@@ -55,7 +55,7 @@ Item {
 
   // Tone for a tile's live detail: severity words from usage, Blip's states.
   function toneColor(tone) {
-    if (tone === "critical") return notch && notch.urgentColor ? notch.urgentColor : Commons.Color.urgent
+    if (tone === "critical") return notch && notch.urgentColor ? notch.urgentColor : Tk.urgent
     if (tone === "high" || tone === "warn") return notch && notch.warnColor ? notch.warnColor : tab.accentColor
     if (tone === "mid") return tab.accentColor
     if (tone === "low" || tone === "info") return tab.goodColor
@@ -139,10 +139,10 @@ Item {
 
                 width: Plugins.tileWidth(tab.width)
                 height: Plugins.TILE_H
-                radius: tab.radius
-                color: hit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
+                radius: Tk.r(tab.radius)
+                color: hit.containsMouse ? Tk.tint(0.16) : Tk.tint(0.07)
                 border.width: slot.st.on ? 0 : 1
-                border.color: Qt.rgba(1, 1, 1, 0.10)
+                border.color: Tk.tint(0.10)
 
                 FileView {
                   path: slot.info.image
@@ -218,10 +218,10 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     height: 20
                     width: chip.implicitWidth + 16
-                    radius: height / 2
-                    color: slot.st.on ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                    radius: Tk.r(height / 2)
+                    color: slot.st.on ? Tk.tint(0.10) : "transparent"
                     border.width: slot.st.on ? 0 : 1
-                    border.color: Qt.rgba(1, 1, 1, 0.14)
+                    border.color: Tk.tint(0.14)
 
                     Row {
                       id: chip
@@ -229,7 +229,7 @@ Item {
                       spacing: 6
                       Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 7; height: 7; radius: 3.5
+                        width: 7; height: 7; radius: Tk.r(3.5)
                         color: slot.st.on ? tab.goodColor : tab.faintColor
                       }
                       Text {
@@ -262,8 +262,8 @@ Item {
         id: configure
         width: col.width
         height: 52
-        radius: tab.radius
-        color: cfgHit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.07)
+        radius: Tk.r(tab.radius)
+        color: cfgHit.containsMouse ? Tk.tint(0.16) : Tk.tint(0.07)
 
         Text {
           textFormat: Text.PlainText

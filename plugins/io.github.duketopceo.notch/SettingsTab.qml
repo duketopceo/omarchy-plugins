@@ -10,7 +10,7 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property var settings: notch ? notch.settings : Settings.resolve(null)
@@ -62,7 +62,7 @@ Item {
         width: Math.floor(tab.width / 2)
         height: tab.rowH
 
-        Rectangle { anchors.bottom: parent.bottom; x: row.padL; width: parent.width - row.padL - row.padR; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+        Rectangle { anchors.bottom: parent.bottom; x: row.padL; width: parent.width - row.padL - row.padR; height: Tk.bw(1); color: Tk.tint(0.07) }
 
         Text {
           textFormat: Text.PlainText
@@ -83,8 +83,8 @@ Item {
 
           Rectangle {
             visible: row.isInt
-            width: 26; height: 26; radius: 13
-            color: minus.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+            width: 26; height: 26; radius: Tk.r(13)
+            color: minus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
             Text {
               textFormat: Text.PlainText
               anchors.centerIn: parent
@@ -99,14 +99,14 @@ Item {
           Rectangle {
             id: pill
             width: row.isInt ? 72 : 56
-            height: 26; radius: 13
+            height: 26; radius: Tk.r(13)
             readonly property bool on: row.modelData.type === "bool" && tab.settings[row.modelData.key] === true
-            color: on ? Qt.rgba(1, 1, 1, 0.28) : (pillHit.containsMouse && !row.isInt ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1))
+            color: on ? Tk.tint(0.28) : (pillHit.containsMouse && !row.isInt ? Tk.tint(0.22) : Tk.tint(0.1))
             Text {
               textFormat: Text.PlainText
               anchors.centerIn: parent
               text: Settings.format(row.modelData, tab.settings[row.modelData.key])
-              color: pill.on ? Commons.Color.accent : tab.textColor
+              color: pill.on ? Tk.accent : tab.textColor
               font.family: tab.family
               font.pixelSize: Commons.Style.font.body
             }
@@ -122,8 +122,8 @@ Item {
 
           Rectangle {
             visible: row.isInt
-            width: 26; height: 26; radius: 13
-            color: plus.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+            width: 26; height: 26; radius: Tk.r(13)
+            color: plus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
             Text {
               textFormat: Text.PlainText
               anchors.centerIn: parent

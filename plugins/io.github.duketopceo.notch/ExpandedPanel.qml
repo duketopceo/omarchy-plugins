@@ -20,9 +20,9 @@ Item {
   property int headerHeight: 32
   property var notch: null             // root Notch.qml item, handed to every tab
   property var weather: null           // Model.parseWeather output
-  property color islandColor: notch ? notch.islandColor : "black"
-  property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  property color islandColor: notch ? notch.islandColor : Tk.black
+  property color textColor: notch ? notch.textColor : Tk.text
+  property color dimColor: notch ? notch.dimColor : Tk.dim
   property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property var themeObj: notch && notch.themeObj ? notch.themeObj : Theme.resolve("swift")
   property date now: new Date()
@@ -42,6 +42,7 @@ Item {
     anchors.fill: parent
     color: panel.islandColor
     opacity: Math.min(1, panel.progress * 1.6)
+    visible: !Tk.pxl
     bottomLeftRadius: panel.themeObj.islandRadius
     bottomRightRadius: panel.themeObj.islandRadius
   }
@@ -87,18 +88,45 @@ Item {
     // Equal-width chips with glyph + short label when they all fit; otherwise
     // the selected chip shows its label and the rest share what is left as
     // glyph-only chips. Widths come from measured text, so nothing truncates.
-    SpringValue { id: indX; target: strip.chipX(strip.selIndex); instant: panel.reduce; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
-    SpringValue { id: indW; target: strip.chipW(strip.selIndex); instant: panel.reduce; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
+    SpringValue { id: indX; target: strip.chipX(strip.selIndex); instant: panel.reduce; stepped: Tk.pxl; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
+    SpringValue { id: indW; target: strip.chipW(strip.selIndex); instant: panel.reduce; stepped: Tk.pxl; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
     Rectangle {
-      x: strip.x + indX.value; y: strip.y; width: indW.value; height: strip.height; radius: height / 2
-      color: Qt.rgba(1, 1, 1, 0.16)
+      x: strip.x + indX.value; y: strip.y; width: indW.value; height: strip.height; radius: Tk.r(height / 2)
+      color: Tk.tint(0.16)
+    }
+
+    // Tiny theme switch: flips swift <-> pxl instantly and persists it.
+    Rectangle {
+      id: themeToggle
+      anchors.top: parent.top
+      anchors.right: parent.right
+      width: 26; height: 26
+      radius: Tk.r(13)
+      color: tgHit.containsMouse ? Tk.tint(0.16) : Tk.tint(0.08)
+      border.width: Tk.pxl ? Tk.bw(1) : 0
+      border.color: Tk.edge
+      Text {
+        anchors.centerIn: parent
+        textFormat: Text.PlainText
+        text: Tk.pxl ? "\u25A3" : "\u25EF"
+        color: Tk.pxl ? Tk.accent : panel.dimColor
+        font.pixelSize: 14
+      }
+      MouseArea {
+        id: tgHit
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: if (panel.notch) panel.notch.toggleTheme()
+      }
     }
 
     Row {
       id: strip
       anchors.top: parent.top
       anchors.left: parent.left
-      anchors.right: parent.right
+      anchors.right: themeToggle.left
+      anchors.rightMargin: 6
       height: 26
       spacing: 4
 
@@ -112,7 +140,7 @@ Item {
 
       TextMetrics {
         id: longest
-        font.family: panel.family
+        font.family: Tk.label
         font.pixelSize: Commons.Style.font.caption
         text: {
           var best = ""
@@ -125,7 +153,7 @@ Item {
       }
       TextMetrics {
         id: current
-        font.family: panel.family
+        font.family: Tk.label
         font.pixelSize: Commons.Style.font.caption
         text: panel.tab ? (panel.tab.short || panel.tab.title) : ""
       }
@@ -143,8 +171,9 @@ Item {
           readonly property bool showLabel: strip.labelsFit || selected
           width: strip.labelsFit ? strip.equalW : (selected ? strip.selW : strip.otherW)
           height: strip.height
-          radius: height / 2
-          color: !selected && hit.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+          radius: Tk.r(height / 2)
+          color: !selected && hit.containsMouse ? Tk.tint(0.08) : "transparent"
+          
           Row {
             anchors.centerIn: parent
             spacing: 4
@@ -161,7 +190,7 @@ Item {
               textFormat: Text.PlainText
               text: chip.modelData.short || chip.modelData.title
               color: chip.selected ? panel.textColor : panel.dimColor
-              font.family: panel.family
+              font.family: Tk.label
               font.pixelSize: Commons.Style.font.caption
               anchors.verticalCenter: parent.verticalCenter
             }

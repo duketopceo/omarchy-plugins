@@ -16,7 +16,7 @@ Item {
 
   // Up color follows the notch theme (Notch.qml passes root.goodColor);
   // the default keeps this slide usable standalone.
-  property color upColor: "#6fbf73"
+  property color upColor: Tk.good
 
   readonly property int perSlide: Watchlist.perSlide(notched, 2)
   readonly property var shown: Watchlist.slide(quotes, index, perSlide)
@@ -26,7 +26,7 @@ Item {
   // color; flat is muted.
   function tint(pct) {
     var d = Watchlist.direction(pct)
-    return d === "up" ? upColor : (d === "down" ? Commons.Color.urgent : Commons.Color.muted)
+    return d === "up" ? upColor : (d === "down" ? Tk.urgent : Tk.dim)
   }
 
   implicitWidth: Math.min(maxWidth, row.implicitWidth)
@@ -58,7 +58,7 @@ Item {
             Text {
               text: entry.modelData.symbol
               textFormat: Text.PlainText
-              color: Commons.Color.foreground
+              color: Tk.text
               font.family: slide.family
               font.pixelSize: 11
               font.weight: Font.DemiBold
@@ -75,7 +75,7 @@ Item {
             width: parent.width
             text: Watchlist.formatPrice(entry.modelData.price)
             textFormat: Text.PlainText
-            color: Commons.Color.muted
+            color: Tk.dim
             font.family: slide.family
             font.pixelSize: 11
             elide: Text.ElideRight
@@ -90,7 +90,7 @@ Item {
           Text {
             text: entry.modelData.symbol
             textFormat: Text.PlainText
-            color: Commons.Color.foreground
+            color: Tk.text
             font.family: slide.family
             font.pixelSize: 11
             font.weight: Font.DemiBold
@@ -98,7 +98,7 @@ Item {
           Text {
             text: Watchlist.formatPrice(entry.modelData.price)
             textFormat: Text.PlainText
-            color: Commons.Color.muted
+            color: Tk.dim
             font.family: slide.family
             font.pixelSize: 11
           }

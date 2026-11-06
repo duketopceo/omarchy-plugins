@@ -58,8 +58,26 @@ def test_pxl_pins_every_token_retro():
         assert value != "", f"pxl.{key} should be pinned, got blank"
     assert pxl["island"] == "#0d0d1a" and pxl["text"] == "#f4f4e8"
     assert pxl["accent"] == "#ffd23f" and pxl["info"] == "#4cc9f0"
-    assert (pxl["islandRadius"], pxl["cardRadius"], pxl["pillRadius"]) == (4, 2, 2)
-    assert "monospace" in pxl["fontFamily"]
+    assert (pxl["islandRadius"], pxl["cardRadius"], pxl["pillRadius"], pxl["borderWidth"]) == (0, 2, 0, 2)
+    assert (pxl["fontFamily"], pxl["labelFamily"], pxl["fallbackFamily"]) == ("Pixelify Sans", "Silkscreen", "Terminus")
+    assert (pxl["steps"], pxl["stepMs"]) == (3, 45)
+    assert (pxl["amber"], pxl["gray"], pxl["sky"], pxl["purple"], pxl["pink"]) == ("#ff9f1c", "#a0a8c0", "#6aa9e0", "#b48cf2", "#ff8fc7")
+    assert (pxl["white"], pxl["black"]) == ("#f4f4e8", "#0d0d1a")
+    assert (pxl["card"], pxl["chip"], pxl["chipHover"], pxl["hairline"], pxl["border"]) == ("#16162a", "#22223c", "#2e2e4e", "#22223c", "#3a3a5c")
+    assert (pxl["dim"], pxl["faint"], pxl["urgent"], pxl["hold"], pxl["danger"]) == ("#a0a8c0", "#5a6480", "#ff5252", "#6aa9e0", "#ff5252")
+    assert (pxl["bubble"], pxl["bubbleText"]) == ("#f4f4e8", "#0d0d1a")
+
+
+def test_pxl_palette_is_16_colors_or_fewer():
+    pxl = run("T.resolve('pxl')")
+    colors = {v.lower() for v in pxl.values() if isinstance(v, str) and v.startswith("#")}
+    assert len(colors) <= 16, sorted(colors)
+
+
+def test_swift_new_tokens_unchanged_values():
+    swift = run("T.resolve('swift')")
+    assert (swift["amber"], swift["gray"], swift["sky"], swift["white"], swift["black"]) == ("#f5a742", "#8b8f98", "#6fa8ff", "white", "black")
+    assert (swift["labelFamily"], swift["fallbackFamily"], swift["steps"], swift["stepMs"]) == ("", "", 0, 0)
 
 
 def test_both_themes_share_the_same_token_set():
@@ -84,7 +102,7 @@ def test_theme_default_is_swift():
 def test_theme_field_is_a_choice_swift_pxl():
     f = run("S.field('theme')")
     assert f["type"] == "choice"
-    assert [(o["value"], o["label"]) for o in f["options"]] == [("swift", "Swift"), ("pxl", "Pxl")]
+    assert [(o["value"], o["label"]) for o in f["options"]] == [("swift", "Swift"), ("pxl", "Pxl (16-bit)")]
 
 
 def test_theme_resolves_valid_and_rejects_junk():
@@ -98,7 +116,7 @@ def test_theme_next_cycles_swift_pxl():
     assert run("S.next(S.resolve(null),'theme',1)") == "pxl"
     assert run("S.next(S.resolve({theme:'pxl'}),'theme',1)") == "swift"
     assert run("S.next(S.resolve(null),'theme',-1)") == "pxl"
-    assert run("S.format(S.field('theme'),'pxl')") == "Pxl"
+    assert run("S.format(S.field('theme'),'pxl')") == "Pxl (16-bit)"
     assert run("S.format(S.field('theme'),'swift')") == "Swift"
 
 
@@ -119,7 +137,8 @@ def test_notch_qml_applies_theme_on_load_and_change():
     # Derived colors follow the theme, falling back to the live palette.
     assert "themeObj.text || Commons.Color.foreground" in qml
     assert "themeObj.dim || Commons.Color.muted" in qml
-    assert "themeObj.fontFamily || Commons.Style.font.family" in qml
+    assert "readonly property string fontFamily: Tk.family" in qml
+    assert 'Binding { target: Tk; property: "id"; value: root.themeId }' in qml
     assert "readonly property color islandColor: themeObj.island" in qml
     assert "Math.min(root.islandRadius" in qml
     assert "root.goodColor" in qml and "root.warnColor" in qml
@@ -157,3 +176,60 @@ def test_pixelart_stays_fixed():
     assert "SPRITE_COLORS" in (NOTCH / "PixelArt.js").read_text()
     assert "SPRITE_COLORS" not in (NOTCH / "Theme.js").read_text()
     assert "themeObj" not in (NOTCH / "PixelWeather.qml").read_text()
+
+
+# ---------------------------------------------------------------- 16-bit wiring (static)
+
+import re
+
+# Content that is the user's own (app/brand/data colours, art), not chrome.
+ALLOW_LITERALS = {
+    "AgentsTab.qml": 4,   # tint of the agent app's own icon colour
+}
+SKIP = {"Tk.qml"}
+
+
+def qml_files():
+    return [p for p in sorted(NOTCH.glob("*.qml")) if p.name not in SKIP]
+
+
+def test_tk_singleton_registered_and_toggle_wired():
+    assert "singleton Tk Tk.qml" in (NOTCH / "qmldir").read_text()
+    tk = (NOTCH / "Tk.qml").read_text()
+    assert "pragma Singleton" in tk and "function tint(" in tk and "function r(" in tk
+    notch = (NOTCH / "Notch.qml").read_text()
+    assert "function toggleTheme(): void { root.toggleTheme() }" in notch
+    assert 'setSetting("theme", themeId === "pxl" ? "swift" : "pxl")' in notch
+    panel = (NOTCH / "ExpandedPanel.qml").read_text()
+    assert "panel.notch.toggleTheme()" in panel
+
+
+def test_fonts_bundled_with_licenses():
+    for rel in ("fonts/Silkscreen/Silkscreen-Regular.ttf", "fonts/Silkscreen/OFL.txt",
+                "fonts/PixelifySans/PixelifySans[wght].ttf", "fonts/PixelifySans/OFL.txt"):
+        assert (NOTCH / rel).is_file(), rel
+
+
+def test_no_qml_hardcodes_colors_outside_tokens():
+    bad = []
+    for p in qml_files():
+        src = p.read_text()
+        n = len(re.findall(r'"#[0-9a-fA-F]{3,8}"|Qt\.rgba\(|Qt\.color\(|Commons\.Color\.', src))
+        if n > ALLOW_LITERALS.get(p.name, 0) + (0 if p.name != "Notch.qml" else 5):
+            bad.append((p.name, n))
+    assert not bad, bad
+
+
+def test_no_qml_hardcodes_radius_or_family():
+    bad = []
+    for p in qml_files():
+        for i, line in enumerate(p.read_text().splitlines(), 1):
+            for m in re.finditer(r'(?<![\w.])radius: *([^;}]+)', line):
+                v = m.group(1).strip()
+                if not v.startswith("Tk.r(") and v not in ("tab.radius", "tab.cardRadius", "0"):
+                    bad.append((p.name, i, "radius", v))
+            for m in re.finditer(r'font\.family: *([^;}]+)', line):
+                v = m.group(1).strip()
+                if not (v.startswith("Tk.") or re.fullmatch(r"(tab|panel|slide|chart|cal|spark|ring|root)\.(family|fontFamily)", v)):
+                    bad.append((p.name, i, "family", v))
+    assert not bad, bad[:10]

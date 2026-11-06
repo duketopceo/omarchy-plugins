@@ -23,7 +23,7 @@ var DEFAULTS = {
 
 var FIELDS = [
   { key: "theme", label: "Theme", type: "choice",
-    options: [{ value: "swift", label: "Swift" }, { value: "pxl", label: "Pxl" }] },
+    options: [{ value: "swift", label: "Swift" }, { value: "pxl", label: "Pxl (16-bit)" }] },
   { key: "clockSeconds", label: "Clock seconds", type: "int", min: 5, max: 120, step: 5, suffix: " s" },
   { key: "slideSeconds", label: "Slide seconds", type: "int", min: 2, max: 30, step: 1, suffix: " s" },
   { key: "showWeather", label: "Show weather", type: "bool" },

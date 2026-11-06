@@ -38,7 +38,18 @@ var THEMES = {
     border: "",
     bubble: "#f2f2f4",
     bubbleText: "#06121f",
+    amber: "#f5a742",
+    gray: "#8b8f98",
+    sky: "#6fa8ff",
+    purple: "#b48cf2",
+    pink: "#ff8fc7",
+    white: "white",
+    black: "black",
     fontFamily: "",      // follow Commons.Style.font.family
+    labelFamily: "",     // follow fontFamily
+    fallbackFamily: "",
+    steps: 0,            // 0 = springs
+    stepMs: 0,
     islandRadius: 24,
     cardRadius: 8,
     pillRadius: 13,
@@ -62,14 +73,25 @@ var THEMES = {
     card: "#16162a",
     chip: "#22223c",
     chipHover: "#2e2e4e",
-    hairline: "#2a2a44",
+    hairline: "#22223c",
     border: "#3a3a5c",
     bubble: "#f4f4e8",
     bubbleText: "#0d0d1a",
-    fontFamily: "'VT323', 'Press Start 2P', monospace",
-    islandRadius: 4,
+    amber: "#ff9f1c",
+    gray: "#a0a8c0",
+    sky: "#6aa9e0",
+    purple: "#b48cf2",
+    pink: "#ff8fc7",
+    white: "#f4f4e8",
+    black: "#0d0d1a",
+    fontFamily: "Pixelify Sans",
+    labelFamily: "Silkscreen",
+    fallbackFamily: "Terminus",
+    steps: 3,            // stepped animation frames
+    stepMs: 45,
+    islandRadius: 0,
     cardRadius: 2,
-    pillRadius: 2,
+    pillRadius: 0,
     borderWidth: 2
   }
 }

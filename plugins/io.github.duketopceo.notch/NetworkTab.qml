@@ -16,16 +16,16 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string pluginId: notch && notch.pluginId ? notch.pluginId : "io.github.duketopceo.notch"
-  readonly property color good: notch && notch.themeObj ? notch.themeObj.good : "#6fbf73"
-  readonly property color warn: notch && notch.themeObj ? notch.themeObj.warn : "#e0b050"
-  readonly property color bad: notch && notch.themeObj ? notch.themeObj.bad : "#d9695f"
-  readonly property color card: notch && notch.themeObj && notch.themeObj.card ? notch.themeObj.card : Qt.rgba(1, 1, 1, 0.05)
-  readonly property color chip: notch && notch.themeObj && notch.themeObj.chip ? notch.themeObj.chip : Qt.rgba(1, 1, 1, 0.08)
-  readonly property color chipHover: notch && notch.themeObj && notch.themeObj.chipHover ? notch.themeObj.chipHover : Qt.rgba(1, 1, 1, 0.16)
+  readonly property color good: notch && notch.themeObj ? notch.themeObj.good : Tk.good
+  readonly property color warn: notch && notch.themeObj ? notch.themeObj.warn : Tk.warn
+  readonly property color bad: notch && notch.themeObj ? notch.themeObj.bad : Tk.bad
+  readonly property color card: notch && notch.themeObj && notch.themeObj.card ? notch.themeObj.card : Tk.tint(0.05)
+  readonly property color chip: notch && notch.themeObj && notch.themeObj.chip ? notch.themeObj.chip : Tk.tint(0.08)
+  readonly property color chipHover: notch && notch.themeObj && notch.themeObj.chipHover ? notch.themeObj.chipHover : Tk.tint(0.16)
 
   implicitWidth: 428
   implicitHeight: 164
@@ -69,8 +69,8 @@ Item {
     property color tone: tab.dimColor
     height: 16
     width: pillText.implicitWidth + 14
-    radius: 8
-    color: Qt.rgba(tone.r, tone.g, tone.b, 0.18)
+    radius: Tk.r(8)
+    color: Tk.alpha(tone, 0.18)
     Text {
       id: pillText
       textFormat: Text.PlainText
@@ -93,9 +93,9 @@ Item {
     signal rightClicked()
     height: 18
     width: chipText.implicitWidth + 14
-    radius: 9
+    radius: Tk.r(9)
     opacity: enabledChip ? 1 : 0.4
-    color: selected ? Qt.rgba(0.44, 0.75, 0.45, 0.28) : (chipHit.containsMouse && enabledChip ? tab.chipHover : tab.chip)
+    color: selected ? Tk.alpha(Tk.good, 0.28) : (chipHit.containsMouse && enabledChip ? tab.chipHover : tab.chip)
     Text {
       id: chipText
       textFormat: Text.PlainText
@@ -119,8 +119,8 @@ Item {
   component IconBadge: Rectangle {
     property string glyph: ""
     property color tone: tab.good
-    width: 20; height: 20; radius: 6
-    color: Qt.rgba(tone.r, tone.g, tone.b, 0.2)
+    width: 20; height: 20; radius: Tk.r(6)
+    color: Tk.alpha(tone, 0.2)
     Text {
       textFormat: Text.PlainText
       anchors.centerIn: parent
@@ -138,7 +138,7 @@ Item {
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     width: Math.round(parent.width * 0.57)
-    radius: 8
+    radius: Tk.r(8)
     color: tab.card
 
     readonly property string pillLabel: !ops.tsLoaded ? "..." : ops.ts.needsLogin ? "Sign in" : !ops.ts.ok ? "Unavailable" : ops.tsBusy ? (ops.tsOn ? "Connecting" : "Stopping") : ops.tsOn ? "Connected" : "Disconnected"
@@ -198,7 +198,7 @@ Item {
           id: selfIpBox
           height: parent.height
           width: selfIpText.implicitWidth + 14
-          radius: 6
+          radius: Tk.r(6)
           color: ipHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             id: selfIpText
@@ -215,7 +215,7 @@ Item {
         Rectangle {
           height: parent.height
           width: parent.width - selfIpBox.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: dnsHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             textFormat: Text.PlainText
@@ -248,10 +248,10 @@ Item {
           id: filterBox
           height: parent.height
           width: parent.width - exitBtn.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: tab.chip
           border.width: filterInput.activeFocus ? 1 : 0
-          border.color: Qt.rgba(1, 1, 1, 0.3)
+          border.color: Tk.tint(0.3)
           TextInput {
             id: filterInput
             anchors.fill: parent
@@ -259,7 +259,7 @@ Item {
             anchors.rightMargin: 7
             verticalAlignment: TextInput.AlignVCenter
             color: tab.textColor
-            selectionColor: Qt.rgba(1, 1, 1, 0.3)
+            selectionColor: Tk.tint(0.3)
             font.family: tab.family
             font.pixelSize: 10
             clip: true
@@ -283,10 +283,10 @@ Item {
           id: exitBtn
           height: parent.height
           width: 92
-          radius: 6
+          radius: Tk.r(6)
           color: exitHit.containsMouse ? tab.chipHover : tab.chip
           border.width: ops.exitName !== "" ? 1 : 0
-          border.color: Qt.rgba(0.44, 0.75, 0.45, 0.6)
+          border.color: Tk.alpha(Tk.good, 0.6)
           Text {
             textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
@@ -336,8 +336,8 @@ Item {
               readonly property string status: Network.peerStatus(modelData, ops.now)
               Rectangle {
                 anchors.fill: parent
-                radius: 5
-                color: peerHit.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                radius: Tk.r(5)
+                color: peerHit.containsMouse ? Tk.tint(0.1) : "transparent"
               }
               Text {
                 id: osGlyph
@@ -378,7 +378,7 @@ Item {
               }
               Rectangle {
                 id: dotMark
-                width: 6; height: 6; radius: 3
+                width: 6; height: 6; radius: Tk.r(3)
                 anchors.right: parent.right
                 anchors.rightMargin: 5
                 anchors.verticalCenter: parent.verticalCenter
@@ -419,10 +419,10 @@ Item {
       y: tsInner.y + filterRow.y + filterRow.height + 2
       width: 150
       height: Math.min(exitCol.height + 8, tsCard.height - y - 4)
-      radius: 8
-      color: Qt.rgba(0.1, 0.1, 0.12, 0.97)
-      border.width: 1
-      border.color: Qt.rgba(1, 1, 1, 0.14)
+      radius: Tk.r(8)
+      color: Tk.surface(0.1, 0.1, 0.12, 0.97)
+      border.width: Tk.bw(1)
+      border.color: Tk.tint(0.14)
       NotchScroll {
         id: exitScroll
         anchors.fill: parent
@@ -441,7 +441,7 @@ Item {
               width: exitCol.width
               height: 20
               readonly property bool current: modelData.ip === "" ? ops.exitName === "" : ops.exitName === modelData.name
-              Rectangle { anchors.fill: parent; radius: 5; color: optHit.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent" }
+              Rectangle { anchors.fill: parent; radius: Tk.r(5); color: optHit.containsMouse ? Tk.tint(0.12) : "transparent" }
               Text {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
@@ -477,7 +477,7 @@ Item {
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    radius: 8
+    radius: Tk.r(8)
     color: tab.card
 
     readonly property bool connected: ops.nord.state === "connected"
@@ -622,7 +622,7 @@ Item {
           id: dropBtn
           height: parent.height
           width: parent.width - actBtn.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: dropHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             textFormat: Text.PlainText
@@ -650,10 +650,10 @@ Item {
           id: actBtn
           height: parent.height
           width: 66
-          radius: 6
+          radius: Tk.r(6)
           opacity: ops.nord.ok && !ops.nordBusy ? 1 : 0.4
-          color: nordCard.connected ? (actHit.containsMouse ? Qt.rgba(0.85, 0.41, 0.37, 0.45) : Qt.rgba(0.85, 0.41, 0.37, 0.28))
-                                    : (actHit.containsMouse ? Qt.rgba(0.44, 0.75, 0.45, 0.45) : Qt.rgba(0.44, 0.75, 0.45, 0.28))
+          color: nordCard.connected ? (actHit.containsMouse ? Tk.alpha(Tk.bad, 0.45) : Tk.alpha(Tk.bad, 0.28))
+                                    : (actHit.containsMouse ? Tk.alpha(Tk.good, 0.45) : Tk.alpha(Tk.good, 0.28))
           Text {
             textFormat: Text.PlainText
             anchors.centerIn: parent
@@ -683,10 +683,10 @@ Item {
       width: nordInner.width
       height: Math.min(nordCard.height - 36, 120)
       y: nordInner.y + dropRow.y - height - 2
-      radius: 8
-      color: Qt.rgba(0.1, 0.1, 0.12, 0.97)
-      border.width: 1
-      border.color: Qt.rgba(1, 1, 1, 0.14)
+      radius: Tk.r(8)
+      color: Tk.surface(0.1, 0.1, 0.12, 0.97)
+      border.width: Tk.bw(1)
+      border.color: Tk.tint(0.14)
       NotchScroll {
         id: countryScroll
         anchors.fill: parent
@@ -704,7 +704,7 @@ Item {
               required property var modelData
               width: countryCol.width
               height: 20
-              Rectangle { anchors.fill: parent; radius: 5; color: ctryHit.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent" }
+              Rectangle { anchors.fill: parent; radius: Tk.r(5); color: ctryHit.containsMouse ? Tk.tint(0.12) : "transparent" }
               Text {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
@@ -740,13 +740,13 @@ Item {
     anchors.bottomMargin: 8
     height: 20
     width: toastText.implicitWidth + 20
-    radius: 10
-    color: Qt.rgba(0.05, 0.05, 0.07, 0.94)
-    border.width: 1
-    border.color: Qt.rgba(0.44, 0.75, 0.45, 0.5)
+    radius: Tk.r(10)
+    color: Tk.surface(0.05, 0.05, 0.07, 0.94)
+    border.width: Tk.bw(1)
+    border.color: Tk.alpha(Tk.good, 0.5)
     opacity: tab.toast !== "" ? 1 : 0
     visible: opacity > 0
-    Behavior on opacity { NumberAnimation { duration: 140 } }
+    Behavior on opacity { NumberAnimation { duration: Tk.ms(140) } }
     Text {
       id: toastText
       textFormat: Text.PlainText

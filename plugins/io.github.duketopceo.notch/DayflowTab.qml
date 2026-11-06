@@ -23,7 +23,7 @@ Item {
   readonly property var briefing: df ? df.briefing : Dayflow.parseBriefing("")
   readonly property var forecast: df ? df.forecast : Dayflow.parseForecast("")
   readonly property date now: notch ? notch.now : new Date()
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
 
@@ -61,7 +61,7 @@ Item {
   }
   component Divider: Rectangle {
     width: 1
-    color: Qt.rgba(1, 1, 1, 0.07)
+    color: Tk.tint(0.07)
   }
 
   // ------------------------------------------------------------ header
@@ -72,10 +72,10 @@ Item {
 
     Rectangle {
       id: recDot
-      width: 10; height: 10; radius: 5
+      width: 10; height: 10; radius: Tk.r(5)
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
-      color: tab.status.paused ? Commons.Color.urgent : tab.status.recording ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.danger : "#f53d3d") : tab.dimColor
+      color: tab.status.paused ? Tk.urgent : tab.status.recording ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.danger : Tk.danger) : tab.dimColor
       SequentialAnimation on opacity {
         running: tab.visible && tab.status.recording && !(tab.notch && tab.notch.reduceMotion)
         loops: Animation.Infinite
@@ -91,7 +91,7 @@ Item {
       anchors.leftMargin: 8
       anchors.verticalCenter: parent.verticalCenter
       text: Dayflow.stateText(tab.status)
-      color: tab.status.paused ? Commons.Color.urgent : tab.textColor
+      color: tab.status.paused ? Tk.urgent : tab.textColor
       font.family: tab.family
       font.pixelSize: Commons.Style.font.body
       font.weight: Font.DemiBold
@@ -119,16 +119,16 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
       width: toggleLabel.implicitWidth + 24
       height: 24
-      radius: 12
+      radius: Tk.r(12)
       opacity: tab.status.ok && !(tab.df && tab.df.toggling) ? 1 : 0.4
-      color: tab.status.paused ? (toggleHit.containsMouse ? Qt.lighter(Commons.Color.accent, 1.15) : Commons.Color.accent)
-                               : (toggleHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1))
+      color: tab.status.paused ? (toggleHit.containsMouse ? Qt.lighter(Tk.accent, 1.15) : Tk.accent)
+                               : (toggleHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1))
       Text {
         id: toggleLabel
         textFormat: Text.PlainText
         anchors.centerIn: parent
         text: tab.status.paused ? "Resume capture" : "Pause"
-        color: tab.status.paused ? Commons.Color.background : tab.textColor
+        color: tab.status.paused ? Tk.bg : tab.textColor
         font.family: tab.family
         font.pixelSize: Commons.Style.font.bodySmall
         font.weight: Font.DemiBold
@@ -151,7 +151,7 @@ Item {
     width: parent.width
     height: 20
 
-    Rectangle { anchors.fill: parent; radius: 5; color: Qt.rgba(1, 1, 1, 0.06) }
+    Rectangle { anchors.fill: parent; radius: Tk.r(5); color: Tk.tint(0.06) }
     Repeater {
       model: tab.stripModel.segments
       Rectangle {
@@ -159,7 +159,7 @@ Item {
         x: Math.round(modelData.x * stripBox.width)
         width: Math.max(2, Math.round(modelData.w * stripBox.width) - 1)
         height: stripBox.height
-        radius: 3
+        radius: Tk.r(3)
         color: modelData.color
         opacity: modelData.current ? 1 : 0.6
         border.width: modelData.current ? 2 : 0
@@ -172,7 +172,7 @@ Item {
       y: -3
       width: 2
       height: stripBox.height + 6
-      radius: 1
+      radius: Tk.r(1)
       color: tab.textColor
       opacity: 0.8
     }
@@ -203,7 +203,7 @@ Item {
       }
     }
   }
-  Rectangle { y: tab.bodyTop - 8; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+  Rectangle { y: tab.bodyTop - 8; width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
 
   // ------------------------------------------------------------ col 1: now, focus, forecast
   Item {
@@ -232,7 +232,7 @@ Item {
       Row {
         visible: tab.today.current !== null
         spacing: 6
-        Rectangle { width: 8; height: 8; radius: 4; anchors.verticalCenter: parent.verticalCenter; color: tab.today.current ? Dayflow.categoryColor(tab.today.current.category) : "transparent" }
+        Rectangle { width: 8; height: 8; radius: Tk.r(4); anchors.verticalCenter: parent.verticalCenter; color: tab.today.current ? Dayflow.categoryColor(tab.today.current.category) : "transparent" }
         Text {
           textFormat: Text.PlainText
           text: tab.today.current ? Dayflow.categoryLabel(tab.today.current.category) + "  ·  " + tab.today.current.startLabel + " – " + tab.today.current.endLabel + (tab.today.current.app ? "  ·  " + tab.today.current.app : "") : ""
@@ -254,7 +254,7 @@ Item {
           id: focusPct
           textFormat: Text.PlainText
           text: tab.today.focusPct >= 0 ? tab.today.focusPct + "%" : "–"
-          color: tab.today.focusPct >= 60 ? Commons.Color.accent : tab.textColor
+          color: tab.today.focusPct >= 60 ? Tk.accent : tab.textColor
           font.family: tab.family
           font.pixelSize: Commons.Style.font.display
           font.weight: Font.DemiBold
@@ -312,12 +312,12 @@ Item {
           Text { id: mins; textFormat: Text.PlainText; text: Dayflow.duration(appRow.modelData.minutes); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
         }
         Rectangle {
-          width: parent.width; height: 3; radius: 2
-          color: Qt.rgba(1, 1, 1, 0.08)
+          width: parent.width; height: 3; radius: Tk.r(2)
+          color: Tk.tint(0.08)
           Rectangle {
             width: tab.today.topApps.length ? parent.width * appRow.modelData.minutes / Math.max(1, tab.today.topApps[0].minutes) : 0
-            height: parent.height; radius: 2
-            color: Commons.Color.accent
+            height: parent.height; radius: Tk.r(2)
+            color: Tk.accent
             opacity: appRow.index === 0 ? 1 : 0.6
           }
         }
@@ -341,7 +341,7 @@ Item {
         id: agentCount
         textFormat: Text.PlainText
         text: tab.agents.ok ? String(tab.agents.count) : "…"
-        color: tab.agents.count > 0 ? Commons.Color.accent : tab.dimColor
+        color: tab.agents.count > 0 ? Tk.accent : tab.dimColor
         font.family: tab.family
         font.pixelSize: Commons.Style.font.bodySmall
         font.weight: Font.DemiBold

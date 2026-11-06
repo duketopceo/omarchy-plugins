@@ -13,12 +13,12 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch && notch.textColor ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch && notch.dimColor ? notch.dimColor : Commons.Color.muted
-  readonly property color accentColor: notch && notch.accentColor ? notch.accentColor : Commons.Color.accent
-  readonly property color urgentColor: notch && notch.urgentColor ? notch.urgentColor : Commons.Color.urgent
-  readonly property color warnColor: notch && notch.warnColor ? notch.warnColor : "#e0b050"
-  readonly property color goodColor: notch && notch.goodColor ? notch.goodColor : "#6fbf73"
+  readonly property color textColor: notch && notch.textColor ? notch.textColor : Tk.text
+  readonly property color dimColor: notch && notch.dimColor ? notch.dimColor : Tk.dim
+  readonly property color accentColor: notch && notch.accentColor ? notch.accentColor : Tk.accent
+  readonly property color urgentColor: notch && notch.urgentColor ? notch.urgentColor : Tk.urgent
+  readonly property color warnColor: notch && notch.warnColor ? notch.warnColor : Tk.warn
+  readonly property color goodColor: notch && notch.goodColor ? notch.goodColor : Tk.good
   readonly property string family: notch && notch.fontFamily ? notch.fontFamily : Commons.Style.font.family
   readonly property int cardRadius: notch && notch.cardRadius ? notch.cardRadius : 8
 
@@ -82,8 +82,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: refreshLabel.implicitWidth + 16
         height: 20
-        radius: 10
-        color: refreshHit.containsMouse ? Qt.rgba(1, 1, 1, 0.24) : Qt.rgba(1, 1, 1, 0.1)
+        radius: Tk.r(10)
+        color: refreshHit.containsMouse ? Tk.tint(0.24) : Tk.tint(0.1)
         Text {
           id: refreshLabel
           anchors.centerIn: parent
@@ -150,8 +150,8 @@ Item {
 
             width: cards.width
             height: cardHead.height + 4 + rowsCol.height + 10
-            radius: tab.cardRadius
-            color: Qt.rgba(1, 1, 1, 0.06)
+            radius: Tk.r(tab.cardRadius)
+            color: Tk.tint(0.06)
 
             Item {
               id: cardHead
@@ -266,24 +266,17 @@ Item {
                     font.bold: true
                   }
 
-                  Rectangle {
+                  SegBar {
                     id: track
                     anchors.left: label.right
                     anchors.leftMargin: 6
                     anchors.right: pct.left
                     anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    height: 5
-                    radius: 3
-                    color: Qt.rgba(1, 1, 1, 0.12)
-
-                    Rectangle {
-                      width: Math.max(row.modelData.percent > 0 ? 3 : 0, Math.round(parent.width * row.modelData.percent / 100))
-                      height: parent.height
-                      radius: 3
-                      color: tab.sevColor(row.modelData.severity)
-                      Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-                    }
+                    swiftHeight: 5
+                    track: Tk.tint(0.12)
+                    value: row.modelData.percent / 100
+                    fill: tab.sevColor(row.modelData.severity)
                   }
                 }
               }

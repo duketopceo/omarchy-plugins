@@ -13,9 +13,9 @@ Item {
   property var points: []                 // [{t,o,h,l,c,v}] from Stocks.parseSeries
   property string range: "1M"
   property string style: "line"           // "line" | "candle"
-  property color tone: "#8b8f98"
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
+  property color tone: Tk.gray
+  property color textColor: Tk.text
+  property color dimColor: Tk.dim
   property string family: Commons.Style.font.family
   property real prev: NaN                 // previous close (dashed baseline on 1D)
 
@@ -47,7 +47,7 @@ Item {
       var sc = chart.sc, plot = sc.plot
       // gridlines
       ctx.lineWidth = 1
-      ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.06)
+      ctx.strokeStyle = Tk.tint(0.06)
       ctx.beginPath()
       var ticks = chart.nice.ticks
       for (var i = 0; i < ticks.length; i++) {
@@ -60,7 +60,7 @@ Item {
       if (chart.range === "1D" && isFinite(chart.prev) && chart.prev >= chart.nice.min && chart.prev <= chart.nice.max) {
         var py = Math.round(sc.y(chart.prev)) + 0.5
         ctx.setLineDash([3, 3])
-        ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.16)
+        ctx.strokeStyle = Tk.tint(0.16)
         ctx.beginPath()
         ctx.moveTo(plot.left, py)
         ctx.lineTo(plot.left + plot.width, py)
@@ -87,14 +87,14 @@ Item {
         }
       } else {
         var grad = ctx.createLinearGradient(0, plot.top, 0, plot.top + plot.height)
-        grad.addColorStop(0, Qt.rgba(tone.r, tone.g, tone.b, 0.30))
-        grad.addColorStop(1, Qt.rgba(tone.r, tone.g, tone.b, 0.0))
+        grad.addColorStop(0, Tk.alpha(tone, 0.30))
+        grad.addColorStop(1, Tk.alpha(tone, 0.0))
         ctx.beginPath()
         ctx.moveTo(sc.xs[0], plot.top + plot.height)
         for (var a = 0; a < sc.xs.length; a++) ctx.lineTo(sc.xs[a], sc.ys[a])
         ctx.lineTo(sc.xs[sc.xs.length - 1], plot.top + plot.height)
         ctx.closePath()
-        ctx.fillStyle = grad
+        ctx.fillStyle = Tk.pxl ? Tk.card : grad
         ctx.fill()
         ctx.beginPath()
         ctx.moveTo(sc.xs[0], sc.ys[0])
@@ -149,16 +149,16 @@ Item {
     y: chart.sc.plot.top
     width: 1
     height: chart.sc.plot.height
-    color: Qt.rgba(1, 1, 1, 0.28)
+    color: Tk.tint(0.28)
   }
   Rectangle {
     visible: chart.hoverPoint !== null
-    width: 7; height: 7; radius: 4
+    width: 7; height: 7; radius: Tk.r(4)
     x: chart.hoverIndex >= 0 ? chart.sc.x(chart.hoverIndex) - 3.5 : 0
     y: chart.hoverPoint ? chart.sc.y(chart.hoverPoint.c) - 3.5 : 0
     color: chart.tone
-    border.width: 1.5
-    border.color: "black"
+    border.width: Tk.bw(1).5
+    border.color: Tk.black
   }
   // price tag on the axis
   Rectangle {
@@ -167,13 +167,13 @@ Item {
     y: chart.hoverPoint ? Math.max(0, Math.min(chart.height - chart.axisHeight - height, chart.sc.y(chart.hoverPoint.c) - height / 2)) : 0
     width: chart.axisWidth - 1
     height: 12
-    radius: 3
-    color: Qt.rgba(1, 1, 1, 0.9)
+    radius: Tk.r(3)
+    color: Tk.tint(0.9)
     Text {
       anchors.centerIn: parent
       textFormat: Text.PlainText
       text: chart.hoverPoint ? Stocks.formatPrice(chart.hoverPoint.c) : ""
-      color: "black"
+      color: Tk.black
       font.family: chart.family
       font.pixelSize: 8
       font.weight: Font.DemiBold
@@ -189,10 +189,10 @@ Item {
     y: chart.sc.plot.top + 2
     width: tipCol.implicitWidth + 12
     height: tipCol.implicitHeight + 8
-    radius: 5
-    color: Qt.rgba(0.07, 0.07, 0.08, 0.94)
-    border.width: 1
-    border.color: Qt.rgba(1, 1, 1, 0.12)
+    radius: Tk.r(5)
+    color: Tk.surface(0.07, 0.07, 0.08, 0.94)
+    border.width: Tk.bw(1)
+    border.color: Tk.tint(0.12)
     Column {
       id: tipCol
       anchors.centerIn: parent

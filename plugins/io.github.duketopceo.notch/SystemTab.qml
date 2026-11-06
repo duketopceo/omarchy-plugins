@@ -14,18 +14,18 @@ Item {
   id: tab
 
   property var notch: null
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string home: Quickshell.env("HOME")
   readonly property bool active: visible
 
-  readonly property color cpuTone: notch && notch.themeObj ? notch.themeObj.info : Commons.Color.accent
-  readonly property color gpuTone: notch && notch.accentColor ? notch.accentColor : Commons.Color.accent
-  readonly property color ramTone: notch && notch.themeObj ? notch.themeObj.good : Commons.Color.accent
-  readonly property color aneTone: notch && notch.themeObj ? notch.themeObj.hold : Commons.Color.accent
-  readonly property color tempTone: notch && notch.themeObj ? notch.themeObj.warn : Commons.Color.accent
-  readonly property color powerTone: notch && notch.accentColor ? notch.accentColor : Commons.Color.accent
+  readonly property color cpuTone: notch && notch.themeObj ? notch.themeObj.info : Tk.accent
+  readonly property color gpuTone: notch && notch.accentColor ? notch.accentColor : Tk.accent
+  readonly property color ramTone: notch && notch.themeObj ? notch.themeObj.good : Tk.accent
+  readonly property color aneTone: notch && notch.themeObj ? notch.themeObj.hold : Tk.accent
+  readonly property color tempTone: notch && notch.themeObj ? notch.themeObj.warn : Tk.accent
+  readonly property color powerTone: notch && notch.accentColor ? notch.accentColor : Tk.accent
 
   // ---- state
   property var prevStat: null
@@ -248,7 +248,7 @@ Item {
         text: tab.aneStats.ok ? tab.pct(tab.aneBusy) : "n/a"; family: tab.family; textColor: tab.textColor
       }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: "ANE"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.body; font.weight: Font.DemiBold }
-      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneCheck.state; color: tab.aneCheck.ready ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
+      Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneCheck.state; color: tab.aneCheck.ready ? Tk.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
       Text { textFormat: Text.PlainText; anchors.horizontalCenter: parent.horizontalCenter; text: tab.aneStats.ok ? tab.aneStats.jobs + " jobs" : "--"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption }
     }
   }
@@ -286,7 +286,7 @@ Item {
     Text {
       textFormat: Text.PlainText
       width: parent.width; elide: Text.ElideRight
-      color: tab.aneRt.trim() === "active" ? Commons.Color.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
+      color: tab.aneRt.trim() === "active" ? Tk.accent : tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
       text: "ANE " + Sys.aneState(tab.aneRt) + (tab.aneCheck.version !== "" ? " v" + tab.aneCheck.version : "") + " · " + (Sys.jobsPerMin(tab.aneJobs) !== null ? Sys.jobsPerMin(tab.aneJobs) + " jobs/min" : "-- jobs/min") + " · used " + Sys.fmtAgo(tab.aneLastUsed, tab.nowMs)
     }
     Text {
@@ -304,7 +304,7 @@ Item {
         anchors.rightMargin: 4
         anchors.verticalCenter: parent.verticalCenter
         elide: Text.ElideRight
-        color: tab.scan.mlx.length > 0 ? Commons.Color.accent : tab.dimColor
+        color: tab.scan.mlx.length > 0 ? Tk.accent : tab.dimColor
         font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
         text: (tab.scan.mlx.length > 0 ? "MLX x" + tab.scan.mlx.length + " " + (tab.mlxModels.length > 0 ? tab.mlxModels.join(", ") : (tab.scan.mlx[0].model || "serving") + " :" + tab.scan.mlx[0].port) : "MLX not running") + (tab.resv.count > 0 ? " · rsv " + tab.resv.gib + "G" : "")
       }
@@ -312,13 +312,13 @@ Item {
         id: copyBtn
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        width: 64; height: 18; radius: 9
-        color: copyHit.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
+        width: 64; height: 18; radius: Tk.r(9)
+        color: copyHit.containsMouse ? Tk.tint(0.16) : Tk.tint(0.08)
         Text {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: tab.copied ? "copied" : "copy cmd"
-          color: tab.copied ? Commons.Color.accent : tab.textColor
+          color: tab.copied ? Tk.accent : tab.textColor
           font.family: tab.family; font.pixelSize: Commons.Style.font.caption
         }
         MouseArea { id: copyHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copyMlx() }
@@ -343,9 +343,9 @@ Item {
         Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
         Rectangle {
           anchors.verticalCenter: parent.verticalCenter
-          x: 58; height: 3; radius: 1.5
+          x: 58; height: 3; radius: Tk.r(1.5)
           width: Math.max(2, (rightCol.width - 58 - 34) * Math.max(0, Math.min(1, (modelData.c - 20) / 70)))
-          color: modelData.c >= 70 ? Commons.Color.urgent : Commons.Color.accent
+          color: modelData.c >= 70 ? Tk.urgent : Tk.accent
         }
         Text { textFormat: Text.PlainText; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: Math.round(modelData.c) + "°C"; color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
       }
@@ -362,9 +362,9 @@ Item {
         Text { textFormat: Text.PlainText; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "F" + modelData.id.replace("fan", ""); color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
         Rectangle {
           anchors.verticalCenter: parent.verticalCenter
-          x: 22; height: 3; radius: 1.5
+          x: 22; height: 3; radius: Tk.r(1.5)
           width: Math.max(2, (rightCol.width - 22 - 74) * Sys.fanFraction(modelData))
-          color: Commons.Color.accent
+          color: Tk.accent
         }
         Text {
           textFormat: Text.PlainText
@@ -388,9 +388,9 @@ Item {
         delegate: Rectangle {
           required property var modelData
           readonly property bool sel: tab.shownMode === modelData.id
-          width: Math.floor((rightCol.width - 6) / 3); height: 26; radius: 13
+          width: Math.floor((rightCol.width - 6) / 3); height: 26; radius: Tk.r(13)
           opacity: tab.canSetMode ? 1 : 0.45
-          color: sel ? Qt.rgba(1, 1, 1, 0.22) : (pillHit.containsMouse && tab.canSetMode ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08))
+          color: sel ? Tk.tint(0.22) : (pillHit.containsMouse && tab.canSetMode ? Tk.tint(0.16) : Tk.tint(0.08))
           Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: modelData.title; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
           MouseArea { id: pillHit; anchors.fill: parent; hoverEnabled: true; enabled: tab.canSetMode; cursorShape: Qt.PointingHandCursor; onClicked: tab.setMode(modelData.id) }
         }
