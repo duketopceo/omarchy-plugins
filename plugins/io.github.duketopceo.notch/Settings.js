@@ -5,6 +5,7 @@
 //   { "id": "io.github.duketopceo.notch", "clockSeconds": 24, ... }
 
 var DEFAULTS = {
+  theme: "swift",     // "swift" (polished) | "pxl" (retro pixel); see Theme.js
   clockSeconds: 24,
   slideSeconds: 7,
   showWeather: true,
@@ -15,10 +16,14 @@ var DEFAULTS = {
   hoverDelay: 150,    // ms before hover expands the panel
   reduceMotion: false, // swap springs and slides for quick fades
   snapdex: false,     // optional personal integration: Screenshots tab + caption flash
-  dayflow: false      // local: Dayflow tab, Home tile, idle slot + paused indicator
+  dayflow: false,     // local: Dayflow tab, Home tile, idle slot + paused indicator
+  blip: true,         // Messages tab = the Blip (iMessage) panel + its hub tile
+  aiUsage: true       // AI usage tab + the percent on the Plugins hub AI tile
 }
 
 var FIELDS = [
+  { key: "theme", label: "Theme", type: "choice",
+    options: [{ value: "swift", label: "Swift" }, { value: "pxl", label: "Pxl" }] },
   { key: "clockSeconds", label: "Clock seconds", type: "int", min: 5, max: 120, step: 5, suffix: " s" },
   { key: "slideSeconds", label: "Slide seconds", type: "int", min: 2, max: 30, step: 1, suffix: " s" },
   { key: "showWeather", label: "Show weather", type: "bool" },
@@ -31,7 +36,9 @@ var FIELDS = [
   { key: "hoverDelay", label: "Hover delay", type: "int", min: 0, max: 1000, step: 50, suffix: " ms" },
   { key: "reduceMotion", label: "Reduce motion", type: "bool" },
   { key: "snapdex", label: "Screenshots (snapdex)", type: "bool" },
-  { key: "dayflow", label: "Dayflow", type: "bool" }
+  { key: "dayflow", label: "Dayflow", type: "bool" },
+  { key: "blip", label: "Blip (iMessage) tab", type: "bool" },
+  { key: "aiUsage", label: "AI usage tab", type: "bool" }
 ]
 
 function field(key) {

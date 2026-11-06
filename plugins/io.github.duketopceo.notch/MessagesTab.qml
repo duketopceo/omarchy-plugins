@@ -82,13 +82,13 @@ Item {
         height: 15
         width: Math.max(15, countLabel.implicitWidth + 8)
         radius: 8
-        color: "#4aa3ff"
+        color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff"
         Text {
           id: countLabel
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: tab.feed ? tab.feed.badge || String(tab.unreadCount) : String(tab.unreadCount)
-          color: "#06121f"
+          color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubbleText : "#06121f"
           font.family: tab.family
           font.pixelSize: 9
           font.bold: true
@@ -262,7 +262,7 @@ Item {
                   textFormat: Text.PlainText
                   anchors.centerIn: parent
                   text: row.modelData.initials
-                  color: "#f2f2f4"
+                  color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubble : "#f2f2f4"
                   font.family: tab.family
                   font.pixelSize: 12
                   font.bold: true
@@ -293,7 +293,7 @@ Item {
               anchors.top: parent.top
               anchors.topMargin: 7
               text: Messages.relTime(row.modelData.ts, tab.now)
-              color: row.modelData.unread > 0 ? "#4aa3ff" : tab.dimColor
+              color: row.modelData.unread > 0 ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff") : tab.dimColor
               font.family: tab.family
               font.pixelSize: 10
             }
@@ -336,7 +336,7 @@ Item {
               anchors.rightMargin: 10
               anchors.bottom: parent.bottom
               anchors.bottomMargin: 8
-              color: "#4aa3ff"
+              color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : "#4aa3ff"
             }
             MouseArea {
               id: rowHit

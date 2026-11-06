@@ -151,6 +151,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           on: tab.snap.autoOn
           busy: tab.busy
+          onColor: tab.notch && tab.notch.goodColor ? tab.notch.goodColor : "#6fbf73"
           enabledSwitch: tab.snap.ok && tab.snap.autoKnown
           onToggled: tab.control(Screenshots.autoArgs(!tab.snap.autoOn), tab.snap.autoOn ? "Turning auto off" : "Turning auto on")
         }

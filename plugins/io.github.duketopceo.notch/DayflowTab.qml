@@ -75,7 +75,7 @@ Item {
       width: 10; height: 10; radius: 5
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
-      color: tab.status.paused ? Commons.Color.urgent : tab.status.recording ? "#f53d3d" : tab.dimColor
+      color: tab.status.paused ? Commons.Color.urgent : tab.status.recording ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.danger : "#f53d3d") : tab.dimColor
       SequentialAnimation on opacity {
         running: tab.visible && tab.status.recording && !(tab.notch && tab.notch.reduceMotion)
         loops: Animation.Infinite

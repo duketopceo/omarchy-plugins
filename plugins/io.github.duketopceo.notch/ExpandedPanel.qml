@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons as Commons
 import "Tabs.js" as Tabs
 import "Motion.js" as Motion
+import "Theme.js" as Theme
 
 // The island's hover-expanded content. Fills the island; the top
 // `headerHeight` px (the camera / idle row) stay clear. Below it sit a tab
@@ -19,10 +20,11 @@ Item {
   property int headerHeight: 32
   property var notch: null             // root Notch.qml item, handed to every tab
   property var weather: null           // Model.parseWeather output
-  property color islandColor: "black"
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
-  property string family: Commons.Style.font.family
+  property color islandColor: notch ? notch.islandColor : "black"
+  property color textColor: notch ? notch.textColor : Commons.Color.foreground
+  property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  property string family: notch ? notch.fontFamily : Commons.Style.font.family
+  readonly property var themeObj: notch && notch.themeObj ? notch.themeObj : Theme.resolve("swift")
   property date now: new Date()
 
   property string currentTab: Tabs.DEFAULT_TAB   // owned by the window (it sizes the panel); bound by the Loader
@@ -40,8 +42,8 @@ Item {
     anchors.fill: parent
     color: panel.islandColor
     opacity: Math.min(1, panel.progress * 1.6)
-    bottomLeftRadius: 24
-    bottomRightRadius: 24
+    bottomLeftRadius: panel.themeObj.islandRadius
+    bottomRightRadius: panel.themeObj.islandRadius
   }
 
   // One probe per tab: does its QML file exist yet?

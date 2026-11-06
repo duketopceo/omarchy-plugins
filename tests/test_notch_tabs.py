@@ -26,11 +26,12 @@ def run(expr):
 
 def test_tab_list_shape_and_sources():
     tabs = run("T.TABS")
-    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "network", "power", "system", "stocks", "screenshots", "dayflow", "plugins", "settings"]
+    assert [t["id"] for t in tabs] == ["home", "media", "agents", "ai", "messages", "network", "power", "system", "stocks", "screenshots", "dayflow", "plugins", "settings"]
     for t in tabs:
         assert {"id", "title", "short", "glyph", "source"} <= set(t) <= {"id", "title", "short", "glyph", "source", "optional", "size"} and len(t["short"]) <= 7 and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
+        "ai": "AiUsageTab.qml",
         "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "power": "PowerTab.qml", "system": "SystemTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml", "dayflow": "DayflowTab.qml",
         "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
 

@@ -42,7 +42,15 @@ Item {
   readonly property string selected: symbols.indexOf(pickedSymbol) >= 0 ? pickedSymbol : (symbols.length ? symbols[0] : "")
   readonly property var selSeries: Stocks.parseSeries(cache, selected, range)
   readonly property var selChange: Stocks.seriesChange(selSeries, range)
-  readonly property color selTone: selChange ? Stocks.toneColor(selChange.percent) : Stocks.COLORS.flat
+  // Up/down tones follow the notch theme (Stocks.js COLORS stays the
+  // standalone fallback); flat keeps the neutral grey.
+  readonly property color upTone: notch && notch.themeObj ? notch.themeObj.good : Stocks.COLORS.up
+  readonly property color downTone: notch && notch.themeObj ? notch.themeObj.bad : Stocks.COLORS.down
+  function toneFor(pct) {
+    var d = Stocks.direction(pct)
+    return d === "up" ? upTone : (d === "down" ? downTone : Stocks.COLORS.flat)
+  }
+  readonly property color selTone: selChange ? toneFor(selChange.percent) : Stocks.COLORS.flat
 
   function put(key, value) {
     var copy = {}
@@ -177,7 +185,7 @@ Item {
           readonly property var dayChg: Stocks.seriesChange(daySeries, "1D")
           readonly property real price: quote && isFinite(Number(quote.price)) ? Number(quote.price) : (chg ? chg.last : NaN)
           readonly property real pct: Stocks.todayPercent(quote, dayChg)
-          readonly property color tone: Stocks.toneColor(pct)
+          readonly property color tone: tab.toneFor(pct)
           readonly property bool isSel: sym === tab.selected
           x: (index % tab.cols) * (tab.cardW + tab.cardGap)
           y: Math.floor(index / tab.cols) * tab.pitch

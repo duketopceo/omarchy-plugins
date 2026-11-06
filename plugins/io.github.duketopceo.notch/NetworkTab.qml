@@ -20,12 +20,12 @@ Item {
   readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string pluginId: notch && notch.pluginId ? notch.pluginId : "io.github.duketopceo.notch"
-  readonly property color good: "#6fbf73"
-  readonly property color warn: "#e0b050"
-  readonly property color bad: "#d9695f"
-  readonly property color card: Qt.rgba(1, 1, 1, 0.05)
-  readonly property color chip: Qt.rgba(1, 1, 1, 0.08)
-  readonly property color chipHover: Qt.rgba(1, 1, 1, 0.16)
+  readonly property color good: notch && notch.themeObj ? notch.themeObj.good : "#6fbf73"
+  readonly property color warn: notch && notch.themeObj ? notch.themeObj.warn : "#e0b050"
+  readonly property color bad: notch && notch.themeObj ? notch.themeObj.bad : "#d9695f"
+  readonly property color card: notch && notch.themeObj && notch.themeObj.card ? notch.themeObj.card : Qt.rgba(1, 1, 1, 0.05)
+  readonly property color chip: notch && notch.themeObj && notch.themeObj.chip ? notch.themeObj.chip : Qt.rgba(1, 1, 1, 0.08)
+  readonly property color chipHover: notch && notch.themeObj && notch.themeObj.chipHover ? notch.themeObj.chipHover : Qt.rgba(1, 1, 1, 0.16)
 
   implicitWidth: 428
   implicitHeight: 164
@@ -178,6 +178,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           on: ops.tsOn
           busy: ops.tsBusy
+          onColor: tab.good
           enabledSwitch: Network.tailscaleToggleCommand(ops.ts) !== null
           onToggled: ops.toggleTailscale()
         }
@@ -381,7 +382,7 @@ Item {
                 anchors.right: parent.right
                 anchors.rightMargin: 5
                 anchors.verticalCenter: parent.verticalCenter
-                color: peer.modelData.online ? tab.good : "#555a60"
+                color: peer.modelData.online ? tab.good : tab.dimColor
               }
               MouseArea {
                 id: peerHit
@@ -506,6 +507,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           on: ops.nordOn
           busy: ops.nordBusy
+          onColor: tab.good
           enabledSwitch: ops.nord.ok
           onToggled: ops.toggleNord()
         }

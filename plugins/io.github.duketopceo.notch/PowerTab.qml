@@ -52,11 +52,12 @@ Item {
   }
 
   readonly property color tone: {
-    if (kind === "charging") return "#6fbf73"
-    if (kind === "full") return "#6fbf73"
-    if (kind === "hold") return "#6aa9e0"
-    if (percent >= 0 && percent <= 15) return Commons.Color.urgent
-    if (percent >= 0 && percent <= 30) return "#e0b050"
+    var t = notch && notch.themeObj ? notch.themeObj : null
+    if (kind === "charging") return t ? t.good : "#6fbf73"
+    if (kind === "full") return t ? t.good : "#6fbf73"
+    if (kind === "hold") return t ? t.hold : "#6aa9e0"
+    if (percent >= 0 && percent <= 15) return notch && notch.urgentColor ? notch.urgentColor : Commons.Color.urgent
+    if (percent >= 0 && percent <= 30) return t ? t.warn : "#e0b050"
     return textColor
   }
 
@@ -294,7 +295,7 @@ Item {
             // "in" flows toward the battery (right), "out" away from it (left).
             readonly property int slot: tab.flow.flow === "out" ? 2 - index : index
             text: tab.flow.flow === "out" ? "‹" : "›"
-            color: tab.flow.flow === "out" ? "#e0b050" : "#6fbf73"
+            color: tab.flow.flow === "out" ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.warn : "#e0b050") : (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.good : "#6fbf73")
             opacity: arrows.moving ? (arrows.phase === slot ? 1.0 : 0.25) : 0.2
             font.family: tab.family
             font.pixelSize: 22
@@ -417,7 +418,7 @@ Item {
           anchors.right: parent.right
           anchors.bottom: parent.bottom
           values: tab.history.watts
-          tone: "#e0b050"
+          tone: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.warn : "#e0b050"
         }
         Text {
           textFormat: Text.PlainText

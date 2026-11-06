@@ -12,13 +12,22 @@
         { "id": "mohamedmansour.finance", "showChange": false },
         { "id": "omarchy.elsewhen", "cities": [{ "name": "Example", "zone": "UTC" }] },
         { "id": "io.github.duketopceo.wisp" },
+        { "id": "omarchy.system-update", "autoCheckUpdates": true },
         { "id": "omarchy.microphone" }
       ],
       "right": [
+        {
+          "id": "io.github.tyrichards.tray",
+          "order": ["1Password_status_icon_1", "fastpotify", "jankeesvw.herdr", "NordVPN"],
+          "widgets": [{ "entry": { "id": "jankeesvw.herdr" }, "listed": true }]
+        },
         { "id": "example.tray" },
         { "id": "nixfred.blip" },
         { "id": "omarchy.tailscale" },
         { "id": "omarchy.network" },
+        { "id": "lukedaduke.lidguard" },
+        { "id": "io.github.ncr.omaphones", "useFastPair": false, "useModeControl": false },
+        { "id": "omarchy.tray" },
         { "id": "io.github.duketopceo.wordink" }
       ],
       "tray": [{ "id": "example.panel" }]

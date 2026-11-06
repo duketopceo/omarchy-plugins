@@ -76,7 +76,7 @@ Each entry is `{ id, active (bool), priority (int, higher wins), text (string), 
 
 ## Slimming the bar
 
-`bin/notch-slim-bar` removes the bar widgets the notch covers (Tailscale, NordVPN, snapdex, WordInk, finance, world clock, active window) from `shell.json` `bar.layout`. `--dry-run` shows the change, `--undo` puts the entries back. It backs up to `shell.json.bak-notch-v3` first and keeps `omarchy.indicators`, `omarchy.microphone`, Blip and Wisp. Tests: `tests/test_notch_slim_bar.py`.
+`bin/notch-slim-bar` slims `shell.json` `bar.layout` to what the notch does not cover and leaves the right side at seven entries (`omarchy.system-update`, network, audio, power, Blip, Bluetooth, AI usage percent). It moves `omarchy.system-update` from left to right, and removes the widgets the notch absorbed: Tailscale, NordVPN, snapdex, WordInk, finance, world clock, active window, `lukedaduke.lidguard`, and the two tray hosts (`io.github.tyrichards.tray`, `omarchy.tray`) whose contents the Plugins hub lists. `io.github.ncr.omaphones` goes too — its Bluetooth controls are covered by the audio entry. `--dry-run` shows the change, `--undo` puts the entries back exactly where they were. It backs up to `shell.json.bak-notch-v4` (date-suffixed if that name is taken) and keeps `omarchy.indicators`, `omarchy.microphone`, Blip and Wisp. Tests: `tests/test_notch_slim_bar.py`.
 
 ## Checking the bar layout
 

@@ -15,9 +15,9 @@ Item {
 
   // Root Notch item (N1 tabs contract); AgentsActivity lives there as `agentsActivity`.
   property var notch: null
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
-  property string family: Commons.Style.font.family
+  property color textColor: notch ? notch.textColor : Commons.Color.foreground
+  property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  property string family: notch ? notch.fontFamily : Commons.Style.font.family
 
   readonly property var summary: notch && notch.agentsActivity ? notch.agentsActivity.summary : Agents.parseLs("")
   readonly property var usage: notch && notch.usage ? notch.usage : ({ ok: false, providers: [] })
@@ -41,8 +41,8 @@ Item {
   readonly property var groups: Agents.groupModel(summary)
   readonly property var urows: Agents.usageRows(usage, nowMs, usageExpanded, 3)
 
-  readonly property color warnColor: "#f5a742"
-  readonly property color goodColor: "#6fbf73"
+  readonly property color warnColor: notch && notch.themeObj ? notch.themeObj.warn : "#f5a742"
+  readonly property color goodColor: notch && notch.themeObj ? notch.themeObj.good : "#6fbf73"
   function statusColor(status) {
     var s = Agents.normStatus(status)
     return s === "blocked" ? Commons.Color.urgent : s === "done" ? goodColor : s === "working" ? Commons.Color.accent : Commons.Color.muted
@@ -70,7 +70,7 @@ Item {
   // A monogram badge, or herdr's own icon when it has one for this app.
   component AppIcon: Item {
     id: ic
-    property var info: ({ file: "", monogram: "?", color: "#8a8f98" })
+    property var info: ({ file: "", monogram: "?", color: tab.dimColor })
     property int size: 16
     width: size; height: size
     Image {

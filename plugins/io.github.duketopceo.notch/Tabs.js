@@ -17,7 +17,8 @@ var TABS = [
   { id: "home", title: "Home", short: "Home", glyph: "\u{F02DC}", source: "HomeTab.qml", size: PANEL_SIZE },
   { id: "media", title: "Media", short: "Media", glyph: "\u{F075A}", source: "MediaTab.qml", size: PANEL_SIZE },
   { id: "agents", title: "Agents", short: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml", size: PANEL_SIZE },
-  { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml", size: PANEL_SIZE },
+  { id: "ai", title: "AI usage", short: "AI", glyph: "\u{F0E7}", source: "AiUsageTab.qml", optional: "aiUsage", size: PANEL_SIZE },
+  { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml", optional: "blip", size: PANEL_SIZE },
   { id: "network", title: "Network", short: "Net", glyph: "\u{F05A9}", source: "NetworkTab.qml", size: PANEL_SIZE },
   { id: "power", title: "Power", short: "Power", glyph: "\u{F140B}", source: "PowerTab.qml", size: PANEL_SIZE },
   { id: "system", title: "System", short: "System", glyph: "\u{F061A}", source: "SystemTab.qml", size: PANEL_SIZE },
@@ -33,6 +34,13 @@ var TABS = [
 function visibleTabs(settings, tabs) {
   var list = Array.isArray(tabs) ? tabs : TABS
   return list.filter(function (t) { return !t.optional || !!(settings && settings[t.optional] === true) })
+}
+
+// Just the ids of the visible tabs. The Plugins tab uses this to decide
+// whether an embedded tile can open in place or has to fall back to the
+// launcher chain (Tabs.js stays the one source of truth for what is shipped).
+function visibleIds(settings, tabs) {
+  return visibleTabs(settings, tabs).map(function (t) { return t.id })
 }
 
 // Optional per-tab panel size `size: { w, h }` (logical px) lives on the tab
@@ -85,5 +93,5 @@ function failed(tab) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
+  module.exports = { sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, visibleIds: visibleIds, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
 }

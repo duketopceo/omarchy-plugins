@@ -20,12 +20,12 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property bool active: visible
 
-  readonly property color cpuTone: Commons.Color.accent
-  readonly property color gpuTone: Commons.Color.accent
-  readonly property color ramTone: Commons.Color.accent
-  readonly property color aneTone: Commons.Color.accent
-  readonly property color tempTone: Commons.Color.accent
-  readonly property color powerTone: Commons.Color.accent
+  readonly property color cpuTone: notch && notch.themeObj ? notch.themeObj.info : Commons.Color.accent
+  readonly property color gpuTone: notch && notch.accentColor ? notch.accentColor : Commons.Color.accent
+  readonly property color ramTone: notch && notch.themeObj ? notch.themeObj.good : Commons.Color.accent
+  readonly property color aneTone: notch && notch.themeObj ? notch.themeObj.hold : Commons.Color.accent
+  readonly property color tempTone: notch && notch.themeObj ? notch.themeObj.warn : Commons.Color.accent
+  readonly property color powerTone: notch && notch.accentColor ? notch.accentColor : Commons.Color.accent
 
   // ---- state
   property var prevStat: null

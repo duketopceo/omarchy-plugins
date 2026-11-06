@@ -16,6 +16,7 @@ import "Agents.js" as Agents
 import "Screenshots.js" as Screenshots
 import "Motion.js" as Motion
 import "Dayflow.js" as Dayflow  // local: dayflow integration
+import "Theme.js" as Theme
 
 // Notch island: one small layer-shell window per screen at top center.
 // On a panel with a camera cutout (Omarchy's display-cutouts.json) it hugs
@@ -57,6 +58,12 @@ Item {
   // Values just set from the UI, so they show even before the config reloads.
   property var pending: ({})
   readonly property var settings: Settings.resolve(Settings.pluginEntry(shellConfig, pluginId), pending)
+
+  // Theme (Theme.js): Swift follows the live Omarchy palette, Pxl pins its
+  // own retro tokens. Recomputes on load and whenever the Settings tab
+  // changes `theme` (settings is reactive via shellConfig/pending).
+  readonly property var themeObj: Theme.resolve(settings.theme)
+  readonly property string themeId: themeObj.id
 
   function setSetting(key, value) {
     var copy = {}
@@ -115,10 +122,19 @@ Item {
   readonly property int clockSeconds: settings.clockSeconds
   readonly property int slideSeconds: settings.slideSeconds
 
-  readonly property color islandColor: "black"
-  readonly property color textColor: Commons.Color.foreground
-  readonly property color dimColor: Commons.Color.muted
-  readonly property string fontFamily: Commons.Style.font.family
+  readonly property color islandColor: themeObj.island
+  readonly property color textColor: themeObj.text || Commons.Color.foreground
+  readonly property color dimColor: themeObj.dim || Commons.Color.muted
+  readonly property color faintColor: themeObj.faint || Commons.Color.muted
+  readonly property color accentColor: themeObj.accent || Commons.Color.accent
+  readonly property color urgentColor: themeObj.urgent || Commons.Color.urgent
+  readonly property color goodColor: themeObj.good
+  readonly property color warnColor: themeObj.warn
+  readonly property color badColor: themeObj.bad
+  readonly property string fontFamily: themeObj.fontFamily || Commons.Style.font.family
+  readonly property int islandRadius: themeObj.islandRadius
+  readonly property int cardRadius: themeObj.cardRadius
+  readonly property int pillRadius: themeObj.pillRadius
   readonly property int barHeight: Commons.Style.bar && Commons.Style.bar.sizeHorizontal > 0 ? Commons.Style.bar.sizeHorizontal : 32
 
 
@@ -405,8 +421,8 @@ Item {
         color: root.islandColor
         topLeftRadius: 0
         topRightRadius: 0
-        bottomLeftRadius: Math.min(24, Math.round(height * 0.45))
-        bottomRightRadius: Math.min(24, Math.round(height * 0.45))
+        bottomLeftRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
+        bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
 
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
@@ -467,6 +483,7 @@ Item {
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
+          upColor: root.goodColor
           maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW))
           family: root.fontFamily
         }
@@ -508,7 +525,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
           anchors.rightMargin: Math.round(parent.height * 0.45)
-          color: root.network.idleDot === "on" ? "#6fbf73" : "#e0b050"
+          color: root.network.idleDot === "on" ? root.goodColor : root.warnColor
         }
 
         // Click the right ear while dictation is showing to stop/toggle it.
@@ -559,6 +576,7 @@ Item {
             notched: false
             maxWidth: root.virtualWidth - 110
             family: root.fontFamily
+            upColor: root.goodColor
           }
           SlideText {
             visible: root.view !== "watchlist" && root.view !== "date"

@@ -14,15 +14,19 @@ Item {
   property int maxWidth: 88
   property string family: ""
 
+  // Up color follows the notch theme (Notch.qml passes root.goodColor);
+  // the default keeps this slide usable standalone.
+  property color upColor: "#6fbf73"
+
   readonly property int perSlide: Watchlist.perSlide(notched, 2)
   readonly property var shown: Watchlist.slide(quotes, index, perSlide)
   readonly property int slides: Watchlist.slideCount(quotes.length, perSlide)
 
-  // The theme has no gain color, so up uses a fixed green; down is the
-  // theme's urgent color; flat is muted.
+  // Up uses the theme's good color (upColor); down is the theme's urgent
+  // color; flat is muted.
   function tint(pct) {
     var d = Watchlist.direction(pct)
-    return d === "up" ? "#6fbf73" : (d === "down" ? Commons.Color.urgent : Commons.Color.muted)
+    return d === "up" ? upColor : (d === "down" ? Commons.Color.urgent : Commons.Color.muted)
   }
 
   implicitWidth: Math.min(maxWidth, row.implicitWidth)
