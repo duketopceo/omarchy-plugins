@@ -188,14 +188,14 @@ def test_status_reports_a_failed_open():
 
 # ---------------------------------------------------------------- tile size
 
-def test_tiles_are_at_least_3_5x_the_old_grid():
+def test_tiles_are_the_compact_old_cell():
     old = run("P.BASE_CELL")
     assert old == {"w": 224, "h": 94}
     area = run("P.tileArea(688)")
-    assert area >= 1.2 * old["w"] * old["h"]  # smaller for 3-4 across, still larger than old
+    assert area <= 1.05 * old["w"] * old["h"]  # compact: no bigger than the old cell
     width = run("P.tileWidth(688)")
     assert width == 222
-    assert run("P.TILE_H") == 132
+    assert run("P.TILE_H") == 96
     # Three columns plus two gaps fill the 720 px panel's 688 px content width.
     assert 3 * width + 2 * run("P.HUB_GAP") == 686
 

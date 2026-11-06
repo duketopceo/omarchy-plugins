@@ -144,13 +144,12 @@ var EMBED = {
 // R6: the end-of-hub row that opens Preferences.
 var CONFIGURE = { id: "settings", label: "Configure", title: "All plugins" }
 
-// Tile box. The old grid was 3 columns of 224 x 94 px in a 720 px panel; a hub
-// tile keeps 2 columns and is 3.5x that cell's area, so names and previews are
-// readable instead of icon-only. The panel scrolls (NotchScroll) for the rest.
+// Tile box: back to the compact 224 x 94 cell (3 columns in the 720 px panel,
+// so three rows of plugins fit without scrolling). NotchScroll takes the rest.
 var BASE_CELL = { w: 224, h: 94 }
 var GROWTH = 3.5
 var HUB_GAP = 10
-var TILE_H = 132
+var TILE_H = 96
 
 function tileColumns(width) {
   var w = Number(width)

@@ -431,7 +431,7 @@ Item {
           font.pixelSize: Commons.Style.font.bodySmall
         }
       }
-      MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (panel.notch) panel.notch.openTabRequested("dayflow") }
+      MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (panel.notch) panel.notch.openTabRequested("dayflow", "") }
     }
 
     Item {

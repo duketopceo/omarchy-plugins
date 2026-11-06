@@ -157,7 +157,7 @@ Item {
     x: chart.hoverIndex >= 0 ? chart.sc.x(chart.hoverIndex) - 3.5 : 0
     y: chart.hoverPoint ? chart.sc.y(chart.hoverPoint.c) - 3.5 : 0
     color: chart.tone
-    border.width: Tk.bw(1).5
+    border.width: Tk.bw(1.5)
     border.color: Tk.black
   }
   // price tag on the axis

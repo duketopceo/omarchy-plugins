@@ -73,7 +73,7 @@ Item {
   function openTab(id) {
     if (!notch) return
     if (typeof notch.openTab === "function") notch.openTab(id)
-    else notch.openTabRequested(id)
+    else notch.openTabRequested(id, "")
   }
 
   function openConfigure() { openTab(Plugins.configure().id) }
@@ -161,18 +161,18 @@ Item {
                 Column {
                   anchors.centerIn: parent
                   width: parent.width - 24
-                  spacing: 5
+                  spacing: 3
 
                   Item {
                     width: parent.width
-                    height: 46
+                    height: 32
                     Image {
                       id: iconImg
                       anchors.centerIn: parent
-                      width: 44; height: 44
+                      width: 30; height: 30
                       visible: slot.imageOk && status === Image.Ready
                       source: slot.imageOk ? "file://" + slot.info.image : ""
-                      sourceSize: Qt.size(176, 176)
+                      sourceSize: Qt.size(120, 120)
                       fillMode: Image.PreserveAspectFit
                       asynchronous: true
                     }
@@ -183,7 +183,7 @@ Item {
                       text: slot.info.glyph
                       color: tab.textColor
                       font.family: tab.family
-                      font.pixelSize: 32
+                      font.pixelSize: 22
                     }
                   }
 
@@ -209,15 +209,15 @@ Item {
                     text: slot.st.detail
                     color: tab.toneColor(slot.st.tone)
                     font.family: tab.family
-                    font.pixelSize: Commons.Style.font.title
+                    font.pixelSize: Commons.Style.font.body
                     font.bold: true
                   }
 
                   // R3: pill when the UI is in the notch, dot for on/off bar.
                   Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: 20
-                    width: chip.implicitWidth + 16
+                    height: 16
+                    width: Math.min(chip.implicitWidth + 14, parent.width)
                     radius: Tk.r(height / 2)
                     color: slot.st.on ? Tk.tint(0.10) : "transparent"
                     border.width: slot.st.on ? 0 : 1

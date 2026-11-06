@@ -98,11 +98,12 @@ Item {
 
           Rectangle {
             id: pill
-            width: row.isInt ? 72 : 56
+            width: row.isInt ? 72 : Math.max(56, pillText.implicitWidth + 16)
             height: 26; radius: Tk.r(13)
             readonly property bool on: row.modelData.type === "bool" && tab.settings[row.modelData.key] === true
             color: on ? Tk.tint(0.28) : (pillHit.containsMouse && !row.isInt ? Tk.tint(0.22) : Tk.tint(0.1))
             Text {
+              id: pillText
               textFormat: Text.PlainText
               anchors.centerIn: parent
               text: Settings.format(row.modelData, tab.settings[row.modelData.key])

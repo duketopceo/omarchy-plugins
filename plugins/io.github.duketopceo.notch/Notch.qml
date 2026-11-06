@@ -300,7 +300,7 @@ Item {
   // clears the grab and collapses it. Nothing covers the screen.
   property var openScreens: ({})
   signal collapseRequested()
-  signal openTabRequested(string id)
+  signal openTabRequested(string id, string screenName)
   readonly property bool reduceMotion: Commons.Style.reduceMotion || (settings && settings.reduceMotion === true)
   function primaryScreenName() {
     var list = Quickshell.screens
@@ -310,7 +310,8 @@ Item {
   // `qs ipc call notch openTab <id>` pins the island open on a tab (used for screenshots).
   IpcHandler {
     target: "notch"
-    function openTab(id: string): void { root.openTabRequested(id) }
+    function openTab(id: string): void { root.openTabRequested(id, "") }
+    function openTabOn(id: string, screenName: string): void { root.openTabRequested(id, screenName) }
     function close(): void { root.collapseRequested() }
     function toggleTheme(): void { root.toggleTheme() }
   }
@@ -375,8 +376,9 @@ Item {
       Connections {
         target: root
         function onCollapseRequested() { win.collapseNow() }
-        function onOpenTabRequested(id) {
-          if (modelData.name !== (Quickshell.screens.length ? root.primaryScreenName() : "")) return
+        function onOpenTabRequested(id, screenName) {
+          var want = screenName !== "" ? screenName : (Quickshell.screens.length ? root.primaryScreenName() : "")
+          if (modelData.name !== want) return
           win.currentTab = id
           win.pinned = true
           if (win.xstate !== "open") win.xstate = "open"
@@ -409,6 +411,9 @@ Item {
         SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; stepped: Tk.pxl; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
         // Half the island either side of the camera: where the ear text sits.
         readonly property bool earsOn: win.notched && (!Tk.pxl || !(win.expanded || height > win.baseHeight + 1))
+        // Idle content (clock, date, slot) only draws while collapsed; otherwise it
+        // would sit behind/through the open panel.
+        readonly property bool idleShown: !(win.expanded || height > win.baseHeight + 1)
         readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         TextMetrics {
           id: sideMetrics
@@ -548,7 +553,7 @@ Item {
 
         // Virtual notch: one centered line.
         Row {
-          visible: !win.notched
+          visible: !win.notched && island.idleShown
           anchors.centerIn: parent
           spacing: 10
           Text {
