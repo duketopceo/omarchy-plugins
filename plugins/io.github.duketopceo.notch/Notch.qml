@@ -84,6 +84,59 @@ Item {
   // shell cannot, fall back to Wisp's own click action, toggle listening.
   function openWisp() { openPluginChecked("io.github.duketopceo.wisp", [Quickshell.env("HOME") + "/.local/bin/wisp-trigger"]) }
 
+
+  // Tray-section plugins have no live bar widget (the notch slims the bar and
+  // drops the tray hosts), so the shell's summon and their IPC target are
+  // gone, and a third-party plugin cannot reach the tray's widget registry.
+  // The notch therefore hosts one invisible instance of each tray widget
+  // itself, loaded straight from the plugin's own barWidget entry point with
+  // bar, moduleName and settings injected as the bar does. The instance owns
+  // the plugin's IPC target; its panel opens through its own toggle().
+  property var hostedItems: ({})
+  function openHosted(id) {
+    var item = hostedItems[id]
+    if (!item || typeof item.toggle !== "function") return false
+    item.toggle()
+    return true
+  }
+  Repeater {
+    model: Plugins.trayIds(root.shellConfig).concat(["lukedaduke.lidguard"]).filter(function(i) { return i !== "io.github.twiking.omacontrol" })  // omacontrol keeps its own live IPC target
+    delegate: Item {
+      id: hostRow
+      required property var modelData
+      readonly property string widgetId: String(modelData)
+      readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + widgetId
+      readonly property string entryFile: {
+        try { return String(JSON.parse(manifestFile.text()).entryPoints.barWidget || "") } catch (e) { return "" }
+      }
+      width: 1; height: 1; opacity: 0
+      FileView { id: manifestFile; path: hostRow.pluginDir + "/manifest.json" }
+      function entrySettings() {
+        var list = root.shellConfig && root.shellConfig.bar && root.shellConfig.bar.layout ? root.shellConfig.bar.layout.tray : null
+        for (var i = 0; list && i < list.length; i++) if (list[i] && list[i].id === widgetId) return list[i]
+        return ({})
+      }
+      function inject() {
+        var t = loader.item
+        if (!t) return
+        if ("bar" in t) t.bar = root.shell ? root.shell.bar : null
+        if ("moduleName" in t) t.moduleName = widgetId
+        if ("settings" in t) t.settings = hostRow.entrySettings()
+        var copy = {}
+        for (var k in root.hostedItems) copy[k] = root.hostedItems[k]
+        copy[widgetId] = t
+        root.hostedItems = copy
+      }
+      Loader {
+        id: loader
+        active: hostRow.entryFile !== ""
+        source: active ? "file://" + hostRow.pluginDir + "/" + hostRow.entryFile : ""
+        onLoaded: { hostRow.inject(); Qt.callLater(hostRow.inject) }
+        onStatusChanged: if (status === Loader.Error) console.warn("notch-host: load failed", hostRow.widgetId)
+      }
+    }
+  }
+
   // Open a plugin's panel. Tries the shell's summon, then the plugin's own IPC
   // target, then a plugin-specific fallback (see Plugins.openChain).
   property var openSteps: []
@@ -95,6 +148,7 @@ Item {
   function openPluginChecked(id, fallback) {
     if (opener.running) return
     openingId = String(id)
+    if (openHosted(String(id))) return
     openSteps = Plugins.openChain(String(id), fallback)
     openIndex = 0
     runOpenStep()
@@ -313,6 +367,7 @@ Item {
     function openTab(id: string): void { root.openTabRequested(id, "") }
     function openTabOn(id: string, screenName: string): void { root.openTabRequested(id, screenName) }
     function close(): void { root.collapseRequested() }
+    function openPlugin(id: string): void { root.openPlugin(id) }
     function toggleTheme(): void { root.toggleTheme() }
   }
   function setOpen(name, open) {

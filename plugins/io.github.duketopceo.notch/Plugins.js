@@ -71,6 +71,9 @@ function ipcCommand(id) {
 //   3. a plugin-specific fallback (open its web page / a terminal view)
 var QS = ["/usr/bin/qs", "-p", "/usr/share/omarchy/shell", "ipc", "call"]
 var FALLBACKS = {
+  "io.github.twiking.omacontrol": QS.concat(["omacontrol", "toggle"]),
+  "io.github.ncr.omaphones": QS.concat(["omarchy.bluetooth", "toggle"]),
+  "lukedaduke.agents": ["/usr/bin/xdg-open", "https://github.com/akitaonrails/ai-usagebar"],
   "robzolkos.github": ["/usr/bin/xdg-open", "https://github.com/notifications"],
   "io.github.duketopceo.dayflow": ["/usr/bin/xdg-terminal-exec", "/bin/sh", "-c", "$HOME/.local/bin/dayflow today | less -R"],
   "io.github.duketopceo.omaseal": ["/usr/bin/xdg-terminal-exec", "/bin/sh", "-c", "$HOME/.local/bin/omaseal ls | less -R"]
