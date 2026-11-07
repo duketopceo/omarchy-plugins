@@ -51,7 +51,8 @@ Item {
         // Ear: two short lines.
         Column {
           id: notchedCol
-          visible: slide.notched && !Tk.pxl   // pixel fonts can't stack two lines in the 32 px island
+          visible: slide.notched
+          spacing: Tk.pxl ? -1 : 0
           width: parent.width
           Row {
             spacing: 5
@@ -60,7 +61,7 @@ Item {
               textFormat: Text.PlainText
               color: Tk.text
               font.family: slide.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.pxl ? 9 : 11
               font.weight: Font.DemiBold
             }
             Text {
@@ -68,7 +69,7 @@ Item {
               textFormat: Text.PlainText
               color: slide.tint(entry.modelData.changePercent)
               font.family: slide.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.pxl ? 9 : 11
             }
           }
           Text {
@@ -77,7 +78,7 @@ Item {
             textFormat: Text.PlainText
             color: Tk.dim
             font.family: slide.family
-            font.pixelSize: 11
+            font.pixelSize: Tk.pxl ? 9 : 11
             elide: Text.ElideRight
           }
         }
@@ -85,7 +86,7 @@ Item {
         // Virtual notch: one line, "SYM price change".
         Row {
           id: flat
-          visible: !slide.notched || Tk.pxl
+          visible: !slide.notched
           spacing: 4
           Text {
             text: entry.modelData.symbol
@@ -96,7 +97,6 @@ Item {
             font.weight: Font.DemiBold
           }
           Text {
-            visible: !(slide.notched && Tk.pxl)   // resting pxl island: ticker + change only
             text: Watchlist.formatPrice(entry.modelData.price)
             textFormat: Text.PlainText
             color: Tk.dim
