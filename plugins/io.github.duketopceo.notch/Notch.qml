@@ -171,9 +171,10 @@ Item {
   readonly property int autoCameraWidth: 200   // logical px, 14"/16" MacBook Pro
   readonly property int cameraWidth: settings.cameraWidth > 0 ? settings.cameraWidth : autoCameraWidth
   readonly property int earWidth: 96       // content room either side of the camera
+  readonly property int earOuter: 12         // gap between ear content and the island's outer edge
   readonly property int earMargin: 12     // px kept clear of the nearest bar widget
   readonly property int earCap: 280        // widest an ear may grow
-  readonly property int earPad: 6          // gap between ear text and the camera edge
+  readonly property int earPad: 8          // gap between ear text and the camera edge
   // Camera width override from Settings (0 = auto-detect from the device model).
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
   readonly property int virtualWidth: 300  // island width on screens without a cutout
@@ -342,7 +343,7 @@ Item {
   readonly property string idleView: Model.idleSlot(now.getTime() / 1000, Dayflow.idleViews((weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), settings.dayflow, dayflowState.status, dayflowState.today), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
   readonly property string view: activity ? "activity" : (idleView || "date")
   readonly property bool slotShown: activity !== null && activity !== undefined || idleView !== ""
-  readonly property string dateLead: dateText + (slotShown ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
+  readonly property string dateLead: dateText + (slotShown && (sideText !== "" || mediaShown || view === "watchlist") ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
   readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : idleView === "dayflow" ? dayflowState.slot : "")
   readonly property bool showIcon: view === "weather" && weather !== null
@@ -410,7 +411,7 @@ Item {
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
       readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
       readonly property real dateNeed: dateMetrics.advanceWidth + 6
-      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
+      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 12 : 0)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -490,7 +491,7 @@ Item {
         bottomLeftRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
         bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
 
-        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: Tk.edge }
+        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: win.notched && island.earsOn ? root.islandColor : Tk.edge }
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
         // A click on the island itself (outside any tab content) pins it open.
@@ -521,7 +522,7 @@ Item {
         Text {
           visible: island.earsOn
           anchors.verticalCenter: parent.verticalCenter
-          width: Math.min(implicitWidth, island.earLive - root.earPad - 2)
+          width: Math.min(implicitWidth, island.earLive - root.earPad - root.earOuter)
           elide: Text.ElideRight
           x: island.earLive - width - root.earPad   // right-aligned against the camera edge
           text: root.timeText
@@ -551,7 +552,7 @@ Item {
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
           upColor: root.goodColor
-          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW))
+          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW))
           family: root.fontFamily
         }
         SlideText {
@@ -561,7 +562,7 @@ Item {
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
+          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
           color: root.textColor
           family: root.fontFamily
         }
@@ -580,7 +581,7 @@ Item {
           activity: dictation
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
-          anchors.rightMargin: Math.round(parent.height * 0.45)
+          anchors.rightMargin: root.earOuter
         }
 
         // Network dot (v3): green while Tailscale or NordVPN is up, amber while
@@ -591,7 +592,7 @@ Item {
           width: 5; height: 5; radius: Tk.r(3)
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
-          anchors.rightMargin: Math.round(parent.height * 0.45)
+          anchors.rightMargin: root.earOuter
           color: root.network.idleDot === "on" ? root.goodColor : root.warnColor
         }
 
