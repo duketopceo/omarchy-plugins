@@ -394,7 +394,7 @@ Item {
       }) : 0
       readonly property bool notched: cut > 0
       readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride) || Model.SIZES.cameraWidth
-      readonly property int earW: Model.earWidthFor(modelData.width)
+      readonly property int earW: Model.earWidthFor(modelData.width) + (Tk.pxl ? 16 : 0)  // pixel fonts run wider
 
       // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
       property string xstate: "collapsed"
@@ -409,9 +409,9 @@ Item {
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
       readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
       readonly property real dateNeed: dateMetrics.advanceWidth + 6
-      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 12 : 0)
+      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -524,7 +524,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, island.earLive - root.earPad - root.earOuter)
           elide: Text.ElideRight
-          x: island.earLive - width - root.earPad   // right-aligned against the camera edge
+          x: Math.round(root.earOuter + (island.earLive - root.earOuter - root.earPad - width) / 2)   // centered in the left ear
           text: root.timeText
           color: root.textColor
           font.family: Tk.label
