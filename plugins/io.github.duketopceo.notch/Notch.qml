@@ -409,7 +409,7 @@ Item {
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
       readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? (Tk.pxl ? 86 : 84) : 0)
       readonly property real dateNeed: dateMetrics.advanceWidth + 6
       readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
@@ -552,7 +552,7 @@ Item {
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
           upColor: root.goodColor
-          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW))
+          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW)) - (netDot.visible ? 14 : 0)
           family: root.fontFamily
         }
         SlideText {

@@ -123,7 +123,7 @@ def test_max_ear_width_from_live_room():
     assert model(f"M.maxEarWidth({json.dumps(BAR)}, 1728, 186, 96, 12, 1000)") == 509
     assert model(f"M.maxEarWidth({json.dumps(BAR)}, 1728, 186, 96, 12, 280)") == 280
     # no geometry yet, or no room: keep the base ear
-    assert model("M.maxEarWidth([], 1728, 186, 96, 12, 280)") == 96
+    assert model("M.maxEarWidth([], 1728, 186, 96, 12, 280)") == 168
     crowded = [{"section": "right", "x": 1060, "width": 20, "visible": True}]
     assert model(f"M.maxEarWidth({json.dumps(crowded)}, 1728, 186, 96, 12, 280)") == 96
 

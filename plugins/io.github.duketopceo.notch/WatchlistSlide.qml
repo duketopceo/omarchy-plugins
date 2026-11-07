@@ -51,7 +51,7 @@ Item {
         // Ear: two short lines.
         Column {
           id: notchedCol
-          visible: slide.notched
+          visible: slide.notched && !Tk.pxl   // pixel fonts can't stack two lines in the 32 px island
           width: parent.width
           Row {
             spacing: 5
@@ -85,7 +85,7 @@ Item {
         // Virtual notch: one line, "SYM price change".
         Row {
           id: flat
-          visible: !slide.notched
+          visible: !slide.notched || Tk.pxl
           spacing: 4
           Text {
             text: entry.modelData.symbol
@@ -96,6 +96,7 @@ Item {
             font.weight: Font.DemiBold
           }
           Text {
+            visible: !(slide.notched && Tk.pxl)   // resting pxl island: ticker + change only
             text: Watchlist.formatPrice(entry.modelData.price)
             textFormat: Text.PlainText
             color: Tk.dim
