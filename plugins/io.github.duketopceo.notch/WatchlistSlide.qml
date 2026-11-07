@@ -48,38 +48,37 @@ Item {
         width: implicitWidth
         height: implicitHeight
 
-        // Ear: two short lines.
-        Column {
+        // Ear: the ticker tall on the left, price over change on the right.
+        Row {
           id: notchedCol
           visible: slide.notched
-          spacing: Tk.pxl ? -1 : 0
-          width: parent.width
-          Row {
-            spacing: 5
+          spacing: 5
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: entry.modelData.symbol
+            textFormat: Text.PlainText
+            color: Tk.text
+            font.family: slide.family
+            font.pixelSize: Tk.pxl ? 14 : 15
+            font.weight: Font.DemiBold
+          }
+          Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Tk.pxl ? -1 : 0
             Text {
-              text: entry.modelData.symbol
+              text: Watchlist.formatPrice(entry.modelData.price)
               textFormat: Text.PlainText
-              color: Tk.text
+              color: Tk.dim
               font.family: slide.family
-              font.pixelSize: Tk.pxl ? 9 : 11
-              font.weight: Font.DemiBold
+              font.pixelSize: Tk.pxl ? 9 : 10
             }
             Text {
               text: Watchlist.formatChange(entry.modelData.changePercent)
               textFormat: Text.PlainText
               color: slide.tint(entry.modelData.changePercent)
               font.family: slide.family
-              font.pixelSize: Tk.pxl ? 9 : 11
+              font.pixelSize: Tk.pxl ? 9 : 10
             }
-          }
-          Text {
-            width: parent.width
-            text: Watchlist.formatPrice(entry.modelData.price)
-            textFormat: Text.PlainText
-            color: Tk.dim
-            font.family: slide.family
-            font.pixelSize: Tk.pxl ? 9 : 11
-            elide: Text.ElideRight
           }
         }
 
