@@ -194,10 +194,10 @@ def test_tiles_are_the_compact_old_cell():
     area = run("P.tileArea(688)")
     assert area <= 1.05 * old["w"] * old["h"]  # compact: no bigger than the old cell
     width = run("P.tileWidth(688)")
-    assert width == 222
-    assert run("P.TILE_H") == 96
-    # Three columns plus two gaps fill the 720 px panel's 688 px content width.
-    assert 3 * width + 2 * run("P.HUB_GAP") == 686
+    assert width == 164
+    assert run("P.TILE_H") == 80
+    # Four columns plus three gaps fill the 720 px panel's 688 px content width.
+    assert 4 * width + 3 * run("P.HUB_GAP") == 686
 
 
 def test_tile_width_never_collapses():

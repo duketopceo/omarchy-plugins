@@ -147,18 +147,17 @@ var EMBED = {
 // R6: the end-of-hub row that opens Preferences.
 var CONFIGURE = { id: "settings", label: "Configure", title: "All plugins" }
 
-// Tile box: back to the compact 224 x 94 cell (3 columns in the 720 px panel,
-// so three rows of plugins fit without scrolling). NotchScroll takes the rest.
+// Tile box: compact 4-column grid in the 720 px panel (80 px tall) so two
+// full rows fit under the camera header on a notched screen. NotchScroll takes the rest.
 var BASE_CELL = { w: 224, h: 94 }
 var GROWTH = 3.5
 var HUB_GAP = 10
-var TILE_H = 96
+var TILE_H = 80
 
 function tileColumns(width) {
   var w = Number(width)
   if (!(w > 0)) return 3
-  if (w >= 1000) return 4
-  if (w >= 650) return 3
+  if (w >= 650) return 4
   return 2
 }
 
