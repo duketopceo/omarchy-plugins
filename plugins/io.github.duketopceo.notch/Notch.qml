@@ -407,11 +407,11 @@ Item {
       // Ears: the base width, grown (right ear text, island stays centered on
       // the camera) up to the live room on the narrower bar side minus margin.
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
-      readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
+      readonly property real slotX: island.earLive + camW + root.earPad
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
       readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
-      readonly property real dateNeed: dateMetrics.advanceWidth + 6
-      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6
+      readonly property real leftNeed: timeMetrics.advanceWidth + root.earPad + root.earOuter
+      readonly property real sideNeed: Math.max(leftNeed, (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -478,10 +478,11 @@ Item {
           text: root.sideText
         }
         TextMetrics {
-          id: dateMetrics
-          font.family: root.fontFamily
+          id: timeMetrics
+          font.family: Tk.label
           font.pixelSize: 13
-          text: root.dateLead
+          font.weight: Font.DemiBold
+          text: root.timeText + " \u00B7 " + root.dateText
         }
         x: Math.round((parent.width - width) / 2)
         y: 0
@@ -518,30 +519,19 @@ Item {
           }
         }
 
-        // Notched: time in the left ear; right ear = date, then the ONE rotating slot.
+        // Notched: time + date in the left ear; right ear = the ONE rotating slot.
         Text {
           visible: island.earsOn
           anchors.verticalCenter: parent.verticalCenter
           width: Math.min(implicitWidth, island.earLive - root.earPad - root.earOuter)
           elide: Text.ElideRight
           x: Math.round(root.earOuter + (island.earLive - root.earOuter - root.earPad - width) / 2)   // centered in the left ear
-          text: root.timeText
+          text: root.timeText + " \u00B7 " + root.dateText
           color: root.textColor
           font.family: Tk.label
           font.pixelSize: 13
           textFormat: Text.PlainText
           font.weight: Font.DemiBold
-        }
-        // Date: fixed in the right ear next to the camera; never cycles.
-        Text {
-          visible: island.earsOn
-          anchors.verticalCenter: parent.verticalCenter
-          x: island.earLive + win.camW + root.earPad
-          text: root.dateLead
-          color: root.dimColor
-          font.family: root.fontFamily
-          font.pixelSize: 13
-          textFormat: Text.PlainText
         }
         // watchlist hook: the slide replaces the side text while view === "watchlist".
         WatchlistSlide {
@@ -607,28 +597,27 @@ Item {
           onClicked: dictation.toggle()
         }
 
-        // Virtual notch: one centered line.
-        Row {
+        // Virtual notch: time + date left, the ONE rotating slot right.
+        Text {
           visible: !win.notched && island.idleShown
-          anchors.centerIn: parent
-          spacing: 10
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.timeText
-            color: root.textColor
-            font.family: root.fontFamily
-            font.pixelSize: 13
-            textFormat: Text.PlainText
-            font.weight: Font.DemiBold
-          }
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.dateLead
-            color: root.dimColor
-            font.family: root.fontFamily
-            font.pixelSize: 13
-            textFormat: Text.PlainText
-          }
+          anchors.verticalCenter: parent.verticalCenter
+          x: root.earOuter
+          width: Math.min(implicitWidth, parent.width - root.earOuter - root.earPad - rightSlot.implicitWidth - 6)
+          elide: Text.ElideRight
+          text: root.timeText + " \u00B7 " + root.dateText
+          color: root.textColor
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          textFormat: Text.PlainText
+          font.weight: Font.DemiBold
+        }
+        Row {
+          id: rightSlot
+          visible: !win.notched && island.idleShown
+          anchors.verticalCenter: parent.verticalCenter
+          x: parent.width - root.earOuter - implicitWidth
+          spacing: 6
+          layoutDirection: Qt.RightToLeft
           EqGlyph {
             visible: root.mediaShown
             playing: media.active
@@ -642,7 +631,7 @@ Item {
             quotes: root.quotes
             index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
             notched: false
-            maxWidth: root.virtualWidth - 110
+            maxWidth: root.virtualWidth - 160
             family: root.fontFamily
             upColor: root.goodColor
           }
@@ -652,7 +641,7 @@ Item {
             target: root.sideText
             iconKind: root.weather ? root.weather.kind : ""
             iconOn: root.showIcon
-            maxWidth: root.virtualWidth - 110
+            maxWidth: root.virtualWidth - 160
             color: root.textColor
             family: root.fontFamily
           }
