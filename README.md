@@ -46,11 +46,14 @@ required. See `.env.example`.
 | `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
 | `lukedaduke.nexus` | Hardware topology radar: USB/BT/NVMe interconnect map |
 | `lukedaduke.power` | Battery status, charge graph, top consumers, power profiles |
+| `lukedaduke.lidguard` | Timed lid-close stay-awake so agents and VMs keep running with the lid shut |
 | `io.github.duketopceo.bumblebee` | Supply-chain exposure radar: packages and dev tools checked against a known-compromise catalog |
 | `io.github.duketopceo.numbat` | AI-agent activity radar: live agent list and findings from Perplexity's numbat monitor |
 | `io.github.duketopceo.pplx` | Quick-ask UI for the Perplexity Search API (`pplx` CLI, bring your own key) |
 | `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
+| `io.github.duketopceo.notch` | Mac-style notch island (panel): clock, weather, stocks, hover-expand tabs. **Self-contained** — works alone after install; optional Wisp / WordInk / Blip / herdr / snapdex / fan integrations detect-and-degrade |
 | `io.github.duketopceo.wordink` | WordInk dictation: mic state icon, click to dictate, mic picker, recent dictations, weekly usage (local `wordink` CLI) |
+| `io.github.duketopceo.hotkey-tally` | Counts how often each wrapped Hyprland binding is used (aggregate counts only, local) |
 
 ### Retired
 
@@ -70,17 +73,22 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
 | `lukedaduke.nexus` | https://github.com/duketopceo/omarchy-nexus |
 | `lukedaduke.power` | https://github.com/duketopceo/omarchy-power |
+| `lukedaduke.lidguard` | https://github.com/duketopceo/omarchy-lidguard |
 | `io.github.duketopceo.bumblebee` | https://github.com/duketopceo/omarchy-bumblebee |
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
+| `io.github.duketopceo.notch` | https://github.com/duketopceo/omarchy-notch (not yet published) |
 | `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
+| `io.github.duketopceo.hotkey-tally` | https://github.com/duketopceo/omarchy-hotkey-tally (not yet published) |
 
 Install any of them with:
 
 ```bash
 omarchy plugin add https://github.com/duketopceo/omarchy-fan
 ```
+
+Until a mirror exists, install from this umbrella with `./scripts/install.sh --link` or `--copy` (covers notch and the other unpublished plugins).
 
 To list on the marketplace, submit the per-plugin repo at [plugins.omarchy.org/publish](https://plugins.omarchy.org/publish.html).
 
