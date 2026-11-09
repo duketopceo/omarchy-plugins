@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# yay guard: no sudo keep-alive loop without a terminal.
+#
+# yay's sudo loop re-runs `sudo -v` every couple of seconds. Without a
+# terminal each attempt is a failed login, and faillock is shared with the
+# lock screen: on 2026-10-31 a forgotten loop kept the account locked out
+# for about five hours. Without a terminal this refuses any flag that turns
+# the loop on (`--sudoloop`, `--sudoloop=true`) and passes --sudoloop=false
+# so a saved SudoLoop config cannot start it either.
+REAL=/usr/bin/yay
+
+# sudo prompts on the controlling terminal, so stdin alone is not enough.
+if [[ -t 0 ]] && { : </dev/tty; } 2>/dev/null; then
+  exec "$REAL" "$@"
+fi
+
+for arg in "$@"; do
+  case $arg in
+    --sudoloop | --sudoloop=*)
+      case ${arg#--sudoloop} in
+        =false | =0 | =no) ;;
+        *)
+          echo "yay guard: refusing $arg without a terminal (it would trip faillock, which also locks the screen). Run it in a terminal, or drop it." >&2
+          exit 2
+          ;;
+      esac
+      ;;
+  esac
+done
+exec "$REAL" --sudoloop=false "$@"

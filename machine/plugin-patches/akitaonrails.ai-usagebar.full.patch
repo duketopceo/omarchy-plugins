@@ -1,0 +1,292 @@
+diff --git i/kde-plasmoid/package/contents/config/config.qml w/kde-plasmoid/package/contents/config/config.qml
+index 588c356..bb202e3 100644
+--- i/kde-plasmoid/package/contents/config/config.qml
++++ w/kde-plasmoid/package/contents/config/config.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import org.kde.plasma.configuration
+ 
+ // `source` resolves relative to contents/ui/, NOT contents/config/.
+diff --git i/kde-plasmoid/package/contents/ui/ColorSwatch.qml w/kde-plasmoid/package/contents/ui/ColorSwatch.qml
+index 1f026e8..b207f1e 100644
+--- i/kde-plasmoid/package/contents/ui/ColorSwatch.qml
++++ w/kde-plasmoid/package/contents/ui/ColorSwatch.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import QtQuick.Controls as QQC2
+ import QtQuick.Dialogs as Dialogs
+diff --git i/kde-plasmoid/package/contents/ui/CompactRepresentation.qml w/kde-plasmoid/package/contents/ui/CompactRepresentation.qml
+index fcea9e9..321ab47 100644
+--- i/kde-plasmoid/package/contents/ui/CompactRepresentation.qml
++++ w/kde-plasmoid/package/contents/ui/CompactRepresentation.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import org.kde.plasma.plasmoid
+ import org.kde.plasma.core as PlasmaCore
+diff --git i/kde-plasmoid/package/contents/ui/FullRepresentation.qml w/kde-plasmoid/package/contents/ui/FullRepresentation.qml
+index f25cf94..1dcccd9 100644
+--- i/kde-plasmoid/package/contents/ui/FullRepresentation.qml
++++ w/kde-plasmoid/package/contents/ui/FullRepresentation.qml
+@@ -7,7 +7,7 @@
+ // tokens; everything here sizes off Kirigami.Units and colours off
+ // Kirigami.Theme, so the widget follows whatever Plasma colour scheme the user
+ // runs.
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.components as PlasmaComponents
+diff --git i/kde-plasmoid/package/contents/ui/UsageBar.qml w/kde-plasmoid/package/contents/ui/UsageBar.qml
+index 76e0a85..8eb6468 100644
+--- i/kde-plasmoid/package/contents/ui/UsageBar.qml
++++ w/kde-plasmoid/package/contents/ui/UsageBar.qml
+@@ -5,7 +5,7 @@
+ // One fill, coloured by the severity the Rust core already computed for this
+ // metric, exactly as omarchy/Panel.qml does. The width animates so switching
+ // provider tabs reads as a transition rather than a jump.
+-import QtQuick
++import QtQuick 6.11
+ import org.kde.kirigami as Kirigami
+ import "../code/plasmoid-logic.mjs" as Logic
+ 
+diff --git i/kde-plasmoid/package/contents/ui/UsageRow.qml w/kde-plasmoid/package/contents/ui/UsageRow.qml
+index 66fde46..022246e 100644
+--- i/kde-plasmoid/package/contents/ui/UsageRow.qml
++++ w/kde-plasmoid/package/contents/ui/UsageRow.qml
+@@ -5,7 +5,7 @@
+ // Handles every section type the report emits — `metric`, `block` and the
+ // text fallback — so an unfamiliar section degrades to something readable
+ // instead of vanishing.
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.components as PlasmaComponents
+diff --git i/kde-plasmoid/package/contents/ui/UsageRows.qml w/kde-plasmoid/package/contents/ui/UsageRows.qml
+index 8b45504..81a28db 100644
+--- i/kde-plasmoid/package/contents/ui/UsageRows.qml
++++ w/kde-plasmoid/package/contents/ui/UsageRows.qml
+@@ -1,7 +1,7 @@
+ // The row list the tooltip shows. Same rows as the popup, without the popup's
+ // chrome: no tab strip and no action buttons, because a tooltip cannot be
+ // clicked.
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.components as PlasmaComponents
+diff --git i/kde-plasmoid/package/contents/ui/UsageToolTip.qml w/kde-plasmoid/package/contents/ui/UsageToolTip.qml
+index c9fbe03..66689d1 100644
+--- i/kde-plasmoid/package/contents/ui/UsageToolTip.qml
++++ w/kde-plasmoid/package/contents/ui/UsageToolTip.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import org.kde.kirigami as Kirigami
+ 
+ // A custom toolTipItem rather than toolTipMainText/toolTipSubText: the default
+diff --git i/kde-plasmoid/package/contents/ui/VendorCards.qml w/kde-plasmoid/package/contents/ui/VendorCards.qml
+index 2f67fa2..652b0df 100644
+--- i/kde-plasmoid/package/contents/ui/VendorCards.qml
++++ w/kde-plasmoid/package/contents/ui/VendorCards.qml
+@@ -13,7 +13,7 @@
+ // A window the vendor does not report (percent === null) renders as a dash
+ // with "not reported", never as a fabricated 0% bar — an absent 5h window must
+ // not look like an empty one.
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import org.kde.kirigami as Kirigami
+ import org.kde.plasma.components as PlasmaComponents
+diff --git i/kde-plasmoid/package/contents/ui/configGeneral.qml w/kde-plasmoid/package/contents/ui/configGeneral.qml
+index 0acba9b..aeecf16 100644
+--- i/kde-plasmoid/package/contents/ui/configGeneral.qml
++++ w/kde-plasmoid/package/contents/ui/configGeneral.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Layouts
+ import QtQuick.Controls as QQC2
+ import org.kde.plasma.plasma5support as Plasma5Support
+diff --git i/kde-plasmoid/package/contents/ui/main.qml w/kde-plasmoid/package/contents/ui/main.qml
+index 35aaebd..5a0a0c0 100644
+--- i/kde-plasmoid/package/contents/ui/main.qml
++++ w/kde-plasmoid/package/contents/ui/main.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import org.kde.plasma.plasmoid
+ import org.kde.plasma.core as PlasmaCore
+ import org.kde.plasma.plasma5support as Plasma5Support
+diff --git i/kde-plasmoid/probe/contents/ui/main.qml w/kde-plasmoid/probe/contents/ui/main.qml
+index 14f408d..34240b2 100644
+--- i/kde-plasmoid/probe/contents/ui/main.qml
++++ w/kde-plasmoid/probe/contents/ui/main.qml
+@@ -6,7 +6,7 @@
+ // The second is the dangerous one: no error, just wrong answers.
+ //
+ // Run: make mjs-probe
+-import QtQuick
++import QtQuick 6.11
+ import org.kde.plasma.plasmoid
+ import org.kde.plasma.plasma5support as Plasma5Support
+ import "../../../package/contents/code/plasmoid-logic.mjs" as Logic
+diff --git i/kde-plasmoid/qmltests/tst_usagebar.qml w/kde-plasmoid/qmltests/tst_usagebar.qml
+index c54e092..7f2f220 100644
+--- i/kde-plasmoid/qmltests/tst_usagebar.qml
++++ w/kde-plasmoid/qmltests/tst_usagebar.qml
+@@ -7,7 +7,7 @@
+ // `visible` is deliberately NOT asserted: nothing is inside a shown window, so
+ // every item reports visible=false regardless of its binding. Width is the
+ // honest proxy — a zero-width fill paints nothing either way.
+-import QtQuick
++import QtQuick 6.11
+ import QtTest
+ import "../package/contents/ui" as Ui
+ import "../package/contents/code/plasmoid-logic.mjs" as Logic
+diff --git i/omarchy/BarWidget.qml w/omarchy/BarWidget.qml
+index 3859c4c..38a5cde 100644
+--- i/omarchy/BarWidget.qml
++++ w/omarchy/BarWidget.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import qs.Commons
+ import qs.Ui
+diff --git i/omarchy/BrandMark.qml w/omarchy/BrandMark.qml
+index 4017e72..7f3e01b 100644
+--- i/omarchy/BrandMark.qml
++++ w/omarchy/BrandMark.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/omarchy/Panel.qml w/omarchy/Panel.qml
+index 5f5c757..9300672 100644
+--- i/omarchy/Panel.qml
++++ w/omarchy/Panel.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import Quickshell
+ import Quickshell.Io
+@@ -766,9 +766,8 @@ Panel {
+   Process {
+     id: usageProcess
+     running: false
+-    // /usr/bin/env always starts on Omarchy and reports a missing ai-usagebar
+-    // as exit 127. Keep the command as structured argv: no shell is needed.
+-    command: ["/usr/bin/env", "ai-usagebar", "usage", "--json"]
++    // Runs through OmaSeal-aware wrapper to dynamically resolve OpenRouter management key
++    command: ["/home/lukekimball/.local/bin/ai-usagebar-omaseal", "usage", "--json"]
+ 
+     stdout: StdioCollector {
+       waitForEnd: true
+@@ -964,7 +963,7 @@ Panel {
+             id: providerList
+             visible: !root.settingsOpen && root.visibleEntries.length > 1
+             width: parent.width
+-            height: visible ? childrenRect.height : 0
++            height: visible ? implicitHeight : 0
+             flow: Flow.LeftToRight
+             spacing: Style.spacing.md
+ 
+@@ -998,7 +997,7 @@ Panel {
+             id: cursorPoolToggles
+             visible: !root.settingsOpen && root.cursorEntry
+             width: parent.width
+-            height: visible ? childrenRect.height : 0
++            height: visible ? implicitHeight : 0
+             flow: Flow.LeftToRight
+             spacing: Style.spacing.md
+ 
+@@ -1069,16 +1068,25 @@ Panel {
+             }
+           }
+ 
+-          Column {
++          // GNOME-style card: the usage & balance rows sit inside a rounded
++          // surface instead of floating on the panel background, matching the
++          // Resource & Fan panel's card language.
++          Rectangle {
+             id: usageSection
+             visible: !root.settingsOpen && root.entrySections.length > 0
+             width: parent.width
+-            spacing: Style.space(8)
++            radius: Style.cornerRadius
++            color: Style.normalFillFor(root.foreground, Color.accent)
++            border.color: root.alpha(root.foreground, 0.08)
++            border.width: 1
++            implicitHeight: usageCard.implicitHeight + Style.space(24)
+ 
+-            PanelSeparator {
+-              width: parent.width
+-              foreground: root.foreground
+-            }
++            Column {
++              id: usageCard
++              x: Style.space(12)
++              y: Style.space(12)
++              width: usageSection.width - Style.space(24)
++              spacing: Style.space(8)
+ 
+             PanelSectionHeader {
+               text: root.tr("section.usage_balance")
+@@ -1091,7 +1099,7 @@ Panel {
+ 
+               Column {
+                 required property var modelData
+-                width: usageSection.width
++                width: usageCard.width
+ 
+                 // `visible` alone is not enough: QML evaluates the bindings of
+                 // hidden items too, so every row used to be handed to all three
+@@ -1123,6 +1131,7 @@ Panel {
+                 }
+               }
+             }
++            }
+           }
+ 
+           Text {
+@@ -1330,13 +1339,14 @@ Panel {
+     }
+ 
+     Text {
++      readonly property bool isGraph: blockRow.row && blockRow.row.body && blockRow.row.body.some(function(l) { return l.indexOf("■") !== -1 || l.indexOf("█") !== -1 })
+       width: parent.width
+       text: blockRow.row && blockRow.row.body ? blockRow.row.body.join("\n") : ""
+       textFormat: Text.PlainText
+       color: root.dim
+-      font.family: root.fontFamily
+-      font.pixelSize: Style.font.caption
+-      wrapMode: Text.WordWrap
++      font.family: isGraph ? "monospace" : root.fontFamily
++      font.pixelSize: isGraph ? Style.font.caption - 1 : Style.font.caption
++      wrapMode: isGraph ? Text.NoWrap : Text.WordWrap
+     }
+   }
+ }
+diff --git i/omarchy/SettingsView.qml w/omarchy/SettingsView.qml
+index 122d54b..6ec1676 100644
+--- i/omarchy/SettingsView.qml
++++ w/omarchy/SettingsView.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import Quickshell.Io
+ import qs.Commons

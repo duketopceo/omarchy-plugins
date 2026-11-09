@@ -1,0 +1,382 @@
+diff --git i/AccentButton.qml w/AccentButton.qml
+index a124b53..f29c78f 100644
+--- i/AccentButton.qml
++++ w/AccentButton.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/AgendaColumn.qml w/AgendaColumn.qml
+index 70e0509..328254d 100644
+--- i/AgendaColumn.qml
++++ w/AgendaColumn.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/AllDayRow.qml w/AllDayRow.qml
+index 3cf29e7..65d261c 100644
+--- i/AllDayRow.qml
++++ w/AllDayRow.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/BarSettings.qml w/BarSettings.qml
+index b77d9cb..607460c 100644
+--- i/BarSettings.qml
++++ w/BarSettings.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/BarWidget.qml w/BarWidget.qml
+index 7a2b5f2..95f76fe 100644
+--- i/BarWidget.qml
++++ w/BarWidget.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/CalendarSettings.qml w/CalendarSettings.qml
+index 67d4fcd..a6ff7f9 100644
+--- i/CalendarSettings.qml
++++ w/CalendarSettings.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/ChoiceDialog.qml w/ChoiceDialog.qml
+index 303ad2a..ac11a39 100644
+--- i/ChoiceDialog.qml
++++ w/ChoiceDialog.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/ChoiceGroup.qml w/ChoiceGroup.qml
+index bb12974..54c7151 100644
+--- i/ChoiceGroup.qml
++++ w/ChoiceGroup.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/DatePicker.qml w/DatePicker.qml
+index 96c9399..c58ad06 100644
+--- i/DatePicker.qml
++++ w/DatePicker.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls as QQC
+ import qs.Commons
+ import qs.Ui
+diff --git i/EventDetails.qml w/EventDetails.qml
+index facf2c1..72a823d 100644
+--- i/EventDetails.qml
++++ w/EventDetails.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/EventForm.qml w/EventForm.qml
+index 087e329..4e8290c 100644
+--- i/EventForm.qml
++++ w/EventForm.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/EventOptions.qml w/EventOptions.qml
+index df04085..8ff15c7 100644
+--- i/EventOptions.qml
++++ w/EventOptions.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/FoldHeader.qml w/FoldHeader.qml
+index 5a0b868..3ae723f 100644
+--- i/FoldHeader.qml
++++ w/FoldHeader.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // A section title that folds what is under it: a triangle, the title and
+diff --git i/FormHeader.qml w/FormHeader.qml
+index fa1204a..5c6ba2d 100644
+--- i/FormHeader.qml
++++ w/FormHeader.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/GeneralSettings.qml w/GeneralSettings.qml
+index 97507ea..3c6790c 100644
+--- i/GeneralSettings.qml
++++ w/GeneralSettings.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/GuestList.qml w/GuestList.qml
+index 6fb8642..df6194d 100644
+--- i/GuestList.qml
++++ w/GuestList.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/HeroHeader.qml w/HeroHeader.qml
+index fc808bb..c839f0d 100644
+--- i/HeroHeader.qml
++++ w/HeroHeader.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/KeyCap.qml w/KeyCap.qml
+index 088cca0..bb8049f 100644
+--- i/KeyCap.qml
++++ w/KeyCap.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // A key of the keyboard, drawn small: its label on a faint rounded square,
+diff --git i/LayoutOptions.qml w/LayoutOptions.qml
+index be24cad..1d905fc 100644
+--- i/LayoutOptions.qml
++++ w/LayoutOptions.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/MonthGrid.qml w/MonthGrid.qml
+index 7b0a83f..fcd6827 100644
+--- i/MonthGrid.qml
++++ w/MonthGrid.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/NextUpCard.qml w/NextUpCard.qml
+index 14a6d43..f92c357 100644
+--- i/NextUpCard.qml
++++ w/NextUpCard.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/NowLine.qml w/NowLine.qml
+index 774696f..2f6d7d1 100644
+--- i/NowLine.qml
++++ w/NowLine.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Where now falls among the day's timed rows: a dot, the time, and a rule
+diff --git i/Panel.qml w/Panel.qml
+index d7bc4cb..f8b31b8 100644
+--- i/Panel.qml
++++ w/Panel.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/ProgressRails.qml w/ProgressRails.qml
+index 5730a56..e8a0fa7 100644
+--- i/ProgressRails.qml
++++ w/ProgressRails.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/QuickAdd.qml w/QuickAdd.qml
+index 6dccf47..d487adb 100644
+--- i/QuickAdd.qml
++++ w/QuickAdd.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/QuickAddSummary.qml w/QuickAddSummary.qml
+index 6747317..d5b86ce 100644
+--- i/QuickAddSummary.qml
++++ w/QuickAddSummary.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/Reminders.qml w/Reminders.qml
+index d723425..34a4f0d 100644
+--- i/Reminders.qml
++++ w/Reminders.qml
+@@ -1,6 +1,6 @@
+ pragma ComponentBehavior: Bound
+ 
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import "Model.js" as Model
+diff --git i/RepeatPicker.qml w/RepeatPicker.qml
+index f45c1e8..a7dafc7 100644
+--- i/RepeatPicker.qml
++++ w/RepeatPicker.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/ScrollHint.qml w/ScrollHint.qml
+index 1e56a32..a7f4fbc 100644
+--- i/ScrollHint.qml
++++ w/ScrollHint.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Shows that a Flickable holds more than it shows: a fade over its bottom
+diff --git i/SecondaryButton.qml w/SecondaryButton.qml
+index 95611e5..c58e798 100644
+--- i/SecondaryButton.qml
++++ w/SecondaryButton.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/SettingsCaption.qml w/SettingsCaption.qml
+index 46445ec..31a9a4b 100644
+--- i/SettingsCaption.qml
++++ w/SettingsCaption.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // The title of a group of settings: small, bold, in capitals, with an
+diff --git i/SettingsView.qml w/SettingsView.qml
+index 57129de..43a5886 100644
+--- i/SettingsView.qml
++++ w/SettingsView.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/ShortcutLegend.qml w/ShortcutLegend.qml
+index 86b4184..50f1cb8 100644
+--- i/ShortcutLegend.qml
++++ w/ShortcutLegend.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ import "Strings.js" as Strings
+diff --git i/TimeDropdown.qml w/TimeDropdown.qml
+index 560ef44..c0e49f0 100644
+--- i/TimeDropdown.qml
++++ w/TimeDropdown.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/TimedRow.qml w/TimedRow.qml
+index 5730361..124063e 100644
+--- i/TimedRow.qml
++++ w/TimedRow.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/Toast.qml w/Toast.qml
+index 4fcc289..0e6cd5f 100644
+--- i/Toast.qml
++++ w/Toast.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/ToggleRow.qml w/ToggleRow.qml
+index 0ebee3d..6c3e43d 100644
+--- i/ToggleRow.qml
++++ w/ToggleRow.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/UpcomingDays.qml w/UpcomingDays.qml
+index 3bec047..6586ac8 100644
+--- i/UpcomingDays.qml
++++ w/UpcomingDays.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 

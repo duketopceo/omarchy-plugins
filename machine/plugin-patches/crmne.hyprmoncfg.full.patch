@@ -1,0 +1,405 @@
+diff --git i/BarWidget.qml w/BarWidget.qml
+index 4d7d38b..fee74ba 100644
+--- i/BarWidget.qml
++++ w/BarWidget.qml
+@@ -1,97 +1,123 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import qs.Commons
+ import qs.Ui
+ 
+ BarWidget {
+-  id: root
+-  moduleName: "crmne.hyprmoncfg"
++    id: root
+ 
+-  function injectPanel() {
+-    var target = panelLoader.item
+-    if (!target) return
+-    if ("bar" in target) target.bar = root.bar
+-    if ("settings" in target) target.settings = root.settings
+-    if ("anchorItem" in target) target.anchorItem = button
+-    if ("hostWidget" in target) target.hostWidget = root
+-  }
++    readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
++    readonly property bool backendConnected: panelLoader.item ? panelLoader.item.backendConnected === true : false
++    readonly property bool barIconDimmed: panelLoader.item ? panelLoader.item.barIconDimmed === true : false
++    readonly property int monitorCount: panelLoader.item ? panelLoader.item.monitorCount : Quickshell.screens.length
++    readonly property string activeProfile: panelLoader.item ? panelLoader.item.activeProfile : ""
++    readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+ 
+-  function togglePanel() {
+-    if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle()
+-  }
++    function injectPanel() {
++        var target = panelLoader.item;
++        if (!target)
++            return ;
+ 
+-  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+-  readonly property bool backendConnected: panelLoader.item ? panelLoader.item.backendConnected === true : false
+-  readonly property bool barIconDimmed: panelLoader.item ? panelLoader.item.barIconDimmed === true : false
+-  readonly property int monitorCount: panelLoader.item ? panelLoader.item.monitorCount : Quickshell.screens.length
+-  readonly property string activeProfile: panelLoader.item ? panelLoader.item.activeProfile : ""
++        if ("bar" in target)
++            target.bar = root.bar;
+ 
+-  function open() {
+-    if (panelLoader.item && panelLoader.item.openFromHotkey) panelLoader.item.openFromHotkey()
+-  }
++        if ("settings" in target)
++            target.settings = root.settings;
+ 
+-  function close() {
+-    if (panelLoader.item && panelLoader.item.close) panelLoader.item.close()
+-  }
++        if ("anchorItem" in target)
++            target.anchorItem = button;
+ 
+-  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
++        if ("hostWidget" in target)
++            target.hostWidget = root;
+ 
+-  function closeForPopoutSwitch() {
+-    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+-  }
+-
+-  implicitWidth: button.implicitWidth
+-  implicitHeight: button.implicitHeight
+-
+-  onBarChanged: injectPanel()
+-  onSettingsChanged: injectPanel()
+-
+-  Loader {
+-    id: panelLoader
+-    active: true
+-    source: Qt.resolvedUrl("Panel.qml")
+-    onLoaded: {
+-      root.injectPanel()
+-      Qt.callLater(root.injectPanel)
+     }
+-  }
+ 
+-  BarIconButton {
+-    id: button
+-    anchors.fill: parent
+-    bar: root.bar
+-    text: root.monitorCount > 1 ? "󰍺" : "󰍹"
+-    dimmed: root.barIconDimmed
+-    tooltipText: root.activeProfile !== "" ? "Display · " + root.activeProfile : "Display · hyprmoncfg"
+-    iconComponent: Component {
+-      Item {
+-        OpticalGlyph {
+-          id: barDisplayGlyph
+-          anchors.fill: parent
+-          text: button.text
+-          color: button.foreground
+-          fontFamily: button.fontFamily
+-          fontSize: button.fontSize
++    function togglePanel() {
++        if (panelLoader.item && panelLoader.item.toggle)
++            panelLoader.item.toggle();
++
++    }
++
++    function open() {
++        if (panelLoader.item && panelLoader.item.openFromHotkey)
++            panelLoader.item.openFromHotkey();
++
++    }
++
++    function close() {
++        if (panelLoader.item && panelLoader.item.close)
++            panelLoader.item.close();
++
++    }
++
++    function closeForPopoutSwitch() {
++        if (panelLoader.item)
++            panelLoader.item.closeForPopoutSwitch();
++
++    }
++
++    moduleName: "crmne.hyprmoncfg"
++    visible: root.monitorCount > 1
++    implicitWidth: visible ? button.implicitWidth : 0
++    implicitHeight: visible ? button.implicitHeight : 0
++    onBarChanged: injectPanel()
++    onSettingsChanged: injectPanel()
++
++    Loader {
++        id: panelLoader
++
++        active: true
++        source: Qt.resolvedUrl("Panel.qml")
++        onLoaded: {
++            root.injectPanel();
++            Qt.callLater(root.injectPanel);
++        }
++    }
++
++    BarIconButton {
++        id: button
++
++        anchors.fill: parent
++        bar: root.bar
++        text: root.monitorCount > 1 ? "󰍺" : "󰍹"
++        dimmed: root.barIconDimmed
++        tooltipText: root.activeProfile !== "" ? "Display · " + root.activeProfile : "Display · hyprmoncfg"
++        onPressed: function(mouseButton) {
++            if (mouseButton === Qt.LeftButton)
++                root.togglePanel();
++
+         }
+ 
+-        Text {
+-          textFormat: Text.PlainText
+-          visible: root.backendConnected
+-          anchors.right: barDisplayGlyph.right
+-          anchors.bottom: barDisplayGlyph.bottom
+-          anchors.rightMargin: -Style.space(1)
+-          anchors.bottomMargin: -Style.space(1)
+-          text: "󰄬"
+-          color: Color.accent
+-          font.family: button.fontFamily
+-          font.pixelSize: Math.max(7, Math.round(button.fontSize * 0.45))
+-          font.bold: true
++        iconComponent: Component {
++            Item {
++                OpticalGlyph {
++                    id: barDisplayGlyph
++
++                    anchors.fill: parent
++                    text: button.text
++                    color: button.foreground
++                    fontFamily: button.fontFamily
++                    fontSize: button.fontSize
++                }
++
++                Text {
++                    textFormat: Text.PlainText
++                    visible: root.backendConnected
++                    anchors.right: barDisplayGlyph.right
++                    anchors.bottom: barDisplayGlyph.bottom
++                    anchors.rightMargin: -Style.space(1)
++                    anchors.bottomMargin: -Style.space(1)
++                    text: "󰄬"
++                    color: Color.accent
++                    font.family: button.fontFamily
++                    font.pixelSize: Math.max(7, Math.round(button.fontSize * 0.45))
++                    font.bold: true
++                }
++
++            }
++
+         }
+-      }
++
+     }
+ 
+-    onPressed: function(mouseButton) {
+-      if (mouseButton === Qt.LeftButton) root.togglePanel()
+-    }
+-  }
+ }
+diff --git i/BrightnessControl.qml w/BrightnessControl.qml
+index 57114b0..d350ce9 100644
+--- i/BrightnessControl.qml
++++ w/BrightnessControl.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/CoordinateField.qml w/CoordinateField.qml
+index 500af70..1b49dec 100644
+--- i/CoordinateField.qml
++++ w/CoordinateField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+diff --git i/DisplayCanvas.qml w/DisplayCanvas.qml
+index 0527969..164178d 100644
+--- i/DisplayCanvas.qml
++++ w/DisplayCanvas.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+diff --git i/DisplayIdentify.qml w/DisplayIdentify.qml
+index 6143240..01bf098 100644
+--- i/DisplayIdentify.qml
++++ w/DisplayIdentify.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Wayland
+ import qs.Commons
+diff --git i/EditorPane.qml w/EditorPane.qml
+index 0ec407d..7e08cfe 100644
+--- i/EditorPane.qml
++++ w/EditorPane.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/InspectorViewport.qml w/InspectorViewport.qml
+index de28e42..de2ab2f 100644
+--- i/InspectorViewport.qml
++++ w/InspectorViewport.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Window
+ import QtQuick.Controls
+ 
+diff --git i/KeyboardHelp.qml w/KeyboardHelp.qml
+index 2fdcc1b..b3dcd6b 100644
+--- i/KeyboardHelp.qml
++++ w/KeyboardHelp.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/MonitorInfo.qml w/MonitorInfo.qml
+index 1ec320c..aa33e2e 100644
+--- i/MonitorInfo.qml
++++ w/MonitorInfo.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+diff --git i/NumberStepper.qml w/NumberStepper.qml
+index 066e515..03b333f 100644
+--- i/NumberStepper.qml
++++ w/NumberStepper.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/Panel.qml w/Panel.qml
+index 8f1e10e..7990127 100644
+--- i/Panel.qml
++++ w/Panel.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtQuick.Controls as Controls
+ import Quickshell
+diff --git i/PanelDropdown.qml w/PanelDropdown.qml
+index 9f38b80..77d4ed5 100644
+--- i/PanelDropdown.qml
++++ w/PanelDropdown.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import qs.Commons
+ import qs.Ui
+diff --git i/PreviewConfirmCard.qml w/PreviewConfirmCard.qml
+index 6187a9f..22806e3 100644
+--- i/PreviewConfirmCard.qml
++++ w/PreviewConfirmCard.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/PreviewGuard.qml w/PreviewGuard.qml
+index e390447..16c6955 100644
+--- i/PreviewGuard.qml
++++ w/PreviewGuard.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Hyprland
+ import Quickshell.Io
+diff --git i/ProfileActionsMenu.qml w/ProfileActionsMenu.qml
+index 883dfab..4068a72 100644
+--- i/ProfileActionsMenu.qml
++++ w/ProfileActionsMenu.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ 
+ // Render inside the layer-shell card, not Qt's separate popup overlay.
+diff --git i/ProfileStatus.qml w/ProfileStatus.qml
+index 606d1df..fa21120 100644
+--- i/ProfileStatus.qml
++++ w/ProfileStatus.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ Row {
+diff --git i/ScaleField.qml w/ScaleField.qml
+index 84740ce..a64c177 100644
+--- i/ScaleField.qml
++++ w/ScaleField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+diff --git i/SegmentedField.qml w/SegmentedField.qml
+index 5e62c10..b72ff92 100644
+--- i/SegmentedField.qml
++++ w/SegmentedField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/TextSizeControl.qml w/TextSizeControl.qml
+index 950064a..907727f 100644
+--- i/TextSizeControl.qml
++++ w/TextSizeControl.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ import "Model.js" as Model
+diff --git i/tests/qml/tst_InspectorViewport.qml w/tests/qml/tst_InspectorViewport.qml
+index 1567fbd..c94a5d5 100644
+--- i/tests/qml/tst_InspectorViewport.qml
++++ w/tests/qml/tst_InspectorViewport.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtTest
+ import "../.."
+diff --git i/tests/qml/tst_ProfileActionsMenu.qml w/tests/qml/tst_ProfileActionsMenu.qml
+index 0bd1f78..540accf 100644
+--- i/tests/qml/tst_ProfileActionsMenu.qml
++++ w/tests/qml/tst_ProfileActionsMenu.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Controls
+ import QtTest
+ import "../.."
