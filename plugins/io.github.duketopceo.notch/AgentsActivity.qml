@@ -12,19 +12,20 @@ import "Agents.js" as Agents
 Scope {
   id: ag
 
+  property bool enabled: true   // Settings > Agents tab (optAgents)
   property var summary: Agents.parseLs("")
-  readonly property bool active: Agents.isActive(summary)
+  readonly property bool active: enabled && Agents.isActive(summary)
   readonly property int priority: Agents.priority(summary)
   readonly property string text: Agents.activityText(summary)
   readonly property string glyph: Agents.glyph(summary)
   // Idle-notch badge: "● 3" while agents are working, "" otherwise.
-  readonly property string badge: Agents.badgeText(summary)
+  readonly property string badge: enabled ? Agents.badgeText(summary) : ""
   readonly property int workingCount: summary.counts.working
 
   readonly property string appBin: Quickshell.env("HOME") + "/.local/bin/herdr-app"
   readonly property string coreBin: Quickshell.env("HOME") + "/.local/bin/herdr-core"
 
-  function poll() { if (!lsProc.running) lsProc.running = true }
+  function poll() { if (enabled && !lsProc.running) lsProc.running = true }
 
   Process {
     id: lsProc
@@ -49,12 +50,16 @@ Scope {
     }
     onExited: restartFollow.start()
   }
-  Timer { id: restartFollow; interval: 15000; onTriggered: follow.running = true }
-  Component.onCompleted: follow.running = true
+  Timer { id: restartFollow; interval: 15000; onTriggered: if (ag.enabled) follow.running = true }
+  Component.onCompleted: if (enabled) follow.running = true
+  onEnabledChanged: {
+    if (enabled) { if (!follow.running) follow.running = true; poll() }
+    else { summary = Agents.parseLs("") }
+  }
 
   Timer {
     interval: 10000
-    running: true
+    running: ag.enabled
     repeat: true
     triggeredOnStart: true
     onTriggered: ag.poll()

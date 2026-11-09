@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""Probe optional notch capabilities on this Omarchy host.
+
+Prints one JSON object on stdout. No network, no secrets, no writes.
+Paths are existence checks only. Used by Notch.qml for first-run setup.
+"""
+from __future__ import annotations
+
+import json
+import os
+import platform
+import sys
+
+HOME = os.path.expanduser("~")
+
+
+def exists(path: str) -> bool:
+    try:
+        return os.path.exists(path)
+    except OSError:
+        return False
+
+
+def isfile(path: str) -> bool:
+    try:
+        return os.path.isfile(path)
+    except OSError:
+        return False
+
+
+def read_text(path: str, limit: int = 4096) -> str:
+    try:
+        with open(path, "rb") as f:
+            return f.read(limit).decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def device_model(compatible: str) -> str:
+    for part in compatible.split("\0"):
+        part = part.strip()
+        if part.startswith("apple,j") and len(part) >= 9:
+            code = part[6:10]
+            if code[0] == "j" and code[1:].isdigit():
+                return code
+    return ""
+
+
+def detect_gpu() -> dict:
+    hw = ""
+    for root, _dirs, files in os.walk("/sys/class/hwmon"):
+        if "name" in files:
+            hw += read_text(os.path.join(root, "name")).strip().lower() + "\n"
+        if len(hw) > 8000:
+            break
+    drm = ""
+    for name in ("card0", "card1"):
+        p = f"/sys/class/drm/{name}/device/vendor"
+        if isfile(p):
+            drm += read_text(p).strip().lower() + " "
+    blob = hw + " " + drm
+    if "macsmc" in blob or exists("/sys/module/asahi"):
+        return {
+            "kind": "asahi-agx",
+            "label": "Asahi AGX",
+            "util": False,
+            "note": "no userspace util counter",
+        }
+    if "nvidia" in blob or "10de" in blob:
+        return {"kind": "nvidia", "label": "NVIDIA", "util": False, "note": "util not wired"}
+    if "amdgpu" in blob or "1002" in blob:
+        return {"kind": "amd", "label": "AMD", "util": False, "note": "util not wired"}
+    if "i915" in blob or "8086" in blob:
+        return {"kind": "intel", "label": "Intel", "util": False, "note": "util not wired"}
+    return {"kind": "none", "label": "GPU", "util": False, "note": "n/a"}
+
+
+def detect_npu() -> dict:
+    ane = "/sys/class/accel/accel0/device/ane_stats"
+    if isfile(ane) and "busy_ns" in read_text(ane):
+        return {"kind": "ane", "label": "ANE", "present": True}
+    if exists("/dev/accel/accel0"):
+        return {"kind": "accel", "label": "NPU", "present": True}
+    return {"kind": "none", "label": "NPU", "present": False}
+
+
+def cutout_count() -> int:
+    path = "/usr/share/omarchy-platform/display-cutouts.json"
+    try:
+        data = json.loads(read_text(path, 200000) or "{}")
+    except ValueError:
+        return 0
+    panels = data.get("panels") if isinstance(data, dict) else None
+    return len(panels) if isinstance(panels, list) else 0
+
+
+def tray_has_plugins() -> bool:
+    path = os.path.join(HOME, ".config", "omarchy", "shell.json")
+    try:
+        data = json.loads(read_text(path, 500000) or "{}")
+    except ValueError:
+        return False
+    layout = (data.get("bar") or {}).get("layout") or {}
+    tray = layout.get("tray")
+    return isinstance(tray, list) and len(tray) > 0
+
+
+def finance_present() -> bool:
+    fin = os.path.join(HOME, ".local", "state", "omarchy", "settings", "finance.json")
+    try:
+        data = json.loads(read_text(fin, 100000) or "{}")
+    except ValueError:
+        data = {}
+    wl = data.get("watchlist") if isinstance(data, dict) else None
+    if isinstance(wl, list) and len(wl) > 0:
+        return True
+    shell = os.path.join(HOME, ".config", "omarchy", "shell.json")
+    try:
+        cfg = json.loads(read_text(shell, 500000) or "{}")
+    except ValueError:
+        return False
+    for entry in cfg.get("plugins") or []:
+        if isinstance(entry, dict) and entry.get("id") == "io.github.duketopceo.notch":
+            sw = entry.get("stocks.watchlist")
+            return isinstance(sw, list) and len(sw) > 0
+    return False
+
+
+def main() -> int:
+    compatible = read_text("/proc/device-tree/compatible", 2048)
+    model = device_model(compatible)
+    apple = model != "" or "apple," in compatible
+    machine = platform.machine()
+    system = platform.system()
+    # Omarchy is Linux+Quickshell; never claim macOS.
+    macos = system == "Darwin"
+    omarchy = exists("/usr/share/omarchy") or exists("/usr/share/omarchy-platform")
+
+    snap = os.path.join(
+        HOME, ".config", "omarchy", "plugins", "io.github.duketopceo.snapdex", "bin", "snapdex-ctl"
+    )
+    wisp = os.path.join(
+        HOME, ".config", "omarchy", "plugins", "io.github.duketopceo.wisp", "manifest.json"
+    )
+    fan = os.path.join(HOME, ".config", "omarchy", "plugins", "lukedaduke.fan", "bin", "omarchy-fan-set")
+    herdr = os.path.join(HOME, ".local", "bin", "herdr-app")
+    blip_state = os.path.join(HOME, ".local", "state", "blip", "state.json")
+    blip_plugin = os.path.join(HOME, ".config", "omarchy", "plugins", "nixfred.blip", "manifest.json")
+
+    out = {
+        "ok": True,
+        "platform": "linux" if system == "Linux" else system.lower(),
+        "system": system,
+        "machine": machine,
+        "appleSilicon": bool(apple and system == "Linux"),
+        "macos": macos,
+        "omarchyHost": omarchy and not macos,
+        "screenshots": isfile(snap),
+        "agents": isfile(herdr),
+        "messages": exists(blip_state) or isfile(blip_plugin),
+        "wordink": any(
+            isfile(os.path.join(d, "wordink"))
+            for d in (
+                os.path.join(HOME, ".local", "bin"),
+                "/usr/local/bin",
+                "/usr/bin",
+            )
+        ),
+        "wisp": isfile(wisp) or exists(os.path.join(os.environ.get("XDG_RUNTIME_DIR", ""), "wisp")),
+        "finance": finance_present(),
+        "fan": isfile(fan) or exists("/run/omarchy-fan/status.json"),
+        "plugins": tray_has_plugins(),
+        "tailscale": isfile("/usr/bin/tailscale"),
+        "nordvpn": isfile("/usr/bin/nordvpn"),
+        "gpu": detect_gpu(),
+        "npu": detect_npu(),
+        "display": {
+            "model": model,
+            "cutouts": cutout_count(),
+            "note": (
+                "cutout geometry from omarchy-platform display-cutouts.json"
+                if cutout_count()
+                else "no cutout database; virtual notch on every screen"
+            ),
+        },
+    }
+    json.dump(out, sys.stdout, separators=(",", ":"))
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
