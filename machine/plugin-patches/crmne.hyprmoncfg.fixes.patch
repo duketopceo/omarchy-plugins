@@ -1,0 +1,201 @@
+diff --git i/BarWidget.qml w/BarWidget.qml
+index 4d7d38b..c5fd3a7 100644
+--- i/BarWidget.qml
++++ w/BarWidget.qml
+@@ -4,94 +4,120 @@ import qs.Commons
+ import qs.Ui
+ 
+ BarWidget {
+-  id: root
+-  moduleName: "crmne.hyprmoncfg"
++    id: root
+ 
+-  function injectPanel() {
+-    var target = panelLoader.item
+-    if (!target) return
+-    if ("bar" in target) target.bar = root.bar
+-    if ("settings" in target) target.settings = root.settings
+-    if ("anchorItem" in target) target.anchorItem = button
+-    if ("hostWidget" in target) target.hostWidget = root
+-  }
++    readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
++    readonly property bool backendConnected: panelLoader.item ? panelLoader.item.backendConnected === true : false
++    readonly property bool barIconDimmed: panelLoader.item ? panelLoader.item.barIconDimmed === true : false
++    readonly property int monitorCount: panelLoader.item ? panelLoader.item.monitorCount : Quickshell.screens.length
++    readonly property string activeProfile: panelLoader.item ? panelLoader.item.activeProfile : ""
++    readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
+ 
+-  function togglePanel() {
+-    if (panelLoader.item && panelLoader.item.toggle) panelLoader.item.toggle()
+-  }
++    function injectPanel() {
++        var target = panelLoader.item;
++        if (!target)
++            return ;
+ 
+-  readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
+-  readonly property bool backendConnected: panelLoader.item ? panelLoader.item.backendConnected === true : false
+-  readonly property bool barIconDimmed: panelLoader.item ? panelLoader.item.barIconDimmed === true : false
+-  readonly property int monitorCount: panelLoader.item ? panelLoader.item.monitorCount : Quickshell.screens.length
+-  readonly property string activeProfile: panelLoader.item ? panelLoader.item.activeProfile : ""
++        if ("bar" in target)
++            target.bar = root.bar;
+ 
+-  function open() {
+-    if (panelLoader.item && panelLoader.item.openFromHotkey) panelLoader.item.openFromHotkey()
+-  }
++        if ("settings" in target)
++            target.settings = root.settings;
+ 
+-  function close() {
+-    if (panelLoader.item && panelLoader.item.close) panelLoader.item.close()
+-  }
++        if ("anchorItem" in target)
++            target.anchorItem = button;
+ 
+-  readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
++        if ("hostWidget" in target)
++            target.hostWidget = root;
+ 
+-  function closeForPopoutSwitch() {
+-    if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
+-  }
+-
+-  implicitWidth: button.implicitWidth
+-  implicitHeight: button.implicitHeight
+-
+-  onBarChanged: injectPanel()
+-  onSettingsChanged: injectPanel()
+-
+-  Loader {
+-    id: panelLoader
+-    active: true
+-    source: Qt.resolvedUrl("Panel.qml")
+-    onLoaded: {
+-      root.injectPanel()
+-      Qt.callLater(root.injectPanel)
+     }
+-  }
+ 
+-  BarIconButton {
+-    id: button
+-    anchors.fill: parent
+-    bar: root.bar
+-    text: root.monitorCount > 1 ? "󰍺" : "󰍹"
+-    dimmed: root.barIconDimmed
+-    tooltipText: root.activeProfile !== "" ? "Display · " + root.activeProfile : "Display · hyprmoncfg"
+-    iconComponent: Component {
+-      Item {
+-        OpticalGlyph {
+-          id: barDisplayGlyph
+-          anchors.fill: parent
+-          text: button.text
+-          color: button.foreground
+-          fontFamily: button.fontFamily
+-          fontSize: button.fontSize
++    function togglePanel() {
++        if (panelLoader.item && panelLoader.item.toggle)
++            panelLoader.item.toggle();
++
++    }
++
++    function open() {
++        if (panelLoader.item && panelLoader.item.openFromHotkey)
++            panelLoader.item.openFromHotkey();
++
++    }
++
++    function close() {
++        if (panelLoader.item && panelLoader.item.close)
++            panelLoader.item.close();
++
++    }
++
++    function closeForPopoutSwitch() {
++        if (panelLoader.item)
++            panelLoader.item.closeForPopoutSwitch();
++
++    }
++
++    moduleName: "crmne.hyprmoncfg"
++    visible: root.monitorCount > 1
++    implicitWidth: visible ? button.implicitWidth : 0
++    implicitHeight: visible ? button.implicitHeight : 0
++    onBarChanged: injectPanel()
++    onSettingsChanged: injectPanel()
++
++    Loader {
++        id: panelLoader
++
++        active: true
++        source: Qt.resolvedUrl("Panel.qml")
++        onLoaded: {
++            root.injectPanel();
++            Qt.callLater(root.injectPanel);
++        }
++    }
++
++    BarIconButton {
++        id: button
++
++        anchors.fill: parent
++        bar: root.bar
++        text: root.monitorCount > 1 ? "󰍺" : "󰍹"
++        dimmed: root.barIconDimmed
++        tooltipText: root.activeProfile !== "" ? "Display · " + root.activeProfile : "Display · hyprmoncfg"
++        onPressed: function(mouseButton) {
++            if (mouseButton === Qt.LeftButton)
++                root.togglePanel();
++
+         }
+ 
+-        Text {
+-          textFormat: Text.PlainText
+-          visible: root.backendConnected
+-          anchors.right: barDisplayGlyph.right
+-          anchors.bottom: barDisplayGlyph.bottom
+-          anchors.rightMargin: -Style.space(1)
+-          anchors.bottomMargin: -Style.space(1)
+-          text: "󰄬"
+-          color: Color.accent
+-          font.family: button.fontFamily
+-          font.pixelSize: Math.max(7, Math.round(button.fontSize * 0.45))
+-          font.bold: true
++        iconComponent: Component {
++            Item {
++                OpticalGlyph {
++                    id: barDisplayGlyph
++
++                    anchors.fill: parent
++                    text: button.text
++                    color: button.foreground
++                    fontFamily: button.fontFamily
++                    fontSize: button.fontSize
++                }
++
++                Text {
++                    textFormat: Text.PlainText
++                    visible: root.backendConnected
++                    anchors.right: barDisplayGlyph.right
++                    anchors.bottom: barDisplayGlyph.bottom
++                    anchors.rightMargin: -Style.space(1)
++                    anchors.bottomMargin: -Style.space(1)
++                    text: "󰄬"
++                    color: Color.accent
++                    font.family: button.fontFamily
++                    font.pixelSize: Math.max(7, Math.round(button.fontSize * 0.45))
++                    font.bold: true
++                }
++
++            }
++
+         }
+-      }
++
+     }
+ 
+-    onPressed: function(mouseButton) {
+-      if (mouseButton === Qt.LeftButton) root.togglePanel()
+-    }
+-  }
+ }

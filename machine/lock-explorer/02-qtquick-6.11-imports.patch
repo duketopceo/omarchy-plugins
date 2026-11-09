@@ -1,0 +1,920 @@
+diff --git i/Designer.qml w/Designer.qml
+index 961e255..f466833 100644
+--- i/Designer.qml
++++ w/Designer.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/DesignerButton.qml w/DesignerButton.qml
+index 87b9e93..2e11285 100644
+--- i/DesignerButton.qml
++++ w/DesignerButton.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // A small flat button for the designer's toolbar and panels.
+diff --git i/DesignerField.qml w/DesignerField.qml
+index d08b79a..fd52121 100644
+--- i/DesignerField.qml
++++ w/DesignerField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Designer.js" as D
+ import "ExplorerStrings.js" as UiText
+diff --git i/DesignerNode.qml w/DesignerNode.qml
+index 95eebdd..06c29f5 100644
+--- i/DesignerNode.qml
++++ w/DesignerNode.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "designs"
+ import "Designer.js" as D
+diff --git i/DesignerStage.qml w/DesignerStage.qml
+index 6ac2867..258913a 100644
+--- i/DesignerStage.qml
++++ w/DesignerStage.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import "designs"
+ import "Designer.js" as D
+ 
+diff --git i/DesignerSwatch.qml w/DesignerSwatch.qml
+index 48312a1..7e23260 100644
+--- i/DesignerSwatch.qml
++++ w/DesignerSwatch.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // The theme color behind a role name, for the inspector's color swatches.
+diff --git i/DesignerThumb.qml w/DesignerThumb.qml
+index d262370..e4f1c90 100644
+--- i/DesignerThumb.qml
++++ w/DesignerThumb.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import "designs"
+ 
+ // A saved component drawn at its real size and scaled into the palette, so
+diff --git i/Editor.qml w/Editor.qml
+index 6a6d922..09a51d2 100644
+--- i/Editor.qml
++++ w/Editor.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/Explorer.qml w/Explorer.qml
+index 4a592cc..77acce8 100644
+--- i/Explorer.qml
++++ w/Explorer.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import Quickshell.Wayland
+diff --git i/LayoutNode.qml w/LayoutNode.qml
+index bd15196..236f22d 100644
+--- i/LayoutNode.qml
++++ w/LayoutNode.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ // One piece of a design, as a real QML object rather than a plain JS record.
+ //
+diff --git i/LocalSettings.qml w/LocalSettings.qml
+index 3339433..8f5f9b0 100644
+--- i/LocalSettings.qml
++++ w/LocalSettings.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ 
+diff --git i/LockHost.qml w/LockHost.qml
+index 0c3b5bd..d531fc0 100644
+--- i/LockHost.qml
++++ w/LockHost.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Io
+ import "Designs.js" as Designs
+ 
+diff --git i/PowerState.qml w/PowerState.qml
+index fb727c6..151390b 100644
+--- i/PowerState.qml
++++ w/PowerState.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Services.UPower
+ 
+ // The machine's power, for "Reduce motion: On battery" and the low-battery
+diff --git i/SettingRow.qml w/SettingRow.qml
+index 7249c54..9c64868 100644
+--- i/SettingRow.qml
++++ w/SettingRow.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // One setting: its name in a column on the left, the choices on the right
+diff --git i/SettingSection.qml w/SettingSection.qml
+index 8f0007c..de9a837 100644
+--- i/SettingSection.qml
++++ w/SettingSection.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // One group on the explorer's Settings page: a heading, a line on what the
+diff --git i/StingWindow.qml w/StingWindow.qml
+index 863ef8c..7525430 100644
+--- i/StingWindow.qml
++++ w/StingWindow.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtMultimedia
+ import Quickshell
+ import Quickshell.Wayland
+diff --git i/UnlockLayer.qml w/UnlockLayer.qml
+index 15f0018..da3f9cd 100644
+--- i/UnlockLayer.qml
++++ w/UnlockLayer.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ // Wraps the lock screen so it can leave the screen instead of blinking away.
+ // The compositor paints black under the lock surface, so the plain wallpaper
+diff --git i/designs/Analog.qml w/designs/Analog.qml
+index afe42a9..59dc36a 100644
+--- i/designs/Analog.qml
++++ w/designs/Analog.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Aurora.qml w/designs/Aurora.qml
+index 4363c68..acf3ad3 100644
+--- i/designs/Aurora.qml
++++ w/designs/Aurora.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Avatar.qml w/designs/Avatar.qml
+index 9485e41..edff1b0 100644
+--- i/designs/Avatar.qml
++++ w/designs/Avatar.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Beacon.qml w/designs/Beacon.qml
+index 3916bef..be23a5f 100644
+--- i/designs/Beacon.qml
++++ w/designs/Beacon.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Binary.qml w/designs/Binary.qml
+index 9a37f01..eea66dc 100644
+--- i/designs/Binary.qml
++++ w/designs/Binary.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/BootField.qml w/designs/BootField.qml
+index 4e41bf5..3977b01 100644
+--- i/designs/BootField.qml
++++ w/designs/BootField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // One labelled row in the boot layout editor. `control` picks the widget:
+diff --git i/designs/Bounce.qml w/designs/Bounce.qml
+index c7711c3..cc1d2b0 100644
+--- i/designs/Bounce.qml
++++ w/designs/Bounce.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Calendar.qml w/designs/Calendar.qml
+index 59a9d27..138a976 100644
+--- i/designs/Calendar.qml
++++ w/designs/Calendar.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Card.qml w/designs/Card.qml
+index 5b2a814..82d17bf 100644
+--- i/designs/Card.qml
++++ w/designs/Card.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Cinema.qml w/designs/Cinema.qml
+index f607f7c..895f55a 100644
+--- i/designs/Cinema.qml
++++ w/designs/Cinema.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Cipher.qml w/designs/Cipher.qml
+index 3c6e719..e9f6e33 100644
+--- i/designs/Cipher.qml
++++ w/designs/Cipher.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Classic.qml w/designs/Classic.qml
+index 97f852d..6cc106d 100644
+--- i/designs/Classic.qml
++++ w/designs/Classic.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/ClipDesign.qml w/designs/ClipDesign.qml
+index bfdbbb1..1881f05 100644
+--- i/designs/ClipDesign.qml
++++ w/designs/ClipDesign.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import qs.Commons
+ 
+diff --git i/designs/Companion.qml w/designs/Companion.qml
+index 96e8ed6..ec250f9 100644
+--- i/designs/Companion.qml
++++ w/designs/Companion.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Shown on monitors that are not the input monitor. Still takes keyboard
+diff --git i/designs/Constellation.qml w/designs/Constellation.qml
+index 0fd02f4..9d7cc8c 100644
+--- i/designs/Constellation.qml
++++ w/designs/Constellation.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Each character puts a star in the sky and draws the line to the one before
+diff --git i/designs/Core.qml w/designs/Core.qml
+index 195f2a6..b7f88f7 100644
+--- i/designs/Core.qml
++++ w/designs/Core.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Dayline.qml w/designs/Dayline.qml
+index ab97e30..50550c4 100644
+--- i/designs/Dayline.qml
++++ w/designs/Dayline.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/DesignBase.qml w/designs/DesignBase.qml
+index a260493..aba93b9 100644
+--- i/designs/DesignBase.qml
++++ w/designs/DesignBase.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/designs/DesignerItem.qml w/designs/DesignerItem.qml
+index 4f5c5c3..53864f7 100644
+--- i/designs/DesignerItem.qml
++++ w/designs/DesignerItem.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Digital.qml w/designs/Digital.qml
+index 82dd2ca..6999ef5 100644
+--- i/designs/Digital.qml
++++ w/designs/Digital.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Dock.qml w/designs/Dock.qml
+index 6e65330..14a94fd 100644
+--- i/designs/Dock.qml
++++ w/designs/Dock.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Editorial.qml w/designs/Editorial.qml
+index af03f38..6028df4 100644
+--- i/designs/Editorial.qml
++++ w/designs/Editorial.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Ember.qml w/designs/Ember.qml
+index e7ccf65..3b68f0f 100644
+--- i/designs/Ember.qml
++++ w/designs/Ember.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Etch.qml w/designs/Etch.qml
+index 7120077..76ccc7d 100644
+--- i/designs/Etch.qml
++++ w/designs/Etch.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/EyeButton.qml w/designs/EyeButton.qml
+index 258e27e..348e284 100644
+--- i/designs/EyeButton.qml
++++ w/designs/EyeButton.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Show/hide password button for designs that draw their own input.
+diff --git i/designs/Eyes.qml w/designs/Eyes.qml
+index 1d508b5..0bf6508 100644
+--- i/designs/Eyes.qml
++++ w/designs/Eyes.qml
+@@ -1,3 +1,3 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ ClipDesign { clipName: "omarchy-eye.mp4" }
+diff --git i/designs/Fireworks.qml w/designs/Fireworks.qml
+index ea18ee8..4e5dde0 100644
+--- i/designs/Fireworks.qml
++++ w/designs/Fireworks.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Flip.qml w/designs/Flip.qml
+index 59f27d8..4991fa1 100644
+--- i/designs/Flip.qml
++++ w/designs/Flip.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Forge.qml w/designs/Forge.qml
+index 3852b50..ab707ab 100644
+--- i/designs/Forge.qml
++++ w/designs/Forge.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Frame.qml w/designs/Frame.qml
+index 26a00ed..83aca56 100644
+--- i/designs/Frame.qml
++++ w/designs/Frame.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Horizon.qml w/designs/Horizon.qml
+index 49b3811..e9835ed 100644
+--- i/designs/Horizon.qml
++++ w/designs/Horizon.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/IconLock.qml w/designs/IconLock.qml
+index 46e7ea3..76c9dad 100644
+--- i/designs/IconLock.qml
++++ w/designs/IconLock.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Island.qml w/designs/Island.qml
+index 73c358d..8b900cf 100644
+--- i/designs/Island.qml
++++ w/designs/Island.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Keycode.qml w/designs/Keycode.qml
+index 3d748ab..be28c72 100644
+--- i/designs/Keycode.qml
++++ w/designs/Keycode.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/LiveBattery.qml w/designs/LiveBattery.qml
+index ce05d4f..bc0d743 100644
+--- i/designs/LiveBattery.qml
++++ w/designs/LiveBattery.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Services.UPower
+ 
+ // The battery, for the designer's Battery piece.
+diff --git i/designs/LiveMedia.qml w/designs/LiveMedia.qml
+index 016c361..3399355 100644
+--- i/designs/LiveMedia.qml
++++ w/designs/LiveMedia.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Services.Mpris
+ 
+ // What is playing, for the designer's Now playing and Album art pieces: the
+diff --git i/designs/LiveSystem.qml w/designs/LiveSystem.qml
+index 51c83db..1f4c32b 100644
+--- i/designs/LiveSystem.qml
++++ w/designs/LiveSystem.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Io
+ 
+ // Uptime, memory, load and kernel for the designer's System info piece,
+diff --git i/designs/LiveWeather.qml w/designs/LiveWeather.qml
+index fd0a24e..19d9411 100644
+--- i/designs/LiveWeather.qml
++++ w/designs/LiveWeather.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ 
+diff --git i/designs/LockInput.qml w/designs/LockInput.qml
+index 6483ec4..8ad3035 100644
+--- i/designs/LockInput.qml
++++ w/designs/LockInput.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ TextInput {
+diff --git i/designs/Login.qml w/designs/Login.qml
+index a745df5..4e849a0 100644
+--- i/designs/Login.qml
++++ w/designs/Login.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Mainframe.qml w/designs/Mainframe.qml
+index f662db1..14eb8a5 100644
+--- i/designs/Mainframe.qml
++++ w/designs/Mainframe.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Motion.qml w/designs/Motion.qml
+index 00dfb40..72b9d32 100644
+--- i/designs/Motion.qml
++++ w/designs/Motion.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Music.qml w/designs/Music.qml
+index d8e3798..a3c5755 100644
+--- i/designs/Music.qml
++++ w/designs/Music.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import Quickshell.Services.Mpris
+ import qs.Commons
+diff --git i/designs/Neon.qml w/designs/Neon.qml
+index 58f2ef2..a0b2acd 100644
+--- i/designs/Neon.qml
++++ w/designs/Neon.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/OmarchyLogo.qml w/designs/OmarchyLogo.qml
+index 9814778..d8a766a 100644
+--- i/designs/OmarchyLogo.qml
++++ w/designs/OmarchyLogo.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import "Ttfx.js" as Ttfx
+diff --git i/designs/Orbit.qml w/designs/Orbit.qml
+index d8efaeb..3b234fe 100644
+--- i/designs/Orbit.qml
++++ w/designs/Orbit.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Panel.qml w/designs/Panel.qml
+index 3cc6eaf..89483fc 100644
+--- i/designs/Panel.qml
++++ w/designs/Panel.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/PasswordField.qml w/designs/PasswordField.qml
+index 8f14e97..d9c4c3b 100644
+--- i/designs/PasswordField.qml
++++ w/designs/PasswordField.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import qs.Ui
+ 
+diff --git i/designs/Pond.qml w/designs/Pond.qml
+index bb01e59..1c6bb6a 100644
+--- i/designs/Pond.qml
++++ w/designs/Pond.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // Every keystroke drops into the water. Rings spread and fade, a wrong password
+diff --git i/designs/Poster.qml w/designs/Poster.qml
+index 980736d..9a9d673 100644
+--- i/designs/Poster.qml
++++ w/designs/Poster.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Profile.qml w/designs/Profile.qml
+index 085fa45..7de65ec 100644
+--- i/designs/Profile.qml
++++ w/designs/Profile.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Rain.qml w/designs/Rain.qml
+index f676112..9773e97 100644
+--- i/designs/Rain.qml
++++ w/designs/Rain.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Ring.qml w/designs/Ring.qml
+index 509a54d..2dde5a1 100644
+--- i/designs/Ring.qml
++++ w/designs/Ring.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/River.qml w/designs/River.qml
+index a696b0d..e09e9d0 100644
+--- i/designs/River.qml
++++ w/designs/River.qml
+@@ -1,3 +1,3 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ ClipDesign { clipName: "gruvbox-river.mp4" }
+diff --git i/designs/Screensaver.qml w/designs/Screensaver.qml
+index 73931f1..06ad42d 100644
+--- i/designs/Screensaver.qml
++++ w/designs/Screensaver.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/designs/Sheet.qml w/designs/Sheet.qml
+index d4df4bb..0871c4f 100644
+--- i/designs/Sheet.qml
++++ w/designs/Sheet.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Sparks.qml w/designs/Sparks.qml
+index c5b631a..3ad4dcf 100644
+--- i/designs/Sparks.qml
++++ w/designs/Sparks.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ // The field throws embers. A handful per keystroke, more the faster you type,
+diff --git i/designs/Split.qml w/designs/Split.qml
+index 0d5ed4e..ec14ffe 100644
+--- i/designs/Split.qml
++++ w/designs/Split.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Spotlight.qml w/designs/Spotlight.qml
+index e9ea296..3678b7e 100644
+--- i/designs/Spotlight.qml
++++ w/designs/Spotlight.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Statusline.qml w/designs/Statusline.qml
+index 44cd426..ad03c77 100644
+--- i/designs/Statusline.qml
++++ w/designs/Statusline.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Storm.qml w/designs/Storm.qml
+index daa4ce3..c9a0934 100644
+--- i/designs/Storm.qml
++++ w/designs/Storm.qml
+@@ -1,3 +1,3 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ ClipDesign { clipName: "omarchy-storm.mp4" }
+diff --git i/designs/Supernova.qml w/designs/Supernova.qml
+index eacf38a..82e8131 100644
+--- i/designs/Supernova.qml
++++ w/designs/Supernova.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/Synthwave.qml w/designs/Synthwave.qml
+index 083a59c..ac196ea 100644
+--- i/designs/Synthwave.qml
++++ w/designs/Synthwave.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/System.qml w/designs/System.qml
+index 5cbab56..0d6516e 100644
+--- i/designs/System.qml
++++ w/designs/System.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell.Io
+ import Quickshell.Services.UPower
+ import qs.Commons
+diff --git i/designs/Terminal.qml w/designs/Terminal.qml
+index f679f06..83878ba 100644
+--- i/designs/Terminal.qml
++++ w/designs/Terminal.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ 
+ DesignBase {
+diff --git i/designs/Tracking.qml w/designs/Tracking.qml
+index 1f36425..d035bff 100644
+--- i/designs/Tracking.qml
++++ w/designs/Tracking.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/TtfxText.qml w/designs/TtfxText.qml
+index 464033f..4a2182d 100644
+--- i/designs/TtfxText.qml
++++ w/designs/TtfxText.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/designs/Typing.qml w/designs/Typing.qml
+index 956a21e..89d080a 100644
+--- i/designs/Typing.qml
++++ w/designs/Typing.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ 
+ // Designs only see passwordText, a string that changes. This turns it into the
+ // events you actually want to draw with: a key went in, a key came out, the
+diff --git i/designs/UnlockClip.qml w/designs/UnlockClip.qml
+index 4354890..345ed3c 100644
+--- i/designs/UnlockClip.qml
++++ w/designs/UnlockClip.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtMultimedia
+ import qs.Commons
+ 
+diff --git i/designs/Vhs.qml w/designs/Vhs.qml
+index 904e481..5e6d4b0 100644
+--- i/designs/Vhs.qml
++++ w/designs/Vhs.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "Ttfx.js" as Ttfx
+ 
+diff --git i/designs/VideoWallpaper.qml w/designs/VideoWallpaper.qml
+index 52cd09f..430d489 100644
+--- i/designs/VideoWallpaper.qml
++++ w/designs/VideoWallpaper.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtMultimedia
+ import qs.Commons
+ 
+diff --git i/designs/Wallpaper.qml w/designs/Wallpaper.qml
+index 533f4f2..0c2fe62 100644
+--- i/designs/Wallpaper.qml
++++ w/designs/Wallpaper.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/designs/Weather.qml w/designs/Weather.qml
+index 1b34660..68fd506 100644
+--- i/designs/Weather.qml
++++ w/designs/Weather.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import Quickshell
+ import Quickshell.Io
+ import qs.Commons
+diff --git i/designs/Zen.qml w/designs/Zen.qml
+index 3b257a9..4b3ca8d 100644
+--- i/designs/Zen.qml
++++ w/designs/Zen.qml
+@@ -1,4 +1,4 @@
+-import QtQuick
++import QtQuick 6.11
+ import QtQuick.Effects
+ import qs.Commons
+ 
+diff --git i/extras/lock-designs/MyDesign.qml w/extras/lock-designs/MyDesign.qml
+index 0ddf11e..7b7c5e6 100644
+--- i/extras/lock-designs/MyDesign.qml
++++ w/extras/lock-designs/MyDesign.qml
+@@ -1,7 +1,7 @@
+ // Copy this file to ~/.config/omarchy/lock-designs/ and edit it.
+ // The import below points at the plugin's shared parts (DesignBase,
+ // PasswordField, LockInput, Wallpaper, Avatar). Keep it as is.
+-import QtQuick
++import QtQuick 6.11
+ import qs.Commons
+ import "../plugins/io.github.sirjul1337.lock-explorer/designs"
+ 
