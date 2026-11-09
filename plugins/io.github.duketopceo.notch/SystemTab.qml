@@ -59,9 +59,20 @@ Item {
   property var hTemp: []
   property var hPower: []
 
+  // Fan mode writes go through lukedaduke.fan when that plugin is installed;
+  // without it the rings still read sysfs / /run/omarchy-fan and modes stay disabled.
   readonly property string fanSet: home + "/.config/omarchy/plugins/lukedaduke.fan/bin/omarchy-fan-set"
+  property bool fanSetReady: false
+  FileView {
+    path: tab.fanSet
+    watchChanges: true
+    printErrors: false
+    onLoaded: tab.fanSetReady = true
+    onLoadFailed: tab.fanSetReady = false
+    onFileChanged: reload()
+  }
   readonly property string shownMode: pendingMode !== "" ? pendingMode : helper.mode
-  readonly property bool canSetMode: helper.present && helper.controllable
+  readonly property bool canSetMode: helper.present && helper.controllable && fanSetReady
 
   function sample() {
     var now = Date.now()
