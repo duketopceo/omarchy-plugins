@@ -334,7 +334,9 @@ Item {
         spacing: 0
         Text {
           textFormat: Text.PlainText
-          text: panel.weather ? panel.weather.temperature + panel.weather.unit : "No weather yet"
+          width: parent.width
+          wrapMode: Text.WordWrap
+          text: panel.weather ? panel.weather.temperature + panel.weather.unit : "Weather appears after the first refresh"
           color: panel.weather ? panel.textColor : panel.dimColor
           font.family: panel.family
           font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Tk.fs.bodySmall
