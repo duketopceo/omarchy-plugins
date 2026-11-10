@@ -48,7 +48,7 @@ Item {
     text: ring.text
     color: ring.textColor
     font.family: ring.family
-    font.pixelSize: 12
+    font.pixelSize: Tk.fs.body
     font.weight: Font.DemiBold
   }
 }

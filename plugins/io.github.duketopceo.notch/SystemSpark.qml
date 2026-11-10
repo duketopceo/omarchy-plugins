@@ -89,7 +89,7 @@ Rectangle {
     text: spark.label
     color: spark.dimColor
     font.family: spark.family
-    font.pixelSize: 9
+    font.pixelSize: Tk.fs.caption
   }
   Text {
     textFormat: Text.PlainText
@@ -100,7 +100,7 @@ Rectangle {
     text: spark.hasData ? spark.readout : spark.emptyText
     color: spark.hasData ? spark.textColor : spark.dimColor
     font.family: spark.family
-    font.pixelSize: 9
+    font.pixelSize: Tk.fs.caption
     font.weight: Font.DemiBold
   }
 }
