@@ -73,7 +73,7 @@ Item {
         text: "Messages"
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 11
+        font.pixelSize: Tk.fs.bodySmall
         font.bold: true
       }
       Rectangle {
@@ -90,7 +90,7 @@ Item {
           text: tab.feed ? tab.feed.badge || String(tab.unreadCount) : String(tab.unreadCount)
           color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubbleText : Tk.bubbleText
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
           font.bold: true
         }
       }
@@ -111,7 +111,7 @@ Item {
         text: "Open Blip"
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
       }
       MouseArea {
         id: openHit
@@ -139,7 +139,7 @@ Item {
         text: "Read all"
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
       }
       MouseArea {
         id: readHit
@@ -169,7 +169,7 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
         clip: true
         selectByMouse: true
         Text {
@@ -179,7 +179,7 @@ Item {
           text: "Search"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -203,7 +203,7 @@ Item {
       text: tab.banner
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 
@@ -220,10 +220,10 @@ Item {
       textFormat: Text.PlainText
       visible: tab.shown.length === 0
       anchors.centerIn: parent
-      text: search.text !== "" ? "No matches" : tab.offline ? "Nothing to show while offline" : "No conversations yet"
+      text: search.text !== "" ? "No matches" : tab.offline ? "Conversations return once Blip is reachable" : "No conversations yet"
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
     }
 
     NotchScroll {
@@ -264,7 +264,7 @@ Item {
                   text: row.modelData.initials
                   color: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.bubble : Tk.bubble
                   font.family: tab.family
-                  font.pixelSize: 12
+                  font.pixelSize: Tk.fs.body
                   font.bold: true
                 }
               }
@@ -295,7 +295,7 @@ Item {
               text: Messages.relTime(row.modelData.ts, tab.now)
               color: row.modelData.unread > 0 ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.info : Tk.info) : tab.dimColor
               font.family: tab.family
-              font.pixelSize: 10
+              font.pixelSize: Tk.fs.caption
             }
             Text {
               textFormat: Text.PlainText
@@ -310,7 +310,7 @@ Item {
               text: row.modelData.name
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 12
+              font.pixelSize: Tk.fs.body
               font.bold: true
             }
             Text {
@@ -326,7 +326,7 @@ Item {
               text: row.modelData.preview
               color: row.modelData.unread > 0 ? tab.textColor : tab.dimColor
               font.family: tab.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.fs.bodySmall
             }
             Rectangle {
               id: dot
