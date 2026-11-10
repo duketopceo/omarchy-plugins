@@ -169,3 +169,87 @@ def test_profiles():
     assert run("P.orderedProfiles(['performance','balanced','power-saver'])") == ["power-saver", "balanced", "performance"]
     assert run("P.profileSetArgs('balanced',true)") == ["/usr/bin/omarchy-powerprofiles-set", "battery", "balanced"]
     assert run("P.profileSetArgs('performance',false)")[1] == "ac"
+
+
+# ---------------------------------------------------------------- charging activity (R3)
+
+SYSFS_CHARGING = "status=Charging\ncapacity=62\nenergy_now=50000000\nenergy_full=80000000\npower_now=30000000\ntime_to_full_now=\ncharge_control_end_threshold=100\nac_online=1\n"
+SYSFS_UNPLUGGED = "status=Discharging\ncapacity=62\nenergy_now=50000000\nenergy_full=80000000\npower_now=9000000\nac_online=0\n"
+SYSFS_AT_LIMIT = "status=Not charging\ncapacity=80\nenergy_now=64000000\nenergy_full=80000000\npower_now=0\ncharge_control_end_threshold=80\nac_online=1\n"
+UPOWER = "src=upower\n  state:               charging\n  percentage:          41%\n  time to full:        1.5 hours\nac_online=1\n"
+
+
+def test_parse_probe_sysfs_computes_time_to_full_from_energy_and_power():
+    r = run(f"P.parseBatteryProbe({json.dumps(SYSFS_CHARGING)})")
+    assert r["percent"] == 62 and r["state"] == "charging"
+    assert r["ttfSeconds"] == 3600  # (80 - 50 Wh) / 30 W = 1 h
+
+
+def test_time_to_full_stops_at_the_charge_limit_and_prefers_the_kernel_value():
+    f = SYSFS_CHARGING.replace("charge_control_end_threshold=100", "charge_control_end_threshold=80")
+    assert run(f"P.parseBatteryProbe({json.dumps(f)})")["ttfSeconds"] == 1680  # (64 - 50 Wh) / 30 W = 28 min
+    k = SYSFS_CHARGING.replace("time_to_full_now=", "time_to_full_now=1500")
+    assert run(f"P.parseBatteryProbe({json.dumps(k)})")["ttfSeconds"] == 1500
+    r = run(f"P.parseBatteryProbe({json.dumps(SYSFS_AT_LIMIT)})")
+    assert r["state"] == "hold" and r["ttfSeconds"] is None
+
+
+def test_parse_probe_upower_fallback_and_junk():
+    r = run(f"P.parseBatteryProbe({json.dumps(UPOWER)})")
+    assert (r["percent"], r["state"], r["ttfSeconds"]) == (41, "charging", 5400)
+    assert run("P.parseBatteryProbe('')") is None and run("P.parseBatteryProbe('x=1')") is None
+
+
+def test_probe_script_picks_the_system_battery_not_a_peripheral():
+    args = run("P.batteryProbeArgs()")
+    assert args[:2] == ["/bin/sh", "-c"]
+    assert "scope" in args[2] and "Device" in args[2] and "upower" in args[2]
+
+
+def test_charging_text_shows_percent_and_time_to_full():
+    assert run("P.chargingText({percent:62,state:'charging',ttfSeconds:4320})") == "62% · 1h 12m to full"
+    assert run("P.chargingText({percent:62,state:'charging',ttfSeconds:null})") == "62% · charging"
+    assert run("P.chargingText({percent:80,state:'hold'})") == "80% · at limit"
+    assert run("P.chargingText({percent:100,state:'full'})") == "100% · full"
+    assert run("P.chargingText({percent:50,state:'discharging'})") == ""
+
+
+def test_plug_event_shows_the_line_for_six_seconds_then_it_expires():
+    batt = {"percent": 62, "state": "discharging", "ttfSeconds": None}
+    chg = {"percent": 62, "state": "charging", "ttfSeconds": 4320}
+    m0 = run(f"P.chargingStep(P.chargingInitial(),{json.dumps(batt)},1000)")
+    assert m0["plugged"] is False and run(f"P.chargingActive({json.dumps(m0)},1000)") is False
+    m1 = run(f"P.chargingStep({json.dumps(m0)},{json.dumps(chg)},2000)")
+    assert m1["text"] == "62% · 1h 12m to full" and m1["until"] == 2000 + run("P.CHARGING_MS")
+    assert run(f"P.chargingActive({json.dumps(m1)},3000)") is True
+    assert run(f"P.chargingActive({json.dumps(m1)},{2000 + 6000})") is False
+    assert run("P.CHARGING_PRIORITY") == 60
+
+
+def test_text_refreshes_while_visible_and_not_after_expiry():
+    m = {"plugged": True, "text": "62% · 1h 12m to full", "until": 8000}
+    r = {"percent": 63, "state": "charging", "ttfSeconds": 4200}
+    assert run(f"P.chargingStep({json.dumps(m)},{json.dumps(r)},3000)")["text"] == "63% · 1h 10m to full"
+    late = run(f"P.chargingStep({json.dumps(m)},{json.dumps(r)},9000)")
+    assert late["text"] == "62% · 1h 12m to full"  # untouched; chargingActive is already false
+
+
+def test_unplug_shows_nothing_and_clears_a_visible_line():
+    m = {"plugged": True, "text": "62% · charging", "until": 8000}
+    out = run(f"P.chargingStep({json.dumps(m)},{{percent:62,state:'discharging',ttfSeconds:null}},3000)")
+    assert out == {"plugged": False, "text": "", "until": 0}
+    assert run(f"P.chargingActive({json.dumps(out)},3001)") is False
+
+
+def test_first_reading_on_ac_is_a_baseline_not_an_announcement():
+    m = run("P.chargingStep(P.chargingInitial(),{percent:80,state:'hold',ttfSeconds:null},1000)")
+    assert m["plugged"] is True and m["text"] == "" and run(f"P.chargingActive({json.dumps(m)},1001)") is False
+
+
+def test_no_reading_keeps_the_model():
+    m = {"plugged": True, "text": "x", "until": 9}
+    assert run(f"P.chargingStep({json.dumps(m)},null,5)") == m
+
+
+def test_reduce_motion_holds_the_bolt_still():
+    assert run("P.chargingMotion(true)") == "static" and run("P.chargingMotion(false)") == "pulse"

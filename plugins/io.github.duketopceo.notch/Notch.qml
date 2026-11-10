@@ -298,12 +298,16 @@ Item {
   readonly property var player: media.active ? media.player : null
   readonly property string mediaText: media.active ? media.text : ""
   readonly property bool mediaShown: activity !== null && activity !== undefined && activity.id === "media"
-  readonly property int eqSpace: mediaShown ? 14 : 0   // room for the equalizer glyph
+  readonly property bool chargingShown: activity !== null && activity !== undefined && activity.id === "charging"
+  readonly property int eqSpace: mediaShown || chargingShown ? 14 : 0   // room for the equalizer / charging bolt
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
   readonly property var dictationActivity: dictation
   readonly property bool wordinkOn: settings.optWordink !== false
+
+  // Charging (R3): plugging in shows percent and time to full for a few seconds.
+  ChargingActivity { id: charging; enabled: root.settings.chargingAlert === true; reduceMotion: root.reduceMotion }
 
   // Tailscale + NordVPN (v3): idle status dot, Home dots, Network tab.
   NetworkState { id: networkState }
@@ -351,6 +355,7 @@ Item {
   readonly property var activities: [
     { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
+    { id: "charging", active: charging.active, priority: charging.priority, text: charging.text },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
     { id: "messages", active: root.settings.optMessages === true && messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
     { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph },
@@ -593,6 +598,14 @@ Item {
           x: win.slotX
         }
 
+        ChargeBolt {
+          visible: island.earsOn && root.chargingShown
+          shown: visible
+          pulse: charging.motion === "pulse"
+          anchors.verticalCenter: parent.verticalCenter
+          x: win.slotX
+        }
+
         // WordInk dictation dot (U4): pulses while recording.
         WordinkDot {
           activity: dictation
@@ -649,6 +662,12 @@ Item {
             visible: root.mediaShown
             playing: media.active
             color: root.textColor
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          ChargeBolt {
+            visible: root.chargingShown
+            shown: visible
+            pulse: charging.motion === "pulse"
             anchors.verticalCenter: parent.verticalCenter
           }
           // watchlist hook (virtual notch).

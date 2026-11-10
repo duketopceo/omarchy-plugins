@@ -155,3 +155,9 @@ def test_list_and_map_settings_are_sanitised():
     assert run("S.resolve({tabUsage:{power:3,x:-1,y:'z'}}).tabUsage") == {"power": 3}
     # defaults are copied, never shared between resolves
     assert run("(()=>{const a=S.resolve(null);a.hiddenTabs.push('x');return S.resolve(null).hiddenTabs})()") == []
+
+
+def test_charging_alert_is_a_feature_switch_on_by_default():
+    assert run("S.DEFAULTS.chargingAlert") is True
+    by, _ = rows_by_section()
+    assert any(r["key"] == "chargingAlert" for r in by["features"])
