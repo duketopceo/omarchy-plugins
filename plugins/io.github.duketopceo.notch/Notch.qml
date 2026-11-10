@@ -68,6 +68,15 @@ Item {
   Binding { target: Tk; property: "id"; value: root.themeId }
   Binding { target: Tk; property: "reduce"; value: root.reduceMotion }
 
+  // Tab usage picks which strip chips keep their label. Counted in memory and
+  // written to shell.json a few seconds after the last open (not per click).
+  property var tabUsageLive: null
+  function noteTabUse(id) {
+    tabUsageLive = Tabs.bumpUsage(tabUsageLive || settings.tabUsage, id)
+    usageSave.restart()
+  }
+  Timer { id: usageSave; interval: 4000; onTriggered: if (root.tabUsageLive) root.setSetting("tabUsage", root.tabUsageLive) }
+
   function toggleTheme() { setSetting("theme", themeId === "pxl" ? "swift" : "pxl") }
 
   function setSetting(key, value) {
@@ -543,7 +552,7 @@ Item {
           sourceComponent: ExpandedPanel {
             active: win.expanded
             currentTab: win.currentTab
-            onTabSelected: function (id) { win.currentTab = id }
+            onTabSelected: function (id) { win.currentTab = id; root.noteTabUse(id) }
             progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.minPanelHeight - win.baseHeight)))
             headerHeight: win.baseHeight
             notch: root

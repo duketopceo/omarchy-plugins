@@ -36,9 +36,14 @@ var PINNED = ["home", "settings"]
 
 // Tabs to show for these resolved settings: an `optional` tab needs the
 // setting of that name to be true (personal integrations, off by default).
+// Tabs the owner hid (`hiddenTabs`) are dropped too, except the pinned ones.
 function visibleTabs(settings, tabs) {
   var list = Array.isArray(tabs) ? tabs : TABS
-  return list.filter(function (t) { return !t.optional || !!(settings && settings[t.optional] === true) })
+  var hidden = settings && Array.isArray(settings.hiddenTabs) ? settings.hiddenTabs : []
+  return list.filter(function (t) {
+    if (t.optional && !(settings && settings[t.optional] === true)) return false
+    return PINNED.indexOf(t.id) >= 0 || hidden.indexOf(t.id) < 0
+  })
 }
 
 // Just the ids of the visible tabs. The Plugins tab uses this to decide
@@ -97,6 +102,91 @@ function failed(tab) {
   return { state: "missing", source: "", message: comingSoonText(tab) }
 }
 
+// ---------------------------------------------------------------- strip diet
+
+// How many of the most-used tabs keep their text label besides the selected one.
+var LABELED_USED = 2
+var USAGE_CAP = 500
+
+// Count one more open of `id`. Counts halve once any passes USAGE_CAP so old
+// habits fade. Returns a new map.
+function bumpUsage(usage, id) {
+  var out = {}
+  var u = usage && typeof usage === "object" ? usage : {}
+  for (var k in u) out[k] = Number(u[k]) || 0
+  out[id] = (out[id] || 0) + 1
+  if (out[id] > USAGE_CAP) for (var j in out) out[j] = Math.floor(out[j] / 2)
+  return out
+}
+
+// The `n` most-opened tab ids among `tabs` (never `exceptId`), busiest first;
+// ties keep tab order and a tab never opened is never listed.
+function topUsed(tabs, usage, n, exceptId) {
+  var list = Array.isArray(tabs) ? tabs : TABS
+  var u = usage && typeof usage === "object" ? usage : {}
+  var ranked = []
+  for (var i = 0; i < list.length; i++) {
+    var c = Number(u[list[i].id]) || 0
+    if (list[i].id !== exceptId && c > 0) ranked.push({ id: list[i].id, c: c, i: i })
+  }
+  ranked.sort(function (a, b) { return b.c - a.c || a.i - b.i })
+  return ranked.slice(0, Math.max(0, n)).map(function (r) { return r.id })
+}
+
+// Tab ids that keep a text label: the selected one first, then the most used.
+function labelIds(tabs, selectedId, usage, n) {
+  return [selectedId].concat(topUsed(tabs, usage, n === undefined ? LABELED_USED : n, selectedId))
+}
+
+// Next/previous visible tab id for keyboard cycling (wraps). `dir` +1 / -1.
+function cycle(tabs, currentId, dir) {
+  var list = Array.isArray(tabs) ? tabs : []
+  if (list.length === 0) return null
+  var at = 0
+  for (var i = 0; i < list.length; i++) if (list[i].id === currentId) at = i
+  var d = Number(dir) < 0 ? -1 : 1
+  return list[(at + d + list.length) % list.length].id
+}
+
+// Chip geometry for the strip. `labelW` maps a tab id to its measured label
+// width in px. Everything labeled and equal when that fits; otherwise the
+// labelled ids (selected first, then most used) get text-sized chips and the
+// rest share what remains as glyph-only chips. When even that does not fit,
+// labels drop from the least-used end, never the selected one.
+//   returns { equal, widths: [px per id], xs: [x per id], labeled: {id: true} }
+function stripLayout(ids, labelled, labelW, total, gap, glyphW, padX) {
+  var n = ids.length
+  var need = function (id) { return glyphW + 4 + (Number(labelW[id]) || 0) + padX }
+  var gaps = Math.max(0, n - 1) * gap
+  var longest = 0
+  var all = {}
+  for (var i = 0; i < n; i++) { longest = Math.max(longest, need(ids[i])); all[ids[i]] = true }
+  var equalW = n > 0 ? Math.floor((total - gaps) / n) : 0
+  var out = { equal: false, widths: [], xs: [], labeled: {} }
+  if (n > 0 && equalW >= longest) {
+    out.equal = true
+    out.labeled = all
+    for (var a = 0; a < n; a++) out.widths.push(equalW)
+  } else {
+    var want = labelled.filter(function (id) { return ids.indexOf(id) >= 0 })
+    var minOther = glyphW + 10
+    var otherW = 0
+    for (;;) {
+      var sum = 0
+      for (var b = 0; b < want.length; b++) sum += need(want[b])
+      var others = n - want.length
+      otherW = others > 0 ? Math.floor((total - gaps - sum) / others) : 0
+      if (others === 0 || otherW >= minOther || want.length <= 1) break
+      want.pop()
+    }
+    for (var w = 0; w < want.length; w++) out.labeled[want[w]] = true
+    for (var c = 0; c < n; c++) out.widths.push(out.labeled[ids[c]] ? need(ids[c]) : Math.max(1, otherW))
+  }
+  var x = 0
+  for (var d = 0; d < n; d++) { out.xs.push(x); x += out.widths[d] + gap }
+  return out
+}
+
 if (typeof module !== "undefined") {
-  module.exports = { PINNED: PINNED, sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, visibleIds: visibleIds, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
+  module.exports = { PINNED: PINNED, LABELED_USED: LABELED_USED, bumpUsage: bumpUsage, topUsed: topUsed, labelIds: labelIds, cycle: cycle, stripLayout: stripLayout, sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, visibleIds: visibleIds, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
 }
