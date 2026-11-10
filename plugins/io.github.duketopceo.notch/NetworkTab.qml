@@ -78,7 +78,7 @@ Item {
       text: pill.label
       color: pill.tone
       font.family: tab.family
-      font.pixelSize: 9
+      font.pixelSize: Tk.fs.caption
       font.weight: Font.DemiBold
     }
   }
@@ -103,7 +103,7 @@ Item {
       text: chipBox.label
       color: chipBox.labelColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
     MouseArea {
       id: chipHit
@@ -127,7 +127,7 @@ Item {
       text: parent.glyph
       color: parent.tone
       font.family: tab.family
-      font.pixelSize: 12
+      font.pixelSize: Tk.fs.body
     }
   }
 
@@ -163,7 +163,7 @@ Item {
           text: "Tailscale"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 12
+          font.pixelSize: Tk.fs.body
           font.weight: Font.DemiBold
         }
         Pill {
@@ -207,7 +207,7 @@ Item {
             text: ops.ts.selfIp
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             font.weight: Font.DemiBold
           }
           MouseArea { id: ipHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.ts.selfIp, "Copied " + ops.ts.selfIp) }
@@ -228,7 +228,7 @@ Item {
             text: ops.ts.selfDns !== "" ? ops.ts.selfDns : ops.ts.selfName
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { id: dnsHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.ts.selfDns !== "" ? ops.ts.selfDns : ops.ts.selfName, "Copied name") }
         }
@@ -261,7 +261,7 @@ Item {
             color: tab.textColor
             selectionColor: Tk.tint(0.3)
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             clip: true
             onTextChanged: tab.filter = text
             Keys.onEscapePressed: { text = ""; focus = false }
@@ -275,7 +275,7 @@ Item {
             text: "Filter " + ops.ts.peerCount + " peers"
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { anchors.fill: parent; cursorShape: Qt.IBeamCursor; onPressed: function(m) { filterInput.forceActiveFocus(); m.accepted = false } }
         }
@@ -298,7 +298,7 @@ Item {
             text: "Exit: " + (ops.exitName !== "" ? ops.exitName : "none") + (ops.exitFeasible ? "  ▾" : "")
             color: ops.exitName !== "" ? tab.good : tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: exitHit
@@ -350,7 +350,7 @@ Item {
                 text: Network.osIcon(peer.modelData.os).glyph
                 color: peer.modelData.online ? tab.textColor : tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 11
+                font.pixelSize: Tk.fs.bodySmall
               }
               Text {
                 textFormat: Text.PlainText
@@ -363,7 +363,7 @@ Item {
                 text: peer.modelData.name + (peer.modelData.exitNode ? "  (exit)" : "")
                 color: peer.modelData.online ? tab.textColor : tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               Text {
                 id: peerIp
@@ -374,7 +374,7 @@ Item {
                 text: peer.modelData.online ? peer.modelData.ip : peer.status
                 color: tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
               }
               Rectangle {
                 id: dotMark
@@ -406,7 +406,7 @@ Item {
         text: !ops.tsLoaded ? "" : ops.ts.running ? (tab.filter !== "" ? "No match" : "No peers") : (ops.ts.needsLogin ? "Sign in with tailscale up" : "Tailscale is off")
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
       }
     }
 
@@ -453,7 +453,7 @@ Item {
                 text: (opt.current ? "✓ " : "") + opt.modelData.name
                 color: opt.current ? tab.good : tab.textColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               MouseArea {
                 id: optHit
@@ -531,7 +531,7 @@ Item {
             : "Not connected"
           color: nordCard.connected ? tab.textColor : tab.dimColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.weight: nordCard.connected ? Font.DemiBold : Font.Normal
         }
         Text {
@@ -542,7 +542,7 @@ Item {
           text: "Pick a country, or Connect for the fastest server"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Text {
           textFormat: Text.PlainText
@@ -552,7 +552,7 @@ Item {
           text: ops.nord.hostname !== "" ? ops.nord.hostname : ops.nord.server
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Item {
           visible: nordCard.connected
@@ -566,7 +566,7 @@ Item {
             text: tab.toast === "Copied IP" ? "copied" : ops.nord.ip
             color: tab.toast === "Copied IP" ? tab.good : tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           Text {
             textFormat: Text.PlainText
@@ -578,7 +578,7 @@ Item {
             text: ops.nord.uptime !== "" ? "up " + ops.nord.uptime : ""
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { anchors.fill: nordIpText; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.nord.ip, "Copied IP") }
         }
@@ -635,7 +635,7 @@ Item {
             text: "Country  ▾"
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: dropHit
@@ -660,7 +660,7 @@ Item {
             text: nordCard.connected ? "Disconnect" : "Connect"
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: actHit
@@ -716,7 +716,7 @@ Item {
                 text: (nordCard.currentCountryId === ctry.modelData.id && nordCard.connected ? "✓ " : "") + ctry.modelData.label
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               MouseArea {
                 id: ctryHit
@@ -754,7 +754,7 @@ Item {
       text: tab.toast
       color: tab.good
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 }
