@@ -228,13 +228,13 @@ Item {
             width: row.isInt ? 72 : Math.max(56, pillText.implicitWidth + 16)
             height: 26; radius: Tk.r(13)
             readonly property bool on: row.modelData.type === "bool" && tab.settings[row.modelData.key] === true
-            color: on ? Tk.tint(0.28) : (pillHit.containsMouse && !row.isInt ? Tk.tint(0.22) : Tk.tint(0.1))
+            color: on ? (Tk.pxl ? Tk.edge : Tk.alpha(Tk.accent, 0.3)) : (pillHit.containsMouse && !row.isInt ? Tk.tint(0.22) : Tk.tint(0.1))
             Text {
               id: pillText
               textFormat: Text.PlainText
               anchors.centerIn: parent
               text: Settings.format(row.modelData, tab.settings[row.modelData.key])
-              color: pill.on ? Tk.accent : tab.textColor
+              color: pill.on && Tk.pxl ? Tk.accent : tab.textColor
               font.family: tab.family
               font.pixelSize: Tk.fs.body
             }
