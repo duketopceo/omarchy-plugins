@@ -153,7 +153,7 @@ def test_spark_values_downsample():
 def test_range_interval_mapping():
     r = run("S.RANGES.map(x=>[x.key,x.interval])")
     assert r == [["1D", "5m"], ["5D", "30m"], ["1M", "1d"], ["6M", "1d"], ["1Y", "1wk"]]
-    assert run("S.validRange('9X')") == "1M" and run("S.validRange('1Y')") == "1Y"
+    assert run("S.validRange('9X')") == "5D" and run("S.validRange('1Y')") == "1Y"
     assert json.loads(run("S.requestJson(['1D','zz','1D','1Y'],12.9)")) == {"ranges": ["1D", "1Y"], "at": 12}
 
 
@@ -174,7 +174,7 @@ def test_watchlist_fallback_and_edit():
 @needs_node
 def test_settings_defaults_and_overrides():
     d = run("S.settings(null,null,'')")
-    assert d == {"watchlist": [], "range": "1M", "style": "line", "prepost": False, "cards": 6}
+    assert d == {"watchlist": [], "range": "5D", "style": "line", "prepost": False, "cards": 6}
     s = run("S.settings({'stocks.range':'1Y','stocks.style':'candle','stocks.cards':4},{'stocks.prepost':true,'stocks.cards':9},'')")
     assert s["range"] == "1Y" and s["style"] == "candle" and s["prepost"] is True and s["cards"] == 6
     assert run("S.settings({'stocks.range':'zz','stocks.style':'x'},null,'').range") == "1M"

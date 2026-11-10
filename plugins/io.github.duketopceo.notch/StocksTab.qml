@@ -178,13 +178,13 @@ Item {
           readonly property var series: Stocks.parseSeries(tab.cache, sym, tab.range)
           readonly property var chg: Stocks.seriesChange(series, tab.range)
           readonly property var quote: tab.quoteFor(sym)
-          // Cards show TODAY's move (vs the previous close): the quote's
-          // changePercent, else the 1D series against its previous close. The
-          // selected range's change lives only in the chart header.
+          // Cards show the move over the range the chart is showing, so the
+          // percent always matches the graph. Today's move is only the fallback
+          // while that range's series has not loaded yet.
           readonly property var daySeries: tab.range === "1D" ? series : Stocks.parseSeries(tab.cache, sym, "1D")
           readonly property var dayChg: Stocks.seriesChange(daySeries, "1D")
           readonly property real price: quote && isFinite(Number(quote.price)) ? Number(quote.price) : (chg ? chg.last : NaN)
-          readonly property real pct: Stocks.todayPercent(quote, dayChg)
+          readonly property real pct: chg ? chg.percent : Stocks.todayPercent(quote, dayChg)
           readonly property color tone: tab.toneFor(pct)
           readonly property bool isSel: sym === tab.selected
           x: (index % tab.cols) * (tab.cardW + tab.cardGap)

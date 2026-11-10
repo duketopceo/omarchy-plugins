@@ -26,7 +26,7 @@ var RANGES = [
   { key: "1Y", label: "1Y", seconds: 365 * 86400, interval: "1wk" }
 ]
 
-var DEFAULTS = { range: "1M", style: "line", prepost: false, cards: 6 }
+var DEFAULTS = { range: "5D", style: "line", prepost: false, cards: 6 }
 var MAX_WATCH = 12
 var CARD_CHOICES = [4, 5, 6]
 
