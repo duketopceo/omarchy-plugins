@@ -236,7 +236,7 @@ Item {
       text: Power.stateLabel(tab.kind)
       color: tab.tone
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
       font.weight: Font.Medium
     }
     Text {
@@ -250,7 +250,7 @@ Item {
       text: Power.timeText(tab.kind, tab.timeSecs)
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 
@@ -326,7 +326,7 @@ Item {
           text: tab.flow.flow === "in" ? "from adapter" : tab.flow.flow === "out" ? "system draw" : (tab.ac ? "adapter idle" : "idle")
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Text {
           textFormat: Text.PlainText
@@ -335,7 +335,7 @@ Item {
           text: Math.round(tab.adapterW) + " W adapter"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -379,7 +379,7 @@ Item {
           text: "Charge" + (Power.fmtSpan(tab.history.spanSeconds) !== "" ? " · " + Power.fmtSpan(tab.history.spanSeconds) : "")
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         SparkChart {
           anchors.top: capCap.bottom
@@ -397,7 +397,7 @@ Item {
           text: "collecting"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
       }
       Item {
@@ -409,7 +409,7 @@ Item {
           text: "Watts (+in / −out)"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         SparkChart {
           anchors.top: wCap.bottom
@@ -427,7 +427,7 @@ Item {
           text: "collecting"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -463,7 +463,7 @@ Item {
           text: Power.profileTitle(pill.modelData)
           color: pill.active ? tab.textColor : tab.dimColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.weight: pill.active ? Font.DemiBold : Font.Normal
         }
         MouseArea {
@@ -506,7 +506,7 @@ Item {
         text: label
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 9
+        font.pixelSize: Tk.fs.caption
       }
     }
   }
