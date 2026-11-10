@@ -223,7 +223,7 @@ Item {
         wrapMode: Text.WordWrap
         maximumLineCount: 2
         elide: Text.ElideRight
-        text: tab.today.current ? tab.today.current.title : (tab.today.ok ? "No current block" : "No timeline yet")
+        text: tab.today.current ? tab.today.current.title : (tab.today.ok ? "No current block" : "Start Dayflow to see today's timeline")
         color: tab.today.current ? tab.textColor : tab.dimColor
         font.family: tab.family
         font.pixelSize: Tk.fs.body
@@ -349,7 +349,7 @@ Item {
       }
     }
     Line {
-      text: tab.agents.ok ? tab.agents.bySource.map(function (s) { return s.source + " " + s.count }).join("  ·  ") : "Loading…"
+      text: tab.agents.ok ? tab.agents.bySource.map(function (s) { return s.source + " " + s.count }).join("  ·  ") : (tab.status.ok ? "Loading…" : "Needs Dayflow running")
       color: tab.dimColor
     }
     Repeater {
@@ -361,7 +361,7 @@ Item {
     }
     Item { width: 1; height: 6 }
     Caption { text: "Workstreams" }
-    Line { visible: !tab.briefing.ok; text: "Loading…"; color: tab.dimColor }
+    Line { visible: !tab.briefing.ok; text: tab.status.ok ? "Loading…" : "Needs Dayflow running"; color: tab.dimColor }
     Repeater {
       model: tab.briefing.workstreams
       Row {
