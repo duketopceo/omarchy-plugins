@@ -115,7 +115,7 @@ Item {
         text: Agents.totalsText(tab.summary)
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 12
+        font.pixelSize: Tk.fs.body
         font.weight: Font.DemiBold
         textFormat: Text.PlainText
       }
@@ -128,7 +128,7 @@ Item {
         text: Agents.countsText(tab.summary.counts)
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 11
+        font.pixelSize: Tk.fs.bodySmall
         textFormat: Text.PlainText
         elide: Text.ElideRight
       }
@@ -146,7 +146,7 @@ Item {
           text: "Open herdr"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           textFormat: Text.PlainText
         }
         MouseArea {
@@ -196,7 +196,7 @@ Item {
             text: urow.modelData.name
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 11
+            font.pixelSize: Tk.fs.bodySmall
             textFormat: Text.PlainText
             elide: Text.ElideRight
           }
@@ -209,7 +209,7 @@ Item {
             text: urow.modelData.percent + "%" + (urow.modelData.resetText ? "  ·  " + urow.modelData.resetText : "")
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             textFormat: Text.PlainText
             elide: Text.ElideRight
           }
@@ -238,7 +238,7 @@ Item {
           text: tab.usageExpanded ? "Show less" : "+" + tab.urows.hidden + " more"
           color: moreHit.containsMouse ? tab.textColor : tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
           textFormat: Text.PlainText
         }
         MouseArea {
@@ -262,10 +262,10 @@ Item {
       Text {
         visible: tab.summary.total === 0
         Layout.topMargin: 6
-        text: "No agents running"
+        text: "No agents running. Start one in herdr and it shows here."
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 12
+        font.pixelSize: Tk.fs.body
         textFormat: Text.PlainText
       }
 
@@ -290,7 +290,7 @@ Item {
               text: "▸"
               color: tab.dimColor
               font.family: tab.family
-              font.pixelSize: 10
+              font.pixelSize: Tk.fs.caption
               textFormat: Text.PlainText
               rotation: grp.folded ? 0 : 90
               Behavior on rotation { NumberAnimation { duration: Tk.ms(120) } }
@@ -304,7 +304,7 @@ Item {
               text: grp.modelData.space
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.fs.bodySmall
               font.weight: Font.DemiBold
               textFormat: Text.PlainText
               elide: Text.ElideRight
@@ -324,7 +324,7 @@ Item {
                 text: grp.modelData.machine
                 color: tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
                 textFormat: Text.PlainText
               }
             }
@@ -337,7 +337,7 @@ Item {
               text: grp.modelData.countsText
               color: grp.modelData.blocked ? Tk.urgent : tab.dimColor
               font.family: tab.family
-              font.pixelSize: 10
+              font.pixelSize: Tk.fs.caption
               textFormat: Text.PlainText
               elide: Text.ElideLeft
             }
@@ -380,7 +380,7 @@ Item {
                 text: row.modelData.tab || row.modelData.appName
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 12
+                font.pixelSize: Tk.fs.body
                 textFormat: Text.PlainText
                 elide: Text.ElideRight
               }
@@ -404,7 +404,7 @@ Item {
                   text: Agents.statusLabel(row.modelData.status)
                   color: row.sc
                   font.family: tab.family
-                  font.pixelSize: 10
+                  font.pixelSize: Tk.fs.caption
                   font.weight: Font.Medium
                   textFormat: Text.PlainText
                 }
