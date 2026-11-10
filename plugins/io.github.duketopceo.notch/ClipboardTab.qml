@@ -21,15 +21,17 @@ Item {
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
 
-  property var entries: fixture !== "" ? Clip.parseList(fixture) : []
-  property bool loaded: fixture !== ""
+  property var fetched: []
+  readonly property var entries: fixture !== "" ? Clip.parseList(fixture) : fetched
+  property bool fetchedOnce: false
+  readonly property bool loaded: fixture !== "" || fetchedOnce
   property string flash: ""    // "Copied" for a moment after a click
 
   function refresh() {
     if (fixture !== "" || !visible || lister.running) return
     lister.running = true
   }
-  onVisibleChanged: { if (visible) refresh(); else if (fixture === "") entries = [] }
+  onVisibleChanged: { if (visible) refresh(); else fetched = [] }
   Component.onCompleted: refresh()
 
   Process {
@@ -37,7 +39,7 @@ Item {
     command: Clip.listArgs(Clip.MAX_ENTRIES)
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: { if (text.length < 200000) tab.entries = Clip.parseList(text); tab.loaded = true }
+      onStreamFinished: { if (text.length < 200000) tab.fetched = Clip.parseList(text); tab.fetchedOnce = true }
     }
   }
   Timer { interval: 4000; running: tab.visible && tab.fixture === ""; repeat: true; onTriggered: tab.refresh() }

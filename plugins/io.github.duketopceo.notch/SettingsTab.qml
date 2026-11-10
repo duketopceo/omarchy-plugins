@@ -370,6 +370,8 @@ Item {
                         maximumLength: Settings.ACTION_LIMITS.label
                         clip: true
                         text: ar.modelData.label
+                        onTextChanged: if (!activeFocus) cursorPosition = 0
+                        onActiveFocusChanged: if (!activeFocus) cursorPosition = 0
                         onEditingFinished: if (text !== ar.modelData.label) tab.editAction(ar.modelData.id, { label: text })
                         MouseArea { anchors.fill: parent; onPressed: function (m) { lblIn.forceActiveFocus(); m.accepted = false } }
                       }
@@ -391,6 +393,8 @@ Item {
                         maximumLength: Settings.ACTION_LIMITS.cmd
                         clip: true
                         text: ar.modelData.cmd
+                        onTextChanged: if (!activeFocus) cursorPosition = 0
+                        onActiveFocusChanged: if (!activeFocus) cursorPosition = 0
                         onEditingFinished: if (text !== ar.modelData.cmd) tab.editAction(ar.modelData.id, { cmd: text })
                         MouseArea { anchors.fill: parent; onPressed: function (m) { cmdIn.forceActiveFocus(); m.accepted = false } }
                       }
