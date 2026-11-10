@@ -25,6 +25,10 @@ var DEFAULTS = {
   dayflow: false,     // local: Dayflow tab, Home tile, idle slot + paused indicator
   timer: true,        // Timer tab, ear countdown, finish notification
   chargingAlert: true, // ear shows percent and time to full when AC is plugged in
+  hudOwner: "omarchy", // "omarchy" | "notch": who draws the volume/brightness popup (one, never both)
+  clipboard: true,    // Clipboard tab (needs cliphist; hidden when it is missing)
+  quickActionsOn: true, // Home quick-actions row
+  quickActions: null, // owner-pinned actions; null = the seeded defaults (see SEED_ACTIONS)
   hiddenTabs: [],     // built-in tab ids the owner hid (home and settings never hide)
   tabUsage: {},       // tab id -> open count, picks which tabs keep a label
   setupDone: false    // first-run optional-module setup completed
@@ -63,6 +67,12 @@ var FIELDS = [
   { key: "dayflow", section: "features", feature: true, label: "Dayflow", type: "bool", hint: "Dayflow is a work journal; adds a tab and an ear item." },
   { key: "timer", section: "features", feature: true, label: "Timer tab", type: "bool", hint: "Countdown and pomodoro; time left shows in the ear." },
   { key: "chargingAlert", section: "features", feature: true, label: "Charging alert", type: "bool", hint: "Percent and time to full in the ear when you plug in." },
+  { key: "hudOwner", section: "features", feature: true, label: "Volume and brightness popup", type: "choice",
+    hint: "Notch's HUD replaces Omarchy's; turn Omarchy's off too.",
+    detail: "Omarchy's OSD: add \"omarchy.osd\" to disabledPlugins in shell.json. Otherwise both show.", detailWhen: "notch",
+    options: [{ value: "omarchy", label: "Omarchy" }, { value: "notch", label: "Notch" }] },
+  { key: "clipboard", section: "features", feature: true, label: "Clipboard tab", type: "bool", hint: "Recent copies from cliphist; needs cliphist installed." },
+  { key: "quickActionsOn", section: "features", feature: true, label: "Quick actions", type: "bool", hint: "A row of your pinned shortcuts on Home; edit them under Advanced." },
   { key: "optWordink", section: "features", feature: true, label: "Dictation (WordInk)", type: "bool", setup: true, hint: "Shows recording state from the WordInk dictation app." },
   { key: "optWisp", section: "features", feature: true, label: "Wisp status", type: "bool", setup: true, hint: "A status dot for the Wisp assistant on Home." },
   { key: "optFan", section: "features", feature: true, label: "Fan mode control", type: "bool", setup: true, hint: "Lets System switch fan profiles (needs the fan plugin)." },

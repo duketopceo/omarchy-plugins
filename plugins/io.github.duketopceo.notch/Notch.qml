@@ -308,7 +308,8 @@ Item {
   readonly property string mediaText: media.active ? media.text : ""
   readonly property bool mediaShown: activity !== null && activity !== undefined && activity.id === "media"
   readonly property bool chargingShown: activity !== null && activity !== undefined && activity.id === "charging"
-  readonly property int eqSpace: mediaShown || chargingShown ? 14 : 0   // room for the equalizer / charging bolt
+  readonly property bool hudShown: activity !== null && activity !== undefined && activity.id === "hud"
+  readonly property int eqSpace: hudShown ? 44 : (mediaShown || chargingShown ? 14 : 0)   // room for the equalizer / charging bolt / HUD meter
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
@@ -317,6 +318,9 @@ Item {
 
   // Charging (R3): plugging in shows percent and time to full for a few seconds.
   ChargingActivity { id: charging; enabled: root.settings.chargingAlert === true; reduceMotion: root.reduceMotion }
+
+  // Volume / brightness HUD (R6): only when Settings picks Notch as the popup owner (default Omarchy).
+  HudActivity { id: hud; enabled: root.settings.hudOwner === "notch" }
 
   // Timer / pomodoro (R4): ear shows time left in the idle rotation, a flash when it ends.
   TimerActivity { id: timerAct; enabled: root.settings.timer === true }
@@ -368,6 +372,7 @@ Item {
   readonly property var activities: [
     { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
+    { id: "hud", active: hud.active, priority: hud.priority, text: hud.text },
     { id: "charging", active: charging.active, priority: charging.priority, text: charging.text },
     { id: "timer", active: timerAct.active, priority: timerAct.priority, text: timerAct.text },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
@@ -620,6 +625,14 @@ Item {
           x: win.slotX
         }
 
+        HudMeter {
+          visible: island.earsOn && root.hudShown
+          level: hud.level
+          muted: hud.muted
+          anchors.verticalCenter: parent.verticalCenter
+          x: win.slotX
+        }
+
         // WordInk dictation dot (U4): pulses while recording.
         WordinkDot {
           activity: dictation
@@ -682,6 +695,12 @@ Item {
             visible: root.chargingShown
             shown: visible
             pulse: charging.motion === "pulse"
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          HudMeter {
+            visible: root.hudShown
+            level: hud.level
+            muted: hud.muted
             anchors.verticalCenter: parent.verticalCenter
           }
           // watchlist hook (virtual notch).
