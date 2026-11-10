@@ -128,7 +128,7 @@ Item {
       text: pill.label
       color: pill.on ? tab.textColor : tab.dimColor
       font.family: tab.family
-      font.pixelSize: 9
+      font.pixelSize: Tk.fs.caption
       font.weight: pill.on ? Font.DemiBold : Font.Normal
     }
     MouseArea {
@@ -206,7 +206,7 @@ Item {
               text: card.sym
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 10
+              font.pixelSize: Tk.fs.caption
               font.weight: Font.DemiBold
             }
             Row {
@@ -216,7 +216,7 @@ Item {
                 text: Stocks.formatPrice(card.price)
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
                 font.features: ({ "tnum": 1 })
               }
               Text {
@@ -224,7 +224,7 @@ Item {
                 text: Stocks.formatChange(card.pct)
                 color: card.tone
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
                 font.features: ({ "tnum": 1 })
               }
             }
@@ -282,7 +282,7 @@ Item {
           text: tab.selected !== "" ? tab.selected : "No symbols"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 12
+          font.pixelSize: Tk.fs.body
           font.weight: Font.DemiBold
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -292,7 +292,7 @@ Item {
           text: tab.selChange ? Stocks.formatPrice(tab.selChange.last) : ""
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.features: ({ "tnum": 1 })
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -302,7 +302,7 @@ Item {
           text: tab.selChange ? Stocks.formatDelta(tab.selChange.value) + "  " + Stocks.formatChange(tab.selChange.percent) : ""
           color: tab.selTone
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
           font.features: ({ "tnum": 1 })
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -361,7 +361,7 @@ Item {
       text: "Fetching " + tab.selected + " " + tab.range + "…"
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 
@@ -391,7 +391,7 @@ Item {
         text: "Watchlist"
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 9
+        font.pixelSize: Tk.fs.caption
       }
       Flow {
         width: parent.width
@@ -416,7 +416,7 @@ Item {
               text: sym.modelData
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 9
+              font.pixelSize: Tk.fs.caption
             }
             Text {
               anchors.right: parent.right
@@ -426,7 +426,7 @@ Item {
               text: "×"
               color: rm.containsMouse ? Stocks.COLORS.down : tab.dimColor
               font.family: tab.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.fs.bodySmall
               MouseArea {
                 id: rm
                 anchors.fill: parent
@@ -454,7 +454,7 @@ Item {
             verticalAlignment: TextInput.AlignVCenter
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             maximumLength: 12
             clip: true
             onAccepted: { tab.put("stocks.watchlist", Stocks.addSymbol(tab.symbols, text)); text = "" }
@@ -465,7 +465,7 @@ Item {
               text: "add symbol"
               color: tab.dimColor
               font.family: tab.family
-              font.pixelSize: 9
+              font.pixelSize: Tk.fs.caption
             }
             MouseArea { anchors.fill: parent; onPressed: function (m) { addInput.forceActiveFocus(); m.accepted = false } }
           }
@@ -509,7 +509,7 @@ Item {
           text: r2.label
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         Row {
           id: slot
@@ -565,7 +565,7 @@ Item {
       text: "✕"
       color: closeHit.containsMouse ? tab.textColor : tab.dimColor
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
       MouseArea {
         id: closeHit
         anchors.fill: parent

@@ -119,7 +119,7 @@ Item {
       text: Stocks.formatPrice(modelData)
       color: chart.dimColor
       font.family: chart.family
-      font.pixelSize: 8
+      font.pixelSize: Tk.fs.caption
       font.features: ({ "tnum": 1 })
     }
   }
@@ -137,7 +137,7 @@ Item {
       text: chart.shown.length ? Stocks.formatTime(chart.shown[modelData].t, chart.range, true) : ""
       color: chart.dimColor
       font.family: chart.family
-      font.pixelSize: 8
+      font.pixelSize: Tk.fs.caption
       font.features: ({ "tnum": 1 })
     }
   }
@@ -175,7 +175,7 @@ Item {
       text: chart.hoverPoint ? Stocks.formatPrice(chart.hoverPoint.c) : ""
       color: Tk.black
       font.family: chart.family
-      font.pixelSize: 8
+      font.pixelSize: Tk.fs.caption
       font.weight: Font.DemiBold
       font.features: ({ "tnum": 1 })
     }
@@ -202,7 +202,7 @@ Item {
         text: chart.hoverPoint ? Stocks.formatTime(chart.hoverPoint.t, chart.range, false) : ""
         color: chart.dimColor
         font.family: chart.family
-        font.pixelSize: 8
+        font.pixelSize: Tk.fs.caption
         font.features: ({ "tnum": 1 })
       }
       Text {
@@ -213,7 +213,7 @@ Item {
           : Stocks.formatPrice(chart.hoverPoint.c))
         color: chart.textColor
         font.family: chart.family
-        font.pixelSize: 9
+        font.pixelSize: Tk.fs.caption
         font.weight: Font.DemiBold
         font.features: ({ "tnum": 1 })
       }
@@ -223,7 +223,7 @@ Item {
         text: chart.hoverPoint ? "Vol " + Stocks.formatVolume(chart.hoverPoint.v) : ""
         color: chart.dimColor
         font.family: chart.family
-        font.pixelSize: 8
+        font.pixelSize: Tk.fs.caption
         font.features: ({ "tnum": 1 })
       }
     }
