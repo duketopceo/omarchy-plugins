@@ -33,7 +33,8 @@ Item {
 
   readonly property int gutter: 16
   readonly property int headerH: 28
-  readonly property int setupH: showSetup ? Math.min(160, 36 + offers.length * 28 + (Caps.needsSetup(settings) ? 32 : 0)) : 0
+  readonly property var setupLay: Settings.setupLayout(offers.length, Caps.needsSetup(settings), height - headerH - 8)
+  readonly property int setupH: showSetup ? setupLay.height : 0
   readonly property int rowH: Math.max(36, Math.min(56, Math.floor((height - headerH - setupH - 8) / Math.max(1, Math.ceil(prefs.length / 2)))))
 
   Text {
@@ -48,7 +49,8 @@ Item {
     verticalAlignment: Text.AlignVCenter
   }
 
-  // ---- optional setup strip
+  // ---- optional setup card: intro, a scrolling module list, Done pinned below
+  // the list (Settings.setupLayout keeps Done inside the card at any count).
   Item {
     id: setupBox
     anchors.top: head.bottom
@@ -56,113 +58,136 @@ Item {
     anchors.right: parent.right
     height: tab.setupH
     visible: tab.showSetup
-    clip: true
 
     Rectangle {
       anchors.fill: parent
-      anchors.bottomMargin: 6
+      anchors.bottomMargin: Settings.SETUP.gap
       radius: Tk.r(10)
       color: Tk.tint(0.06)
     }
 
-    Column {
-      id: setupCol
+    Text {
+      id: setupIntro
+      anchors.top: parent.top
       anchors.left: parent.left
       anchors.right: parent.right
-      anchors.top: parent.top
       anchors.margins: 10
-      spacing: 4
+      height: Settings.SETUP.intro - 10
+      textFormat: Text.PlainText
+      wrapMode: Text.WordWrap
+      elide: Text.ElideRight
+      maximumLineCount: 2
+      text: Caps.needsSetup(tab.settings)
+            ? "Optional additions detected. Enable what you want; built-in tabs work without these."
+            : "Optional modules detected on this host"
+      color: tab.dimColor
+      font.family: tab.family
+      font.pixelSize: Tk.fs.caption
+    }
 
-      Text {
-        width: parent.width
-        textFormat: Text.PlainText
-        wrapMode: Text.WordWrap
-        text: Caps.needsSetup(tab.settings)
-              ? "Optional additions detected — enable what you want. Built-in tabs work without these."
-              : "Optional modules (detected on this host)"
-        color: tab.dimColor
-        font.family: tab.family
-        font.pixelSize: Tk.fs.caption
-      }
+    NotchScroll {
+      id: setupList
+      anchors.top: setupIntro.bottom
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.leftMargin: 10
+      anchors.rightMargin: 10
+      height: tab.setupLay.listH
+      rowHeight: Settings.SETUP.row
+      contentHeight: setupCol.height
+      contentWidth: width
 
-      Repeater {
-        model: tab.offers
-        delegate: Item {
-          required property var modelData
-          width: setupCol.width
-          height: 26
-          Text {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: enableBtn.left
-            anchors.rightMargin: 8
-            textFormat: Text.PlainText
-            elide: Text.ElideRight
-            text: modelData.label
-            color: tab.textColor
-            font.family: tab.family
-            font.pixelSize: Tk.fs.bodySmall
-          }
-          Rectangle {
-            id: enableBtn
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            width: 64; height: 22; radius: Tk.r(11)
-            color: enHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.12)
+      Column {
+        id: setupCol
+        width: setupList.width
+
+        Repeater {
+          model: tab.offers
+          delegate: Item {
+            required property var modelData
+            width: setupCol.width
+            height: Settings.SETUP.row
             Text {
-              anchors.centerIn: parent
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.right: enableBtn.left
+              anchors.rightMargin: 8
               textFormat: Text.PlainText
-              text: "Enable"
-              color: Tk.accent
+              elide: Text.ElideRight
+              text: modelData.label
+              color: tab.textColor
               font.family: tab.family
-              font.pixelSize: Tk.fs.caption
+              font.pixelSize: Tk.fs.bodySmall
             }
-            MouseArea {
-              id: enHit
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: tab.enableModule(modelData.setting)
+            Rectangle {
+              id: enableBtn
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              width: 64; height: 22; radius: Tk.r(11)
+              color: enHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.12)
+              Text {
+                anchors.centerIn: parent
+                textFormat: Text.PlainText
+                text: "Enable"
+                color: Tk.accent
+                font.family: tab.family
+                font.pixelSize: Tk.fs.caption
+              }
+              MouseArea {
+                id: enHit
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: tab.enableModule(modelData.setting)
+              }
             }
           }
         }
-      }
 
-      Text {
-        visible: tab.offers.length === 0 && Caps.needsSetup(tab.settings)
-        width: parent.width
-        textFormat: Text.PlainText
-        wrapMode: Text.WordWrap
-        text: "No optional backends found. You can enable modules later if you install them."
-        color: tab.dimColor
-        font.family: tab.family
-        font.pixelSize: Tk.fs.caption
-      }
-
-      Rectangle {
-        visible: Caps.needsSetup(tab.settings)
-        width: 88; height: 24; radius: Tk.r(12)
-        color: doneHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.12)
         Text {
-          anchors.centerIn: parent
+          visible: tab.offers.length === 0
+          width: parent.width
+          height: Settings.SETUP.row
+          verticalAlignment: Text.AlignVCenter
           textFormat: Text.PlainText
-          text: "Done"
-          color: tab.textColor
+          elide: Text.ElideRight
+          text: "No optional backends found. You can enable modules later if you install them."
+          color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Tk.fs.bodySmall
+          font.pixelSize: Tk.fs.caption
         }
-        MouseArea {
-          id: doneHit
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: tab.finishSetup()
-        }
+      }
+    }
+
+    // Done lives outside the scrolling list so it is always reachable.
+    Rectangle {
+      visible: Caps.needsSetup(tab.settings)
+      anchors.right: parent.right
+      anchors.rightMargin: 10
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Settings.SETUP.gap + 8
+      width: 88; height: 24; radius: Tk.r(12)
+      color: doneHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.12)
+      Text {
+        anchors.centerIn: parent
+        textFormat: Text.PlainText
+        text: "Done"
+        color: tab.textColor
+        font.family: tab.family
+        font.pixelSize: Tk.fs.bodySmall
+      }
+      MouseArea {
+        id: doneHit
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: tab.finishSetup()
       }
     }
   }
 
   NotchScroll {
+    visible: height > 60
     anchors.top: setupBox.visible ? setupBox.bottom : head.bottom
     anchors.left: parent.left
     anchors.right: parent.right

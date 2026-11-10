@@ -133,6 +133,28 @@ function settingsMutator(pluginId, patch) {
   }
 }
 
+// Geometry of the first-run / new-module setup card, in logical px. The card
+// is: padding + a two-line intro + a scrolling list of one row per module +
+// (first run only) a footer that holds Done. The footer is never part of the
+// scrolling list, so Done stays visible however many modules are offered.
+//   offerCount  modules to list (0 shows a one-row "none found" note)
+//   firstRun    setup not finished yet (Done is shown)
+//   avail       vertical room the card may use
+//   minBelow    room kept for the settings below when setup is already done
+var SETUP = { pad: 20, intro: 34, row: 28, footer: 40, gap: 6, minBelow: 120 }
+
+function setupLayout(offerCount, firstRun, avail, minBelow) {
+  var n = Math.max(1, Math.floor(Number(offerCount) || 0))
+  var room = Math.max(0, Number(avail) || 0)
+  var footer = firstRun ? SETUP.footer : 0
+  var chrome = SETUP.pad + SETUP.intro + footer + SETUP.gap
+  var contentH = n * SETUP.row
+  var cap = firstRun ? room : Math.max(chrome + SETUP.row, room - (minBelow === undefined ? SETUP.minBelow : minBelow))
+  var height = Math.min(chrome + contentH, cap)
+  var listH = Math.max(0, height - chrome)
+  return { height: height, listH: listH, contentH: contentH, scroll: contentH > listH, footerH: footer }
+}
+
 // Arguments for bin/notch-data derived from the settings.
 function dataArgs(settings) {
   return ["--max-age", "900", "--unit", settings && settings.unitName ? settings.unitName : "fahrenheit"]
@@ -140,5 +162,5 @@ function dataArgs(settings) {
 
 if (typeof module !== "undefined") {
   module.exports = { DEFAULTS: DEFAULTS, FIELDS: FIELDS, prefFields: prefFields, field: field, resolve: resolve, next: next, format: format,
-    pluginEntry: pluginEntry, settingsMutator: settingsMutator, dataArgs: dataArgs }
+    setupLayout: setupLayout, SETUP: SETUP, pluginEntry: pluginEntry, settingsMutator: settingsMutator, dataArgs: dataArgs }
 }
