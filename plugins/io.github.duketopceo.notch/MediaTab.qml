@@ -32,7 +32,7 @@ Item {
     textFormat: Text.PlainText
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.caption
+    font.pixelSize: Tk.fs.caption
     font.letterSpacing: 0.8
     font.capitalization: Font.AllUppercase
   }
@@ -140,13 +140,13 @@ Item {
       Text {
         textFormat: Text.PlainText
         text: Media.formatTime(tab.frac * (media ? media.length : 0))
-        color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
+        color: tab.dimColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall
       }
       Text {
         anchors.right: parent.right
         textFormat: Text.PlainText
         text: Media.formatTime(media ? media.length : 0)
-        color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall
+        color: tab.dimColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall
       }
     }
     Row {
@@ -182,7 +182,7 @@ Item {
           textFormat: Text.PlainText
           elide: Text.ElideRight
           text: chip.modelData ? String(chip.modelData.identity || "") : ""
-          color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption
+          color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.caption
         }
         MouseArea { anchors.fill: parent; onClicked: tab.media.preferred = chip.modelData.dbusName }
       }
@@ -197,7 +197,7 @@ Item {
         anchors.centerIn: parent
         textFormat: Text.PlainText
         text: "Open fastpotify"
-        color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.caption
+        color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.caption
       }
       MouseArea { id: openHit; anchors.fill: parent; hoverEnabled: true; onClicked: tab.media.openApp() }
     }

@@ -134,9 +134,10 @@ def test_notch_qml_applies_theme_on_load_and_change():
     assert 'import "Theme.js" as Theme' in qml
     assert "readonly property var themeObj: Theme.resolve(settings.theme)" in qml
     assert "readonly property string themeId: themeObj.id" in qml
-    # Derived colors follow the theme, falling back to the live palette.
-    assert "themeObj.text || Commons.Color.foreground" in qml
-    assert "themeObj.dim || Commons.Color.muted" in qml
+    # Derived colors come from Tk, which follows the live palette but lifts
+    # it to AA contrast against the fixed dark island.
+    assert "readonly property color textColor: Tk.text" in qml
+    assert "readonly property color dimColor: Tk.dim" in qml
     assert "readonly property string fontFamily: Tk.family" in qml
     assert 'Binding { target: Tk; property: "id"; value: root.themeId }' in qml
     assert "readonly property color islandColor: themeObj.island" in qml
@@ -233,3 +234,17 @@ def test_no_qml_hardcodes_radius_or_family():
                 if not (v.startswith("Tk.") or re.fullmatch(r"(tab|panel|slide|chart|cal|spark|ring|root)\.(family|fontFamily)", v)):
                     bad.append((p.name, i, "family", v))
     assert not bad, bad[:10]
+
+
+def test_ensure_contrast_lifts_dark_theme_text_onto_black_island():
+    # Light Omarchy themes have a dark foreground; on the black island that is ~2:1.
+    out = run("(function(){var fg=[0.298,0.31,0.412],bg=[0,0,0];var o=T.ensureContrast(fg,bg,7);"
+              "return [T.contrast(fg,bg),T.contrast(o,bg)]})()")
+    assert out[0] < 3 and out[1] >= 7
+    # Already-legible colours are returned untouched.
+    same = run("T.ensureContrast([0.9,0.92,0.95],[0,0,0],7)")
+    assert same == [0.9, 0.92, 0.95]
+    # Pxl text and dim pass AA on the Pxl island.
+    pxl = run("(function(){function h(x){return [1,3,5].map(function(i){return parseInt(x.substr(i,2),16)/255})}"
+              "var t=T.THEMES.pxl;return [T.contrast(h(t.text),h(t.island)),T.contrast(h(t.dim),h(t.island)),T.contrast(h(t.accent),h(t.island))]})()")
+    assert min(pxl) >= 4.5

@@ -75,7 +75,7 @@ Item {
       text: tab.busy ? tab.busyLabel : (tab.snap.ok ? Screenshots.pendingText(tab.snap.pending) : "Snapdex unavailable")
       color: tab.snap.pending > 0 && !tab.busy ? Tk.accent : tab.dimColor
       font.family: tab.family
-      font.pixelSize: Commons.Style.font.body
+      font.pixelSize: Tk.fs.body
       font.weight: Font.DemiBold
     }
 
@@ -98,7 +98,7 @@ Item {
           text: "Open folder"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         MouseArea {
           id: folderHit
@@ -124,7 +124,7 @@ Item {
           text: "Process now"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         MouseArea {
           id: processHit
@@ -145,7 +145,7 @@ Item {
           text: "Auto"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         PillSwitch {
           anchors.verticalCenter: parent.verticalCenter
@@ -170,7 +170,7 @@ Item {
     text: "Library " + Screenshots.shortPath(tab.dirs.library, tab.home) + (tab.dirs.separate ? "   Inbox " + Screenshots.shortPath(tab.dirs.inbox, tab.home) + " (" + tab.snap.pending + " pending)" : "  (renamed in place)")
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.caption
+    font.pixelSize: Tk.fs.caption
   }
 
   // ------------------------------------------------------------ thumbnails
@@ -229,7 +229,7 @@ Item {
           text: cell.modelData.caption
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.caption
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -242,6 +242,6 @@ Item {
     text: tab.snap.ok ? "No captioned screenshots yet" : ""
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.bodySmall
+    font.pixelSize: Tk.fs.bodySmall
   }
 }

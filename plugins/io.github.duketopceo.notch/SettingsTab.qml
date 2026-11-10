@@ -82,7 +82,7 @@ Item {
               : "Optional modules (detected on this host)"
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.caption
+        font.pixelSize: Tk.fs.caption
       }
 
       Repeater {
@@ -101,7 +101,7 @@ Item {
             text: modelData.label
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: Commons.Style.font.bodySmall
+            font.pixelSize: Tk.fs.bodySmall
           }
           Rectangle {
             id: enableBtn
@@ -115,7 +115,7 @@ Item {
               text: "Enable"
               color: Tk.accent
               font.family: tab.family
-              font.pixelSize: Commons.Style.font.caption
+              font.pixelSize: Tk.fs.caption
             }
             MouseArea {
               id: enHit
@@ -136,7 +136,7 @@ Item {
         text: "No optional backends found. You can enable modules later if you install them."
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.caption
+        font.pixelSize: Tk.fs.caption
       }
 
       Rectangle {
@@ -149,7 +149,7 @@ Item {
           text: "Done"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         MouseArea {
           id: doneHit
@@ -199,7 +199,7 @@ Item {
           text: row.modelData.label
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.body
+          font.pixelSize: Tk.fs.body
         }
 
         Row {
@@ -236,7 +236,7 @@ Item {
               text: Settings.format(row.modelData, tab.settings[row.modelData.key])
               color: pill.on ? Tk.accent : tab.textColor
               font.family: tab.family
-              font.pixelSize: Commons.Style.font.body
+              font.pixelSize: Tk.fs.body
             }
             MouseArea {
               id: pillHit

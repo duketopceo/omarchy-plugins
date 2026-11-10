@@ -14,11 +14,18 @@ QtObject {
   readonly property var t: Theme.resolve(id)
   readonly property bool pxl: id === "pxl"
 
-  // Live Omarchy colours in Swift, pinned palette in Pxl.
-  readonly property color text: t.text || Commons.Color.foreground
-  readonly property color dim: t.dim || Commons.Color.muted
-  readonly property color accent: t.accent || Commons.Color.accent
-  readonly property color urgent: t.urgent || Commons.Color.urgent
+  // Live Omarchy colours in Swift, pinned palette in Pxl. The island is a
+  // fixed dark surface, so each followed colour is lifted until it reaches
+  // WCAG AA (4.5:1) against it; a light Omarchy theme would otherwise put
+  // dark text on black.
+  function legible(c, min) {
+    var o = Theme.ensureContrast([c.r, c.g, c.b], [island.r, island.g, island.b], min)
+    return Qt.rgba(o[0], o[1], o[2], 1)
+  }
+  readonly property color text: t.text || legible(Commons.Color.foreground, 7)
+  readonly property color dim: t.dim || legible(Commons.Color.muted, 4.5)
+  readonly property color accent: t.accent || legible(Commons.Color.accent, 4.5)
+  readonly property color urgent: t.urgent || legible(Commons.Color.urgent, 4.5)
   readonly property color bg: pxl ? t.island : Commons.Color.background
   readonly property color island: t.island
   readonly property color good: t.good
@@ -40,7 +47,17 @@ QtObject {
   readonly property color chip: pxl ? t.chip : Qt.rgba(1, 1, 1, 0.1)
   readonly property color chipHover: pxl ? t.chipHover : Qt.rgba(1, 1, 1, 0.16)
   readonly property color edge: pxl ? t.border : Qt.rgba(1, 1, 1, 0.22)
-  readonly property color faint: pxl ? t.faint : Commons.Color.muted
+  readonly property color faint: pxl ? t.faint : dim
+
+  // Type floors. Commons sizes are logical px: caption 10 / bodySmall 11 come
+  // out 10-11 physical px on a scale-1 ultrawide. Floor them so secondary text
+  // stays readable there (and is unchanged on the scale-2 built-in panel).
+  readonly property QtObject fs: QtObject {
+    readonly property int caption: Math.max(Commons.Style.font.caption, 11)
+    readonly property int bodySmall: Math.max(Commons.Style.font.bodySmall, 12)
+    readonly property int body: Math.max(Commons.Style.font.body, 12)
+    readonly property int title: Commons.Style.font.title
+  }
 
   // Fonts
   readonly property FontLoader pixelify: FontLoader { source: Qt.resolvedUrl("fonts/PixelifySans/PixelifySans[wght].ttf") }

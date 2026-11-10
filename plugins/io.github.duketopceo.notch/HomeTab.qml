@@ -109,7 +109,7 @@ Item {
     textFormat: Text.PlainText
     color: panel.dimColor
     font.family: Tk.label
-    font.pixelSize: Commons.Style.font.caption
+    font.pixelSize: Tk.fs.caption
     font.letterSpacing: 0.8
     font.capitalization: Font.AllUppercase
   }
@@ -149,7 +149,7 @@ Item {
       spacing: 6
       anchors.verticalCenter: parent.verticalCenter
       Rectangle { width: 8; height: 8; radius: Tk.r(4); color: panel.dotColor(db.state); anchors.verticalCenter: parent.verticalCenter }
-      Text { textFormat: Text.PlainText; text: db.name; color: dbHit.containsMouse ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+      Text { textFormat: Text.PlainText; text: db.name; color: dbHit.containsMouse ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea { id: dbHit; anchors.fill: parent; anchors.margins: -4; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: db.clicked() }
   }
@@ -198,7 +198,7 @@ Item {
         text: Qt.formatDate(panel.now, "dddd, d MMMM")
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
 
@@ -224,7 +224,7 @@ Item {
         text: panel.statusLine()
         color: panel.agentCounts.blocked > 0 ? Tk.urgent : panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
 
@@ -286,7 +286,7 @@ Item {
         text: panel.player ? String(panel.player.trackTitle || panel.player.identity || "") : "Nothing playing"
         color: panel.player ? panel.textColor : panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.body
+        font.pixelSize: Tk.fs.body
         font.weight: Font.DemiBold
       }
       Text {
@@ -296,7 +296,7 @@ Item {
         text: panel.player ? String(panel.player.trackArtist || "") : " "
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
     Row {
@@ -337,7 +337,7 @@ Item {
           text: panel.weather ? panel.weather.temperature + panel.weather.unit : "No weather yet"
           color: panel.weather ? panel.textColor : panel.dimColor
           font.family: panel.family
-          font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Commons.Style.font.bodySmall
+          font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Tk.fs.bodySmall
           font.weight: Font.DemiBold
         }
         Text {
@@ -348,7 +348,7 @@ Item {
           text: panel.weather ? Expand.conditionText(panel.weather.kind) + (panel.weather.place ? "  \u00B7  " + panel.weather.place : "") : ""
           color: panel.dimColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
       }
     }
@@ -389,7 +389,7 @@ Item {
           text: panel.topUsage ? panel.topUsage.percent + "%" : ""
           color: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : panel.textColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
           font.features: ({ "tnum": 1 })
         }
       }
@@ -421,7 +421,7 @@ Item {
           text: dfTile.td.focusPct >= 0 ? dfTile.td.focusPct + "% focus" : ""
           color: dfTile.td.focusPct >= 60 ? Tk.accent : panel.textColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
           font.features: ({ "tnum": 1 })
         }
       }
@@ -442,7 +442,7 @@ Item {
           text: dfTile.st.paused ? "Capture paused" : !dfTile.st.ok ? "Dayflow unavailable" : dfTile.td.current ? dfTile.td.current.title : "No current block"
           color: dfTile.st.paused ? Tk.urgent : dfTile.td.current ? panel.textColor : panel.dimColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
       }
       MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (panel.notch) panel.notch.openTabRequested("dayflow", "") }
@@ -483,8 +483,8 @@ Item {
       width: parent.width
       today: panel.now
       cellH: 20
-      fontPx: Commons.Style.font.bodySmall
-      titlePx: Commons.Style.font.body
+      fontPx: Tk.fs.bodySmall
+      titlePx: Tk.fs.body
       family: panel.family
       textColor: panel.textColor
       dimColor: panel.dimColor
@@ -502,9 +502,9 @@ Item {
         Row {
           required property var modelData
           width: col3.width
-          Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.weight: Font.DemiBold }
-          Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
-          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Tk.urgent; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.weight: Font.DemiBold }
+          Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Tk.urgent; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
         }
       }
     }

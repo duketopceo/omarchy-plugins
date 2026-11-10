@@ -200,11 +200,11 @@ Item {
   readonly property int slideSeconds: settings.slideSeconds
 
   readonly property color islandColor: themeObj.island
-  readonly property color textColor: themeObj.text || Commons.Color.foreground
-  readonly property color dimColor: themeObj.dim || Commons.Color.muted
-  readonly property color faintColor: themeObj.faint || Commons.Color.muted
-  readonly property color accentColor: themeObj.accent || Commons.Color.accent
-  readonly property color urgentColor: themeObj.urgent || Commons.Color.urgent
+  readonly property color textColor: Tk.text
+  readonly property color dimColor: Tk.dim
+  readonly property color faintColor: Tk.faint
+  readonly property color accentColor: Tk.accent
+  readonly property color urgentColor: Tk.urgent
   readonly property color goodColor: themeObj.good
   readonly property color warnColor: themeObj.warn
   readonly property color badColor: themeObj.bad

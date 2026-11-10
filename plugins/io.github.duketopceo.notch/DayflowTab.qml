@@ -47,7 +47,7 @@ Item {
     textFormat: Text.PlainText
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.caption
+    font.pixelSize: Tk.fs.caption
     font.letterSpacing: 0.8
     font.capitalization: Font.AllUppercase
   }
@@ -57,7 +57,7 @@ Item {
     elide: Text.ElideRight
     color: tab.textColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.bodySmall
+    font.pixelSize: Tk.fs.bodySmall
   }
   component Divider: Rectangle {
     width: 1
@@ -93,7 +93,7 @@ Item {
       text: Dayflow.stateText(tab.status)
       color: tab.status.paused ? Tk.urgent : tab.textColor
       font.family: tab.family
-      font.pixelSize: Commons.Style.font.body
+      font.pixelSize: Tk.fs.body
       font.weight: Font.DemiBold
     }
     Text {
@@ -110,7 +110,7 @@ Item {
         + (tab.status.storage ? "  ·  " + tab.status.storage : "")
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: Commons.Style.font.bodySmall
+      font.pixelSize: Tk.fs.bodySmall
     }
 
     Rectangle {
@@ -130,7 +130,7 @@ Item {
         text: tab.status.paused ? "Resume capture" : "Pause"
         color: tab.status.paused ? Tk.bg : tab.textColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
         font.weight: Font.DemiBold
       }
       MouseArea {
@@ -199,7 +199,7 @@ Item {
         text: Qt.formatTime(new Date(modelData.t * 1000), "h AP")
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.caption
+        font.pixelSize: Tk.fs.caption
       }
     }
   }
@@ -226,7 +226,7 @@ Item {
         text: tab.today.current ? tab.today.current.title : (tab.today.ok ? "No current block" : "No timeline yet")
         color: tab.today.current ? tab.textColor : tab.dimColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.body
+        font.pixelSize: Tk.fs.body
         font.weight: Font.DemiBold
       }
       Row {
@@ -238,7 +238,7 @@ Item {
           text: tab.today.current ? Dayflow.categoryLabel(tab.today.current.category) + "  ·  " + tab.today.current.startLabel + " – " + tab.today.current.endLabel + (tab.today.current.app ? "  ·  " + tab.today.current.app : "") : ""
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
       }
     }
@@ -266,7 +266,7 @@ Item {
           text: tab.today.trackedMin > 0 ? Dayflow.duration(tab.today.productiveMin) + " of " + Dayflow.duration(tab.today.trackedMin) : ""
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
       }
       // Category mix as one thin bar.
@@ -308,8 +308,8 @@ Item {
         spacing: 3
         Row {
           width: parent.width
-          Text { textFormat: Text.PlainText; width: parent.width - mins.implicitWidth; elide: Text.ElideRight; text: appRow.modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
-          Text { id: mins; textFormat: Text.PlainText; text: Dayflow.duration(appRow.modelData.minutes); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: parent.width - mins.implicitWidth; elide: Text.ElideRight; text: appRow.modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall }
+          Text { id: mins; textFormat: Text.PlainText; text: Dayflow.duration(appRow.modelData.minutes); color: tab.dimColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
         }
         Rectangle {
           width: parent.width; height: 3; radius: Tk.r(2)
@@ -343,7 +343,7 @@ Item {
         text: tab.agents.ok ? String(tab.agents.count) : "…"
         color: tab.agents.count > 0 ? Tk.accent : tab.dimColor
         font.family: tab.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
         font.weight: Font.DemiBold
         font.features: ({ "tnum": 1 })
       }
@@ -368,8 +368,8 @@ Item {
         id: wsRow
         required property var modelData
         width: col3.width
-        Text { textFormat: Text.PlainText; width: parent.width - wsCount.implicitWidth; elide: Text.ElideRight; text: wsRow.modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall }
-        Text { id: wsCount; textFormat: Text.PlainText; text: String(wsRow.modelData.threads); color: tab.dimColor; font.family: tab.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+        Text { textFormat: Text.PlainText; width: parent.width - wsCount.implicitWidth; elide: Text.ElideRight; text: wsRow.modelData.name; color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall }
+        Text { id: wsCount; textFormat: Text.PlainText; text: String(wsRow.modelData.threads); color: tab.dimColor; font.family: tab.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
       }
     }
   }

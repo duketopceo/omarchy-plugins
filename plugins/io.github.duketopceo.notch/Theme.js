@@ -118,6 +118,27 @@ function token(id, key) {
   return d === undefined ? "" : d
 }
 
+// WCAG contrast helpers. The island is a fixed dark surface, so text that
+// follows a LIGHT Omarchy theme (dark foreground) would vanish on it. These
+// take 0..1 rgb triples and lift a colour toward white until it reads.
+function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+function luminance(r, g, b) { return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) }
+function contrast(a, b) {
+  var la = luminance(a[0], a[1], a[2]), lb = luminance(b[0], b[1], b[2])
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+// Returns [r,g,b] lifted toward white (or black when `bg` is light) so that
+// contrast(result, bg) >= min. Unchanged when it already passes.
+function ensureContrast(fg, bg, min) {
+  var target = luminance(bg[0], bg[1], bg[2]) < 0.5 ? 1 : 0
+  var out = [fg[0], fg[1], fg[2]]
+  for (var i = 0; i <= 20 && contrast(out, bg) < min; i++) {
+    var t = i / 20
+    out = [fg[0] + (target - fg[0]) * t, fg[1] + (target - fg[1]) * t, fg[2] + (target - fg[2]) * t]
+  }
+  return out
+}
+
 if (typeof module !== "undefined") {
-  module.exports = { DEFAULT_THEME: DEFAULT_THEME, THEMES: THEMES, ids: ids, isTheme: isTheme, resolve: resolve, token: token }
+  module.exports = { DEFAULT_THEME: DEFAULT_THEME, THEMES: THEMES, ids: ids, isTheme: isTheme, resolve: resolve, token: token, contrast: contrast, luminance: luminance, ensureContrast: ensureContrast }
 }

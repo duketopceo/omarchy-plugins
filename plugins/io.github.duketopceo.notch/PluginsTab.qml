@@ -85,7 +85,7 @@ Item {
     text: "No plugins to show"
     color: tab.faintColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.bodySmall
+    font.pixelSize: Tk.fs.bodySmall
   }
 
   NotchScroll {
@@ -114,7 +114,7 @@ Item {
             text: section.modelData.title.toUpperCase()
             color: tab.faintColor
             font.family: tab.family
-            font.pixelSize: Commons.Style.font.caption
+            font.pixelSize: Tk.fs.caption
             font.letterSpacing: 1.2
             font.bold: true
           }
@@ -197,7 +197,7 @@ Item {
                     text: slot.info.name
                     color: tab.textColor
                     font.family: tab.family
-                    font.pixelSize: Commons.Style.font.body
+                    font.pixelSize: Tk.fs.body
                   }
 
                   // Live figure where one exists: the AI usage percent next to
@@ -209,7 +209,7 @@ Item {
                     text: slot.st.detail
                     color: tab.toneColor(slot.st.tone)
                     font.family: tab.family
-                    font.pixelSize: Commons.Style.font.body
+                    font.pixelSize: Tk.fs.body
                     font.bold: true
                   }
 
@@ -238,7 +238,7 @@ Item {
                         text: slot.hint !== "" ? slot.hint : slot.st.text
                         color: slot.st.on ? tab.textColor : tab.faintColor
                         font.family: tab.family
-                        font.pixelSize: Commons.Style.font.caption
+                        font.pixelSize: Tk.fs.caption
                       }
                     }
                   }
@@ -273,7 +273,7 @@ Item {
           text: Plugins.CONFIGURE.title
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.body
+          font.pixelSize: Tk.fs.body
         }
         Row {
           anchors.right: parent.right
@@ -286,7 +286,7 @@ Item {
             text: Plugins.CONFIGURE.label
             color: tab.accentColor
             font.family: tab.family
-            font.pixelSize: Commons.Style.font.bodySmall
+            font.pixelSize: Tk.fs.bodySmall
           }
           Text {
             textFormat: Text.PlainText
@@ -294,7 +294,7 @@ Item {
             text: "\u{F0142}"
             color: tab.accentColor
             font.family: tab.family
-            font.pixelSize: Commons.Style.font.bodySmall
+            font.pixelSize: Tk.fs.bodySmall
           }
         }
 

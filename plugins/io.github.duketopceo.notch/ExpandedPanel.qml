@@ -141,7 +141,7 @@ Item {
       TextMetrics {
         id: longest
         font.family: Tk.label
-        font.pixelSize: Commons.Style.font.caption
+        font.pixelSize: Tk.fs.caption
         text: {
           var best = ""
           for (var i = 0; i < panel.tabs.length; i++) {
@@ -154,7 +154,7 @@ Item {
       TextMetrics {
         id: current
         font.family: Tk.label
-        font.pixelSize: Commons.Style.font.caption
+        font.pixelSize: Tk.fs.caption
         text: panel.tab ? (panel.tab.short || panel.tab.title) : ""
       }
 
@@ -182,7 +182,7 @@ Item {
               text: chip.modelData.glyph
               color: chip.selected ? panel.textColor : panel.dimColor
               font.family: panel.family
-              font.pixelSize: Commons.Style.font.bodySmall
+              font.pixelSize: Tk.fs.bodySmall
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
@@ -191,7 +191,7 @@ Item {
               text: chip.modelData.short || chip.modelData.title
               color: chip.selected ? panel.textColor : panel.dimColor
               font.family: Tk.label
-              font.pixelSize: Commons.Style.font.caption
+              font.pixelSize: Tk.fs.caption
               anchors.verticalCenter: parent.verticalCenter
             }
           }
@@ -265,7 +265,7 @@ Item {
         text: panel.resolved.state === "missing" ? panel.resolved.message : Tabs.failed(panel.tab).message
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
   }
