@@ -72,7 +72,7 @@ Item {
         text: "AI usage"
         color: tab.textColor
         font.family: tab.family
-        font.pixelSize: 11
+        font.pixelSize: Tk.fs.bodySmall
         font.bold: true
       }
 
@@ -91,7 +91,7 @@ Item {
           text: "Refresh"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         MouseArea {
           id: refreshHit
@@ -110,7 +110,7 @@ Item {
         text: "Resets count down live"
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
         opacity: 0.8
       }
     }
@@ -119,10 +119,10 @@ Item {
       visible: tab.providers.length === 0
       anchors.centerIn: parent
       textFormat: Text.PlainText
-      text: "No usage data yet"
+      text: "No usage data yet. Press Refresh to fetch it."
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
     }
 
     NotchScroll {
@@ -171,7 +171,7 @@ Item {
                 text: card.modelData.name
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 12
+                font.pixelSize: Tk.fs.body
                 font.bold: true
               }
               Text {
@@ -185,7 +185,7 @@ Item {
                 text: card.modelData.plan
                 color: tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
                 elide: Text.ElideRight
               }
               Text {
@@ -229,7 +229,7 @@ Item {
                     text: row.modelData.label
                     color: tab.dimColor
                     font.family: tab.family
-                    font.pixelSize: 10
+                    font.pixelSize: Tk.fs.caption
                     elide: Text.ElideRight
                   }
 
@@ -247,7 +247,7 @@ Item {
                     }
                     color: tab.dimColor
                     font.family: tab.family
-                    font.pixelSize: 9
+                    font.pixelSize: Tk.fs.caption
                     elide: Text.ElideRight
                   }
 
@@ -262,7 +262,7 @@ Item {
                     text: row.modelData.percent + "%"
                     color: tab.sevColor(row.modelData.severity)
                     font.family: tab.family
-                    font.pixelSize: 10
+                    font.pixelSize: Tk.fs.caption
                     font.bold: true
                   }
 
