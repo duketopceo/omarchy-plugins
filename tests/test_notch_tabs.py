@@ -142,7 +142,7 @@ def test_next_steps_and_wraps():
     assert run("S.next(S.resolve(null),'unit',1)") == "C"
     assert run("S.next(S.resolve({unit:'C'}),'unit',1)") == "F"
     assert run("S.next(S.resolve(null),'clockHours',-1)") == 24
-    assert run("S.next(S.resolve(null),'clockSeconds',1)") == 29
+    assert run("S.next(S.resolve(null),'clockSeconds',1)") == 40   # segmented: 12 / 24 / 40 / 60
     assert run("S.next(S.resolve({clockSeconds:5}),'clockSeconds',-1)") == 5
     assert run("S.next(S.resolve(null),'cameraWidth',1)") == 10
     assert run("S.next(S.resolve(null),'bogus',1)") is None

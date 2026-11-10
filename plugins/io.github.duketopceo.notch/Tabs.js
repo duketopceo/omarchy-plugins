@@ -29,6 +29,10 @@ var TABS = [
   { id: "settings", title: "Settings", short: "Prefs", glyph: "\u{F0493}", source: "SettingsTab.qml", size: PANEL_SIZE }
 ]
 
+// Tabs the owner can never hide: Home is where the panel opens and Settings is
+// the way back to every switch.
+var PINNED = ["home", "settings"]
+
 // Tabs to show for these resolved settings: an `optional` tab needs the
 // setting of that name to be true (personal integrations, off by default).
 function visibleTabs(settings, tabs) {
@@ -93,5 +97,5 @@ function failed(tab) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, visibleIds: visibleIds, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
+  module.exports = { PINNED: PINNED, sizeFor: sizeFor, maxHeight: maxHeight, visibleTabs: visibleTabs, visibleIds: visibleIds, DEFAULT_TAB: DEFAULT_TAB, TABS: TABS, byId: byId, select: select, resolve: resolve, failed: failed, comingSoonText: comingSoonText }
 }

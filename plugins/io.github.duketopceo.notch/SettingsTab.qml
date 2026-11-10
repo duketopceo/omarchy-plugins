@@ -2,6 +2,7 @@ import QtQuick
 import qs.Commons as Commons
 import "Settings.js" as Settings
 import "Capabilities.js" as Caps
+import "Tabs.js" as Tabs
 
 // Settings tab: first-run / optional-module setup strip, then prefs grid.
 // Setup offers Enable for capabilities `bin/notch-probe` found on this host.
@@ -19,10 +20,23 @@ Item {
   readonly property var rows: Caps.setupRows(probe, settings)
   readonly property var offers: Caps.offers(probe, settings)
   readonly property bool showSetup: Caps.needsSetup(settings) || offers.length > 0
-  readonly property var prefs: Settings.prefFields()
+  readonly property var secs: Settings.sections(Tabs.TABS, Tabs.PINNED)
+  property string section: "look"
+  readonly property var secRows: { for (var i = 0; i < secs.length; i++) if (secs[i].id === section) return secs[i].rows; return [] }
 
   function change(key, dir) {
     if (notch) notch.setSetting(key, Settings.next(settings, key, dir))
+  }
+  // Set one registry row (a setting, or a built-in tab's shown/hidden switch).
+  function setRow(row, value) {
+    if (!notch) return
+    var patch = Settings.rowPatch(settings, row, value)
+    for (var k in patch) notch.setSetting(k, patch[k])
+  }
+  function options(row) {
+    var f = Settings.field(row.key)   // not row.field: the Repeater model flattens nested arrays
+    if (f.type === "choice") return f.options
+    return Settings.choicesFor(f, settings[row.key]).map(function (v) { return { value: v, label: Settings.format(f, v) } })
   }
   function enableModule(setting) {
     if (notch) notch.setSetting(setting, true)
@@ -35,7 +49,6 @@ Item {
   readonly property int headerH: 28
   readonly property var setupLay: Settings.setupLayout(offers.length, Caps.needsSetup(settings), height - headerH - 8)
   readonly property int setupH: showSetup ? setupLay.height : 0
-  readonly property int rowH: Math.max(36, Math.min(56, Math.floor((height - headerH - setupH - 8) / Math.max(1, Math.ceil(prefs.length / 2)))))
 
   Text {
     id: head
@@ -186,110 +199,158 @@ Item {
     }
   }
 
-  NotchScroll {
-    visible: height > 60
+  // ---- sections: a rail on the left, one scrolling list of rows on the right
+  Item {
+    id: main
+    visible: height > 80
     anchors.top: setupBox.visible ? setupBox.bottom : head.bottom
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    rowHeight: tab.rowH
-    contentHeight: flow.height
-    contentWidth: width
 
-  Flow {
-    id: flow
-    width: parent.width
-    spacing: 0
-
-    Repeater {
-      model: tab.prefs
-
-      Item {
-        id: row
-        required property var modelData
-        required property int index
-        readonly property int padL: index % 2 === 1 ? tab.gutter / 2 : 0
-        readonly property int padR: index % 2 === 0 ? tab.gutter / 2 : 0
-        readonly property bool isInt: row.modelData.type === "int"
-        width: Math.floor(tab.width / 2)
-        height: tab.rowH
-
-        Rectangle { anchors.bottom: parent.bottom; x: row.padL; width: parent.width - row.padL - row.padR; height: Tk.bw(1); color: Tk.tint(0.07) }
-
-        Text {
-          textFormat: Text.PlainText
-          anchors.left: parent.left
-          anchors.leftMargin: row.padL
-          anchors.verticalCenter: parent.verticalCenter
-          text: row.modelData.label
-          color: tab.dimColor
-          font.family: tab.family
-          font.pixelSize: Tk.fs.body
-        }
-
-        Row {
-          anchors.right: parent.right
-          anchors.rightMargin: row.padR
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: 4
-
-          Rectangle {
-            visible: row.isInt
-            width: 26; height: 26; radius: Tk.r(13)
-            color: minus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
-            Text {
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: "−"
-              color: tab.textColor
-              font.family: tab.family
-              font.pixelSize: Commons.Style.font.title
-            }
-            MouseArea { id: minus; anchors.fill: parent; hoverEnabled: true; onClicked: tab.change(row.modelData.key, -1) }
+    Column {
+      id: rail
+      width: 150
+      spacing: 2
+      Repeater {
+        model: tab.secs
+        Rectangle {
+          id: railItem
+          required property var modelData
+          readonly property bool selected: tab.section === railItem.modelData.id
+          width: rail.width
+          height: 30
+          radius: Tk.r(15)
+          color: selected ? Tk.tint(0.16) : (railHit.containsMouse ? Tk.tint(0.08) : "transparent")
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            text: railItem.modelData.title
+            color: railItem.selected ? tab.textColor : tab.dimColor
+            font.family: tab.family
+            font.pixelSize: Tk.fs.body
           }
-
-          Rectangle {
-            id: pill
-            width: row.isInt ? 72 : Math.max(56, pillText.implicitWidth + 16)
-            height: 26; radius: Tk.r(13)
-            readonly property bool on: row.modelData.type === "bool" && tab.settings[row.modelData.key] === true
-            color: on ? (Tk.pxl ? Tk.edge : Tk.alpha(Tk.accent, 0.3)) : (pillHit.containsMouse && !row.isInt ? Tk.tint(0.22) : Tk.tint(0.1))
-            Text {
-              id: pillText
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: Settings.format(row.modelData, tab.settings[row.modelData.key])
-              color: pill.on && Tk.pxl ? Tk.accent : tab.textColor
-              font.family: tab.family
-              font.pixelSize: Tk.fs.body
-            }
-            MouseArea {
-              id: pillHit
-              anchors.fill: parent
-              hoverEnabled: true
-              enabled: !row.isInt
-              cursorShape: row.isInt ? Qt.ArrowCursor : Qt.PointingHandCursor
-              onClicked: tab.change(row.modelData.key, 1)
-            }
-          }
-
-          Rectangle {
-            visible: row.isInt
-            width: 26; height: 26; radius: Tk.r(13)
-            color: plus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
-            Text {
-              textFormat: Text.PlainText
-              anchors.centerIn: parent
-              text: "+"
-              color: tab.textColor
-              font.family: tab.family
-              font.pixelSize: Commons.Style.font.title
-            }
-            MouseArea { id: plus; anchors.fill: parent; hoverEnabled: true; onClicked: tab.change(row.modelData.key, 1) }
+          MouseArea {
+            id: railHit
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: tab.section = railItem.modelData.id
           }
         }
       }
     }
-  }
+
+    NotchScroll {
+      id: list
+      anchors.top: parent.top
+      anchors.bottom: parent.bottom
+      anchors.left: rail.right
+      anchors.leftMargin: 14
+      anchors.right: parent.right
+      rowHeight: 40
+      contentHeight: col.height
+      contentWidth: width
+
+      Column {
+        id: col
+        width: list.width
+
+        Repeater {
+          model: tab.secRows
+
+          Item {
+            id: row
+            required property var modelData
+            readonly property bool isSwitch: row.modelData.type === "bool"
+            readonly property bool isSeg: row.modelData.type === "choice" || (row.modelData.type === "int" && !!Settings.field(row.modelData.key).choices)
+            readonly property bool isStep: row.modelData.type === "int" && !row.isSeg
+            readonly property var value: Settings.rowValue(tab.settings, row.modelData)
+            width: col.width
+            height: row.modelData.hint !== "" ? 52 : 38
+
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
+
+            Column {
+              anchors.left: parent.left
+              anchors.right: ctl.left
+              anchors.rightMargin: 12
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 1
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                text: row.modelData.label
+                color: tab.textColor
+                font.family: tab.family
+                font.pixelSize: Tk.fs.body
+              }
+              Text {
+                visible: row.modelData.hint !== ""
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                text: row.modelData.hint
+                color: tab.dimColor
+                font.family: tab.family
+                font.pixelSize: Tk.fs.caption
+              }
+            }
+
+            Item {
+              id: ctl
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              width: row.isSwitch ? sw.width : (row.isSeg ? segc.width : stepc.width)
+              height: 26
+
+              PillSwitch {
+                id: sw
+                visible: row.isSwitch
+                anchors.verticalCenter: parent.verticalCenter
+                on: row.value === true
+                onToggled: tab.setRow(row.modelData, !(row.value === true))
+              }
+              Segmented {
+                id: segc
+                visible: row.isSeg
+                options: row.isSeg ? tab.options(row.modelData) : []
+                current: row.value
+                onPicked: function (v) { tab.setRow(row.modelData, v) }
+              }
+              Row {
+                id: stepc
+                visible: row.isStep
+                spacing: 4
+                Rectangle {
+                  width: 26; height: 26; radius: Tk.r(13)
+                  color: minus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
+                  Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "\u2212"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.title }
+                  MouseArea { id: minus; anchors.fill: parent; hoverEnabled: true; onPressed: tab.change(row.modelData.key, -1) }
+                }
+                Rectangle {
+                  width: 72; height: 26; radius: Tk.r(13); color: Tk.tint(0.1)
+                  Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: row.isStep ? Settings.format(Settings.field(row.modelData.key), row.value) : ""; color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.body }
+                }
+                Rectangle {
+                  width: 26; height: 26; radius: Tk.r(13)
+                  color: plus.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
+                  Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: "+"; color: tab.textColor; font.family: tab.family; font.pixelSize: Commons.Style.font.title }
+                  MouseArea { id: plus; anchors.fill: parent; hoverEnabled: true; onPressed: tab.change(row.modelData.key, 1) }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
