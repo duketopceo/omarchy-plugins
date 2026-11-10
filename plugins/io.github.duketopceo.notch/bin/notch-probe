@@ -126,6 +126,19 @@ def finance_present() -> bool:
     return False
 
 
+def which(name: str) -> bool:
+    """Executable on PATH or in ~/.local/bin (existence check only, never run)."""
+    dirs = [os.path.join(HOME, ".local", "bin")] + os.environ.get("PATH", "").split(os.pathsep)
+    for d in dirs:
+        p = os.path.join(d, name)
+        try:
+            if os.path.isfile(p) and os.access(p, os.X_OK):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def main() -> int:
     compatible = read_text("/proc/device-tree/compatible", 2048)
     model = device_model(compatible)
@@ -169,6 +182,8 @@ def main() -> int:
         "wisp": isfile(wisp) or exists(os.path.join(os.environ.get("XDG_RUNTIME_DIR", ""), "wisp")),
         "finance": finance_present(),
         "fan": isfile(fan) or exists("/run/omarchy-fan/status.json"),
+        "clipboard": which("cliphist") and which("wl-copy"),
+        "hud": which("wpctl"),
         "plugins": tray_has_plugins(),
         "tailscale": isfile("/usr/bin/tailscale"),
         "nordvpn": isfile("/usr/bin/nordvpn"),

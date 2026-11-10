@@ -29,7 +29,7 @@ Item {
 
   property string currentTab: Tabs.DEFAULT_TAB   // owned by the window (it sizes the panel); bound by the Loader
   signal tabSelected(string id)
-  readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null)
+  readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null, undefined, notch ? notch.capabilities : null)
   readonly property var tab: Tabs.select(currentTab, tabs)
   readonly property string pluginDir: notch ? notch.pluginDir : ""
 

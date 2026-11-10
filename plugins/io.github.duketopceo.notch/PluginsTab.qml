@@ -27,7 +27,7 @@ Item {
 
   // Tabs this panel can actually show. An embedded tile only opens in place
   // when its tab is shipped and visible; otherwise it degrades to the chain.
-  readonly property var tabIds: Tabs.visibleIds(notch ? notch.settings : null)
+  readonly property var tabIds: Tabs.visibleIds(notch ? notch.settings : null, undefined, notch ? notch.capabilities : null)
 
   // Installed plugins from the shell registry, when it exposes them. Unknown
   // (null) means "do not filter" so the hub still works if the API moves.

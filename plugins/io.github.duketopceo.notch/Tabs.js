@@ -26,6 +26,7 @@ var TABS = [
   { id: "screenshots", title: "Shots", short: "Shots", glyph: "\u{F0100}", source: "ScreenshotsTab.qml", optional: "snapdex", size: PANEL_SIZE },
   { id: "dayflow", title: "Dayflow", short: "Day", glyph: "\u{F0CA2}", source: "DayflowTab.qml", optional: "dayflow", size: PANEL_SIZE },  // local customization
   { id: "timer", title: "Timer", short: "Timer", glyph: "\u{F13AB}", source: "TimerTab.qml", optional: "timer", size: PANEL_SIZE },
+  { id: "clipboard", title: "Clipboard", short: "Clip", glyph: "\u{F014C}", source: "ClipboardTab.qml", optional: "clipboard", needs: "clipboard", size: PANEL_SIZE },
   { id: "plugins", title: "Plugins", short: "Plugins", glyph: "\u{F0431}", source: "PluginsTab.qml", size: PANEL_SIZE },
   { id: "settings", title: "Settings", short: "Prefs", glyph: "\u{F0493}", source: "SettingsTab.qml", size: PANEL_SIZE }
 ]
@@ -37,11 +38,17 @@ var PINNED = ["home", "settings"]
 // Tabs to show for these resolved settings: an `optional` tab needs the
 // setting of that name to be true (personal integrations, off by default).
 // Tabs the owner hid (`hiddenTabs`) are dropped too, except the pinned ones.
-function visibleTabs(settings, tabs) {
+//
+// A tab with `needs: "<probe key>"` also needs that capability from the
+// capability probe (`probe`, Caps.parseProbe output): it is hidden when the
+// probe says the dependency is missing (Clipboard without cliphist). Without a
+// probe argument nothing is filtered.
+function visibleTabs(settings, tabs, probe) {
   var list = Array.isArray(tabs) ? tabs : TABS
   var hidden = settings && Array.isArray(settings.hiddenTabs) ? settings.hiddenTabs : []
   return list.filter(function (t) {
     if (t.optional && !(settings && settings[t.optional] === true)) return false
+    if (t.needs && probe && probe[t.needs] !== true) return false
     return PINNED.indexOf(t.id) >= 0 || hidden.indexOf(t.id) < 0
   })
 }
@@ -49,8 +56,8 @@ function visibleTabs(settings, tabs) {
 // Just the ids of the visible tabs. The Plugins tab uses this to decide
 // whether an embedded tile can open in place or has to fall back to the
 // launcher chain (Tabs.js stays the one source of truth for what is shipped).
-function visibleIds(settings, tabs) {
-  return visibleTabs(settings, tabs).map(function (t) { return t.id })
+function visibleIds(settings, tabs, probe) {
+  return visibleTabs(settings, tabs, probe).map(function (t) { return t.id })
 }
 
 // Optional per-tab panel size `size: { w, h }` (logical px) lives on the tab
