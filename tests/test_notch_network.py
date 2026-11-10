@@ -94,11 +94,15 @@ def test_nord_unavailable_cases():
         assert run(f"N.nordToggleVerb(N.parseNord({json.dumps(text)}))") is None
 
 
-def test_nord_args_use_absolute_paths_and_only_known_verbs():
+def test_nord_args_use_system_cli_not_sibling_plugin():
     a = run("N.nordArgs('/home/x','connect')")
-    assert a[0] == "/usr/bin/python3" and a[1] == "/home/x/.config/omarchy/plugins/io.github.duketopceo.nordvpn/bin/probe_nordvpn.py" and a[2] == "connect"
-    assert run("N.nordArgs('/home/x','killswitch')")[2] == "status"
-    assert run("N.nordArgs('/home/x')")[2] == "status"
+    assert a == ["/usr/bin/nordvpn", "connect"]
+    assert run("N.nordArgs('/home/x','disconnect')") == ["/usr/bin/nordvpn", "disconnect"]
+    assert run("N.nordArgs('/home/x','killswitch')") == ["/usr/bin/nordvpn", "status"]
+    assert run("N.nordArgs('/home/x')") == ["/usr/bin/nordvpn", "status"]
+    # home is ignored; no path into another plugin tree
+    joined = " ".join(a)
+    assert "omarchy/plugins" not in joined and "probe_nordvpn" not in joined
 
 
 def test_idle_dot_and_summaries():
@@ -189,7 +193,17 @@ def test_parse_countries_and_favorites():
 
 def test_nord_connect_args_validate_country():
     a = run("N.nordConnectArgs('/home/x','Canada')")
-    assert a[-2:] == ["connect", "Canada"] and a[0] == "/usr/bin/python3"
-    assert run("N.nordConnectArgs('/home/x','a; b')")[-1] == "connect"
-    assert run("N.nordConnectArgs('/home/x','')")[-1] == "connect"
+    assert a == ["/usr/bin/nordvpn", "connect", "Canada"]
+    assert run("N.nordConnectArgs('/home/x','a; b')") == ["/usr/bin/nordvpn", "connect"]
+    assert run("N.nordConnectArgs('/home/x','')") == ["/usr/bin/nordvpn", "connect"]
     assert run("N.nordStatusArgs()") == ["/usr/bin/nordvpn", "status"]
+    assert run("N.nordCountriesArgs()") == ["/usr/bin/nordvpn", "countries"]
+
+
+def test_nord_toggle_works_with_cli_text_shape():
+    """NetworkState/Ops feed parseNordText; toggle verbs must accept that shape."""
+    on = run("N.parseNordText('Status: Connected\\nCountry: Canada\\n')")
+    off = run("N.parseNordText('Status: Disconnected\\n')")
+    assert on["ok"] and run(f"N.nordToggleVerb({json.dumps(on)})") == "disconnect"
+    assert off["ok"] and run(f"N.nordToggleVerb({json.dumps(off)})") == "connect"
+    assert run("N.nordToggleVerb(N.parseNordText(''))") is None

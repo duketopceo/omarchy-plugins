@@ -15,10 +15,15 @@ var DEFAULTS = {
   cameraWidth: 0,     // 0 = auto, else logical px
   hoverDelay: 150,    // ms before hover expands the panel
   reduceMotion: false, // swap springs and slides for quick fades
-  snapdex: false,     // optional personal integration: Screenshots tab + caption flash
+  snapdex: false,     // optional: Screenshots tab (snapdex when detected)
+  optAgents: true,    // optional: Agents tab (herdr when detected)
+  optMessages: true,  // optional: Messages tab (Blip when detected)
+  optWordink: true,   // Home Dict / activity when wordink CLI exists
+  optWisp: true,      // Home Wisp dot when wisp plugin exists
+  optFan: true,       // System fan mode writes when lukedaduke.fan exists
+  aiUsage: true,      // AI usage tab + the percent on the Plugins hub AI tile
   dayflow: false,     // local: Dayflow tab, Home tile, idle slot + paused indicator
-  blip: true,         // Messages tab = the Blip (iMessage) panel + its hub tile
-  aiUsage: true       // AI usage tab + the percent on the Plugins hub AI tile
+  setupDone: false    // first-run optional-module setup completed
 }
 
 var FIELDS = [
@@ -35,11 +40,21 @@ var FIELDS = [
   { key: "cameraWidth", label: "Camera width", type: "int", min: 0, max: 400, step: 10, suffix: " px", zero: "auto" },
   { key: "hoverDelay", label: "Hover delay", type: "int", min: 0, max: 1000, step: 50, suffix: " ms" },
   { key: "reduceMotion", label: "Reduce motion", type: "bool" },
-  { key: "snapdex", label: "Screenshots (snapdex)", type: "bool" },
+  { key: "snapdex", label: "Screenshots tab", type: "bool", setup: true },
+  { key: "optAgents", label: "Agents tab", type: "bool", setup: true },
+  { key: "optMessages", label: "Messages tab", type: "bool", setup: true },
+  { key: "optWordink", label: "Dictation (WordInk)", type: "bool", setup: true },
+  { key: "optWisp", label: "Wisp status", type: "bool", setup: true },
+  { key: "optFan", label: "Fan mode control", type: "bool", setup: true },
+  { key: "aiUsage", label: "AI usage tab", type: "bool" },
   { key: "dayflow", label: "Dayflow", type: "bool" },
-  { key: "blip", label: "Blip (iMessage) tab", type: "bool" },
-  { key: "aiUsage", label: "AI usage tab", type: "bool" }
+  { key: "setupDone", label: "Setup done", type: "bool", hidden: true }
 ]
+
+// Prefs grid: hide setup-only / hidden keys (those live in the Setup strip).
+function prefFields() {
+  return FIELDS.filter(function (f) { return !f.hidden && !f.setup })
+}
 
 function field(key) {
   for (var i = 0; i < FIELDS.length; i++) if (FIELDS[i].key === key) return FIELDS[i]
@@ -124,6 +139,6 @@ function dataArgs(settings) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { DEFAULTS: DEFAULTS, FIELDS: FIELDS, field: field, resolve: resolve, next: next, format: format,
+  module.exports = { DEFAULTS: DEFAULTS, FIELDS: FIELDS, prefFields: prefFields, field: field, resolve: resolve, next: next, format: format,
     pluginEntry: pluginEntry, settingsMutator: settingsMutator, dataArgs: dataArgs }
 }

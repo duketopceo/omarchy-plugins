@@ -105,8 +105,10 @@ function isPreNotch(modelOrCompatible) {
 
 // Camera width in logical px, or 0 when unknown. Physical width/logical width
 // give the scale, so fractional scales work. `override` (logical px, > 0)
-// wins. Known pre-notch models always return 0.
-function cameraWidthFor(modelOrCompatible, physicalWidth, logicalWidth, override) {
+// wins. Known pre-notch models always return 0. When `cutHeight` > 0 (this
+// screen matched display-cutouts.json) but the model/panel table misses, use
+// ~12% of physical width — a last-resort estimate for any notched panel size.
+function cameraWidthFor(modelOrCompatible, physicalWidth, logicalWidth, override, cutHeight) {
   var o = Number(override)
   if (o > 0) return Math.round(o)
   var physical = Number(physicalWidth), logical = Number(logicalWidth)
@@ -119,6 +121,7 @@ function cameraWidthFor(modelOrCompatible, physicalWidth, logicalWidth, override
     for (var i = 0; i < keys.length; i++)
       if (Math.abs(physical - Number(keys[i])) <= 4) px = CAMERA_BY_PANEL[keys[i]]
   }
+  if (!px && Number(cutHeight) > 0) px = Math.round(physical * 0.12)
   return px ? Math.round(px * logical / physical) : 0
 }
 

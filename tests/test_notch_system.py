@@ -75,6 +75,14 @@ def test_hwmon_label_mapping_and_fans():
     assert run("[S.tempName('CPU Package'), S.tempName('GPU Die'), S.tempName('Battery Hotspot'), S.tempName('Ambient Air')]") == ["CPU", "GPU", "Battery", "Ambient"]
 
 
+def test_gpu_and_npu_detect():
+    assert run("S.detectGpu('macsmc_hwmon','')")["kind"] == "asahi-agx"
+    assert run("S.detectGpu('amdgpu','1002')")["kind"] == "amd"
+    assert run("S.detectGpu('','')")["kind"] == "none"
+    assert run("S.detectNpu('busy_ns 1\\njobs 2',false)")["kind"] == "ane"
+    assert run("S.detectNpu('',false)")["present"] is False
+
+
 def test_fan_helper_and_modes():
     h = run(f"S.parseFanHelper({j(json.dumps({'controllable': True, 'mode': 'low', 'version': '1.0.1'}))})")
     assert h == {"present": True, "controllable": True, "mode": "low", "version": "1.0.1"}

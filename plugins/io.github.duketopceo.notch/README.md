@@ -2,12 +2,53 @@
 
 A Mac-style notch island at the top center of every screen, for Omarchy 4.5.
 
-- On MacBook panels with a camera cutout (from Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, date in the right ear.
+**Self-contained:** install this plugin alone on a clean Omarchy box and you get a usable island — clock/date, weather, hover expand with built-in tabs (Home, Media, Network, Power, System, Stocks, Plugins, Settings). First click opens **Settings** until you finish optional setup: `bin/notch-probe` detects screenshots / agents / messages / WordInk / Wisp / finance / fan (and GPU/NPU labels) and offers Enable for each. Nothing hard-depends on Luke’s private shell config or on other duketopceo plugins.
+
+## Platform (honest)
+
+| Environment | Support |
+| --- | --- |
+| **Omarchy on Linux** (x86_64 or aarch64) | **Yes** — this is the only target. Quickshell + Wayland. |
+| **Omarchy on Apple Silicon** (Asahi / ARM Linux) | **Yes**, when Omarchy runs there: cutout geometry from `/usr/share/omarchy-platform/display-cutouts.json` + `/proc/device-tree/compatible`, ANE when `/sys/class/accel` exists. |
+| **macOS / stock MacBook** | **No.** This is not a macOS app and cannot run in macOS. “MacBook” here means Linux Omarchy on that hardware (or any Linux laptop), not Apple’s OS. |
+
+Display geometry auto-detects for any panel size Omarchy knows: model table (13–16″ Air/Pro codes), physical panel width table, then ~12% of physical width when a cutout matches but the model is unknown. Externals and notchless panels get a virtual island. Camera width override remains in Settings (`0` = auto).
+
+## Install
+
+From this umbrella repo:
+
+```bash
+./scripts/install.sh --link    # or --copy
+# then enable io.github.duketopceo.notch in Omarchy plugin settings / shell.json
+```
+
+Or, once the mirror exists: `omarchy plugin add https://github.com/duketopceo/omarchy-notch`.
+
+No other duketopceo plugins are required. Optional host tools (when present): `tailscale`, `nordvpn`, MPRIS players, `wordink`, Blip (`nixfred.blip`), herdr, snapdex, lukedaduke.fan.
+
+## Setup (optional modules)
+
+`bin/notch-probe` runs once at load and feeds the Settings strip:
+
+| Module | Detects | Enable setting | Tab / surface |
+| --- | --- | --- | --- |
+| Screenshots | snapdex-ctl | `snapdex` | Shots tab |
+| Agents | `herdr-app` | `optAgents` | Agents tab |
+| Messages | Blip state/plugin | `optMessages` | Messages tab |
+| Dictation | `wordink` CLI | `optWordink` | Home Dict + activity |
+| Wisp | wisp plugin / runtime | `optWisp` | Home Wisp dot |
+| Finance | finance.json / stocks.watchlist | `showStocks` | Idle stock slides (Stocks tab always built-in) |
+| Fan modes | lukedaduke.fan / helper | `optFan` | System mode pills |
+
+Built-in (always on): Home, Media, Network, Power, System, Stocks, Plugins, Settings. GPU/NPU on System are **labels from probe** (Asahi AGX / NVIDIA / AMD / Intel / none; ANE when present) — utilization is not claimed where the kernel does not expose it.
+
+- On panels with a camera cutout (Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, date in the right ear.
 - On other screens it is a virtual notch with the same content on one line.
 - The ear text hugs the camera (6 px gap: left ear right-aligned, right ear left-aligned) and the island is exactly the cutout height.
 - Idle: clock and date, with the current weather sliding in every half minute. While music plays, the track title takes the right ear.
 
-Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weather settings, fetched at most every 15 minutes by `bin/notch-data` into `~/.cache/omarchy/notch.json`.
+Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weather settings, fetched at most every 15 minutes by `bin/notch-data` into `~/.cache/omarchy/notch.json`. Stock quotes use Yahoo's public endpoints for the Omarchy finance watchlist (or this plugin's `stocks.watchlist` setting).
 
 ## Hover expand
 
@@ -25,14 +66,14 @@ The expanded panel has a tab strip and a content area. Tabs are listed in `Tabs.
 
 Tabs:
 
-- **Home**: date, weather with the pixel icon, now playing (compact), up to 2 quotes, the active app name, a month calendar, counters (agents working / need you / done, unread messages, top AI usage %) and status dots: Tailscale (click copies the IP), NordVPN (click toggles), Wisp (click opens its panel), Dictate (click runs `wordink dictation toggle`).
-- **Media**, **Agents** (AI usage on top, wheel scroll about 3 rows per notch), **Messages** (Blip threads, read-only), **Plugins**, **Settings** (scrollable).
-- **Network** (`NetworkTab.qml`, `Network.js`, `NetworkState.qml`): Tailscale (state, this device's tailnet IP, peers with online/offline dots, connect/disconnect switch, click an IP to copy it) and NordVPN (state, country/server, connect/disconnect switch). `/usr/bin/tailscale up|down` and the nordvpn plugin's own `probe_nordvpn.py connect|disconnect`. It polls every 8 s only while a tab showing it is visible, plus a cheap status read (no peer list) every 60 s that drives the small status dot on the idle notch (green when either is up, amber while connecting).
-- **Screenshots** (optional, Settings > "Screenshots (snapdex)", off by default): last 8 thumbnails with captions, unprocessed count, "Process now", the Auto switch and "Open folder", all through the snapdex plugin's `snapdex-ctl`. Shots are saved to and renamed in `~/Pictures/Screenshots`. While on, a newly captioned screenshot flashes its caption in the notch for 4 s at priority 30.
+- **Home**: date, weather with the pixel icon, now playing (compact), up to 2 quotes, the active app name, a month calendar, counters when optional backends are enabled, status dots: Tailscale, NordVPN, Dictate / Wisp when opted in and detected.
+- **Media**, **Plugins**, **Settings** (includes first-run optional setup).
+- **Agents** / **Messages** / **Screenshots**: optional tabs — off until Setup Enable (or Settings toggles); probe offers them when herdr / Blip / snapdex are present.
+- **Network**: Tailscale and NordVPN via `/usr/bin/tailscale` and `/usr/bin/nordvpn` only. Missing CLIs → Unavailable.
+- **Power** / **System**: sysfs; GPU/NPU labels from probe; fan mode writes when `optFan` + lukedaduke.fan.
+- **Stocks**: Yahoo via `bin/notch-data` (standalone).
 
-The Plugins tab opens a slot by trying the shell's `summon`, then the plugin's own `qs ipc call <id> toggle`, then a per-plugin fallback. Plugins in the bar's `tray` section only have a panel the shell can summon while their widget is live, which needs the built-in tray host (`omarchy.tray`, not disabled in `shell.json` `disabledPlugins`) on the bar; otherwise the slot says "not on the bar". The Stocks tab cards show today's change vs the previous close; the big chart header shows the selected range's change.
-
-Click the right ear while a dictation shows to toggle dictation.
+The Plugins tab opens a slot by trying the shell's `summon`, then the plugin's own `qs ipc call <id> toggle`, then a per-plugin fallback. Plugins in the bar's `tray` section only have a panel the shell can summon while their widget is live, which needs the built-in tray host (`omarchy.tray`, not disabled in `shell.json` `disabledPlugins`) on the bar; otherwise the slot says "not on the bar". An empty tray is fine — the tab just says there are no tray plugins.
 
 Useful `notch` members for tabs: `weather`, `now`, `textColor`, `dimColor`, `fontFamily`, `pluginDir`, `shellConfig`, `settings` (resolved), `setSetting(key, value)`, `openPlugin(id)`, `activities`.
 
@@ -42,7 +83,7 @@ One slot per plugin id in the bar's `tray` section (`shell.shellConfig`, else `~
 
 ### Settings tab
 
-Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateShellConfig`; missing values use defaults.
+Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateShellConfig`; missing values use defaults. No private config is required for first launch.
 
 | key | default | meaning |
 | --- | --- | --- |
@@ -53,7 +94,10 @@ Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateS
 | `clockHours` | 12 | 12 or 24 hour clock |
 | `cameraWidth` | 0 | 0 = auto, else logical px |
 | `hoverDelay` | 150 | ms before hover expands |
-| `snapdex` | false | Screenshots tab and caption flash (needs the snapdex plugin) |
+| `snapdex` | false | Screenshots tab (offer when snapdex detected) |
+| `optAgents` / `optMessages` | true (local) | Agents / Messages tabs (upstream default false) |
+| `optWordink` / `optWisp` / `optFan` | true | Home Dict / Wisp / System fan modes when backends exist |
+| `setupDone` | false | First-run setup strip dismissed |
 | `dayflow` | false | Dayflow tab, Home tile, idle slot and paused indicator (local customization, needs the `dayflow` CLI) |
 
 ## Dayflow (local customization, branch `local/notch-dayflow`, not upstream)
@@ -84,7 +128,7 @@ Each entry is `{ id, active (bool), priority (int, higher wins), text (string), 
 
 ## Status
 
-v0.1. Next: pixel-art weather icons, stock watchlist slide, WordInk dictation state, hover expand. See `docs/plans/2026-11-04-0215-feat-notch-island-plan.md`.
+v0.1 with capability probe + first-run optional setup. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. See plan `docs/plans/2026-11-04-0215-feat-notch-island-plan.md`.
 
 ## NOTICE
 
