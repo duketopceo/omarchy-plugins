@@ -309,6 +309,10 @@ Item {
   // Charging (R3): plugging in shows percent and time to full for a few seconds.
   ChargingActivity { id: charging; enabled: root.settings.chargingAlert === true; reduceMotion: root.reduceMotion }
 
+  // Timer / pomodoro (R4): ear shows time left in the idle rotation, a flash when it ends.
+  TimerActivity { id: timerAct; enabled: root.settings.timer === true }
+  readonly property var timerState: timerAct
+
   // Tailscale + NordVPN (v3): idle status dot, Home dots, Network tab.
   NetworkState { id: networkState }
   readonly property var network: networkState
@@ -356,6 +360,7 @@ Item {
     { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
     { id: "charging", active: charging.active, priority: charging.priority, text: charging.text },
+    { id: "timer", active: timerAct.active, priority: timerAct.priority, text: timerAct.text },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
     { id: "messages", active: root.settings.optMessages === true && messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
     { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph },
@@ -364,13 +369,13 @@ Item {
   ]
   readonly property var activity: Activity.pick(activities)
 
-  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, Dayflow.idleViews((weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), settings.dayflow, dayflowState.status, dayflowState.today).concat(messagesAct.unread > 0 ? ["messages"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
+  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, Dayflow.idleViews((weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), settings.dayflow, dayflowState.status, dayflowState.today).concat(messagesAct.unread > 0 ? ["messages"] : []).concat(timerAct.inSlot ? ["timer"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
   readonly property string view: activity ? "activity" : (idleView || "date")
   readonly property bool slotShown: activity !== null && activity !== undefined || idleView !== ""
   readonly property string dateLead: dateText + (slotShown && (sideText !== "" || mediaShown || view === "watchlist") ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
   readonly property string messagesText: messagesAct.unread === 1 ? "1 iMessage" : messagesAct.unread + " iMessages"
-  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : idleView === "dayflow" ? dayflowState.slot : idleView === "messages" ? messagesText : "")
+  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : idleView === "dayflow" ? dayflowState.slot : idleView === "messages" ? messagesText : idleView === "timer" ? timerAct.slot : "")
   readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
@@ -434,7 +439,7 @@ Item {
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
       readonly property real slotX: island.earLive + camW + root.earPad
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" || root.idleView === "messages" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" || root.idleView === "messages" || root.idleView === "timer" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
       readonly property real leftNeed: timeMetrics.advanceWidth + root.earPad + root.earOuter
       readonly property real sideNeed: Math.max(leftNeed, (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW

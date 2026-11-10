@@ -161,3 +161,12 @@ def test_charging_alert_is_a_feature_switch_on_by_default():
     assert run("S.DEFAULTS.chargingAlert") is True
     by, _ = rows_by_section()
     assert any(r["key"] == "chargingAlert" for r in by["features"])
+
+
+def test_timer_is_a_feature_switch_with_an_optional_tab():
+    assert run("S.DEFAULTS.timer") is True
+    by, _ = rows_by_section()
+    assert any(r["key"] == "timer" for r in by["features"])
+    assert "timer" in [t["id"] for t in run("T.visibleTabs(S.resolve(null))")]
+    assert "timer" not in [t["id"] for t in run("T.visibleTabs(S.resolve({timer:false}))")]
+    assert not any(r.get("tabId") == "timer" for r in by["features"])  # one switch, not two

@@ -23,6 +23,7 @@ var DEFAULTS = {
   optFan: true,       // System fan mode writes when lukedaduke.fan exists
   aiUsage: true,      // AI usage tab + the percent on the Plugins hub AI tile
   dayflow: false,     // local: Dayflow tab, Home tile, idle slot + paused indicator
+  timer: true,        // Timer tab, ear countdown, finish notification
   chargingAlert: true, // ear shows percent and time to full when AC is plugged in
   hiddenTabs: [],     // built-in tab ids the owner hid (home and settings never hide)
   tabUsage: {},       // tab id -> open count, picks which tabs keep a label
@@ -60,6 +61,7 @@ var FIELDS = [
     hint: "Blip relays your iMessages here, read-only; shows unread texts." },
   { key: "aiUsage", section: "features", feature: true, label: "AI usage tab", type: "bool", hint: "Token spend and limits per AI provider." },
   { key: "dayflow", section: "features", feature: true, label: "Dayflow", type: "bool", hint: "Dayflow is a work journal; adds a tab and an ear item." },
+  { key: "timer", section: "features", feature: true, label: "Timer tab", type: "bool", hint: "Countdown and pomodoro; time left shows in the ear." },
   { key: "chargingAlert", section: "features", feature: true, label: "Charging alert", type: "bool", hint: "Percent and time to full in the ear when you plug in." },
   { key: "optWordink", section: "features", feature: true, label: "Dictation (WordInk)", type: "bool", setup: true, hint: "Shows recording state from the WordInk dictation app." },
   { key: "optWisp", section: "features", feature: true, label: "Wisp status", type: "bool", setup: true, hint: "A status dot for the Wisp assistant on Home." },

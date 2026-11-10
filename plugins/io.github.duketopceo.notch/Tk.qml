@@ -57,6 +57,7 @@ QtObject {
     readonly property int bodySmall: Math.max(Commons.Style.font.bodySmall, 12)
     readonly property int body: Math.max(Commons.Style.font.body, 12)
     readonly property int title: Commons.Style.font.title
+    readonly property int display: Math.round(Commons.Style.font.title * 2.6)   // one big readout (timer)
   }
 
   // Fonts
