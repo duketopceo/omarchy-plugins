@@ -177,7 +177,7 @@ def test_settings_defaults_and_overrides():
     assert d == {"watchlist": [], "range": "5D", "style": "line", "prepost": False, "cards": 6}
     s = run("S.settings({'stocks.range':'1Y','stocks.style':'candle','stocks.cards':4},{'stocks.prepost':true,'stocks.cards':9},'')")
     assert s["range"] == "1Y" and s["style"] == "candle" and s["prepost"] is True and s["cards"] == 6
-    assert run("S.settings({'stocks.range':'zz','stocks.style':'x'},null,'').range") == "1M"
+    assert run("S.settings({'stocks.range':'zz','stocks.style':'x'},null,'').range") == "5D"
 
 
 # ------------------------------------------------------------ formatting
