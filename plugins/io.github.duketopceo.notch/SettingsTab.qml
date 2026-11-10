@@ -3,6 +3,7 @@ import qs.Commons as Commons
 import "Settings.js" as Settings
 import "Capabilities.js" as Caps
 import "Tabs.js" as Tabs
+import "Actions.js" as Actions
 
 // Settings tab: first-run / optional-module setup strip, then prefs grid.
 // Setup offers Enable for capabilities `bin/notch-probe` found on this host.
@@ -37,6 +38,16 @@ Item {
     var f = Settings.field(row.key)   // not row.field: the Repeater model flattens nested arrays
     if (f.type === "choice") return f.options
     return Settings.choicesFor(f, settings[row.key]).map(function (v) { return { value: v, label: Settings.format(f, v) } })
+  }
+  // ---- quick actions editor: every edit rewrites the whole list through the sanitiser
+  readonly property var actionList: settings.quickActions || []
+  readonly property var actionItems: notch && notch.actionsState ? notch.actionsState.items : []
+  readonly property var iconKeys: Object.keys(Settings.ACTION_ICONS)
+  function saveActions(list) { if (notch) notch.setSetting("quickActions", Settings.sanitizeActions(list)) }
+  function editAction(id, patch) { saveActions(Actions.update(actionList, id, patch)) }
+  function missing(id) {
+    for (var i = 0; i < actionItems.length; i++) if (actionItems[i].id === id) return actionItems[i].enabled ? "" : actionItems[i].reason
+    return ""
   }
   function enableModule(setting) {
     if (notch) notch.setSetting(setting, true)
@@ -269,18 +280,23 @@ Item {
             required property var modelData
             readonly property bool isSwitch: row.modelData.type === "bool"
             readonly property bool isSeg: row.modelData.type === "choice" || (row.modelData.type === "int" && !!Settings.field(row.modelData.key).choices)
+            readonly property bool isActions: row.modelData.type === "actions"
             readonly property bool isStep: row.modelData.type === "int" && !row.isSeg
             readonly property var value: Settings.rowValue(tab.settings, row.modelData)
             width: col.width
-            height: row.modelData.hint !== "" ? 52 : 38
+            readonly property bool showDetail: row.modelData.detail !== "" && row.value === row.modelData.detailWhen
+            height: row.isActions ? labelCol.height + actionsBox.height + 24 : (showDetail ? 76 : (row.modelData.hint !== "" ? 52 : 38))
 
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
 
             Column {
+              id: labelCol
               anchors.left: parent.left
               anchors.right: ctl.left
               anchors.rightMargin: 12
-              anchors.verticalCenter: parent.verticalCenter
+              anchors.top: row.isActions ? parent.top : undefined
+              anchors.topMargin: row.isActions ? 8 : 0
+              anchors.verticalCenter: row.isActions ? undefined : parent.verticalCenter
               spacing: 1
               Text {
                 width: parent.width
@@ -303,13 +319,118 @@ Item {
                 font.family: tab.family
                 font.pixelSize: Tk.fs.caption
               }
+              Text {
+                visible: row.showDetail
+                width: parent.width
+                textFormat: Text.PlainText
+                wrapMode: Text.WordWrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                text: row.modelData.detail
+                color: Tk.amber
+                font.family: tab.family
+                font.pixelSize: Tk.fs.caption
+              }
+            }
+
+            // Quick-actions editor (R8): one line per action under the hint.
+            Column {
+              id: actionsBox
+              visible: row.isActions
+              anchors.top: labelCol.bottom
+              anchors.topMargin: 8
+              anchors.left: parent.left
+              anchors.right: parent.right
+              spacing: 6
+
+              Repeater {
+                model: row.isActions ? tab.actionList : []
+                delegate: Column {
+                  id: ar
+                  required property var modelData
+                  width: actionsBox.width
+                  spacing: 2
+                  Row {
+                    spacing: 6
+                    height: 28
+                    Rectangle {
+                      width: 28; height: 28; radius: Tk.r(14)
+                      color: icHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
+                      Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: Settings.ACTION_ICONS[ar.modelData.icon] || ""; color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.body }
+                      MouseArea { id: icHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onPressed: tab.editAction(ar.modelData.id, { icon: Actions.nextIcon(tab.iconKeys, ar.modelData.icon) }) }
+                    }
+                    Rectangle {
+                      width: 104; height: 28; radius: Tk.r(8); color: Tk.tint(0.07)
+                      border.width: lblIn.activeFocus ? 1 : 0; border.color: Tk.tint(0.3)
+                      TextInput {
+                        id: lblIn
+                        anchors.fill: parent; anchors.leftMargin: 9; anchors.rightMargin: 9
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.caption
+                        maximumLength: Settings.ACTION_LIMITS.label
+                        clip: true
+                        text: ar.modelData.label
+                        onEditingFinished: if (text !== ar.modelData.label) tab.editAction(ar.modelData.id, { label: text })
+                        MouseArea { anchors.fill: parent; onPressed: function (m) { lblIn.forceActiveFocus(); m.accepted = false } }
+                      }
+                    }
+                    Segmented {
+                      options: [{ value: "app", label: "App" }, { value: "command", label: "Cmd" }, { value: "toggle", label: "Toggle" }]
+                      current: ar.modelData.kind
+                      onPicked: function (v) { tab.editAction(ar.modelData.id, { kind: v }) }
+                    }
+                    Rectangle {
+                      width: actionsBox.width - 28 - 104 - 150 - 3 * 24 - 5 * 6 - 8; height: 28; radius: Tk.r(8); color: Tk.tint(0.07)
+                      border.width: tab.missing(ar.modelData.id) !== "" ? 1 : (cmdIn.activeFocus ? 1 : 0)
+                      border.color: tab.missing(ar.modelData.id) !== "" ? Tk.urgent : Tk.tint(0.3)
+                      TextInput {
+                        id: cmdIn
+                        anchors.fill: parent; anchors.leftMargin: 9; anchors.rightMargin: 9
+                        verticalAlignment: TextInput.AlignVCenter
+                        color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.caption
+                        maximumLength: Settings.ACTION_LIMITS.cmd
+                        clip: true
+                        text: ar.modelData.cmd
+                        onEditingFinished: if (text !== ar.modelData.cmd) tab.editAction(ar.modelData.id, { cmd: text })
+                        MouseArea { anchors.fill: parent; onPressed: function (m) { cmdIn.forceActiveFocus(); m.accepted = false } }
+                      }
+                    }
+                    Repeater {
+                      model: [{ g: "\u2191", d: -1 }, { g: "\u2193", d: 1 }, { g: "\u00D7", d: 0 }]
+                      delegate: Rectangle {
+                        required property var modelData
+                        width: 24; height: 28; radius: Tk.r(12)
+                        color: btnHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
+                        Text { textFormat: Text.PlainText; anchors.centerIn: parent; text: modelData.g; color: tab.textColor; font.family: tab.family; font.pixelSize: Tk.fs.body }
+                        MouseArea {
+                          id: btnHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                          onPressed: tab.saveActions(modelData.d === 0 ? Actions.remove(tab.actionList, ar.modelData.id) : Actions.move(tab.actionList, ar.modelData.id, modelData.d))
+                        }
+                      }
+                    }
+                  }
+                  Text {
+                    visible: tab.missing(ar.modelData.id) !== ""
+                    textFormat: Text.PlainText
+                    text: "Disabled: " + tab.missing(ar.modelData.id)
+                    color: Tk.urgent
+                    font.family: tab.family
+                    font.pixelSize: Tk.fs.caption
+                  }
+                }
+              }
+              Row {
+                spacing: 8
+                PillButton { text: "Add action"; enabledButton: tab.actionList.length < Settings.ACTION_LIMITS.max; onClicked: tab.saveActions(Actions.add(tab.actionList, Settings.ACTION_LIMITS.max)) }
+                PillButton { text: "Reset"; onClicked: if (tab.notch) tab.notch.setSetting("quickActions", null) }
+              }
             }
 
             Item {
               id: ctl
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              width: row.isSwitch ? sw.width : (row.isSeg ? segc.width : stepc.width)
+              width: row.isActions ? 0 : (row.isSwitch ? sw.width : (row.isSeg ? segc.width : stepc.width))
               height: 26
 
               PillSwitch {

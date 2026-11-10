@@ -319,6 +319,10 @@ Item {
   // Charging (R3): plugging in shows percent and time to full for a few seconds.
   ChargingActivity { id: charging; enabled: root.settings.chargingAlert === true; reduceMotion: root.reduceMotion }
 
+  // Quick actions (R8): the Home row and its Settings editor share this.
+  ActionsState { id: actionsSt; actions: root.settings.quickActions; enabled: root.settings.quickActionsOn === true }
+  readonly property var actionsState: actionsSt
+
   // Volume / brightness HUD (R6): only when Settings picks Notch as the popup owner (default Omarchy).
   HudActivity { id: hud; enabled: root.settings.hudOwner === "notch" }
 

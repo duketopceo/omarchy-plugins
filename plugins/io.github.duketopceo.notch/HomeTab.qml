@@ -9,6 +9,7 @@ import "Expand.js" as Expand
 import "Agents.js" as Agents
 import "Network.js" as Network
 import "Dayflow.js" as Dayflow  // local: dayflow tile
+import "Settings.js" as Settings
 
 // Home tab: a header row and three equal columns in the 688 x ~298 content
 // area of the 720 x 380 panel (same gutters as every other tab).
@@ -399,6 +400,64 @@ Item {
         width: parent.width
         value: (panel.topUsage ? panel.topUsage.percent : 0) / 100
         fill: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : Tk.accent
+      }
+    }
+
+    // Quick actions (R8): pinned shortcuts as icon chips. The caption shows the
+    // hovered action's name, or why a disabled one cannot run.
+    Item {
+      id: qaBox
+      readonly property var st: panel.notch ? panel.notch.actionsState : null
+      readonly property var items: st && panel.notch.settings.quickActionsOn === true ? st.items : []
+      property string hoverId: ""
+      visible: items.length > 0
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: dfTile.visible ? dfTile.top : netBox.top
+      anchors.bottomMargin: 8
+      height: visible ? 52 : 0
+      Binding { target: qaBox.st; property: "watch"; value: panel.visible; when: qaBox.st !== null }
+      readonly property var hovered: { for (var i = 0; i < items.length; i++) if (items[i].id === hoverId) return items[i]; return null }
+      Caption {
+        id: qaCap
+        width: parent.width
+        elide: Text.ElideRight
+        text: qaBox.hovered ? (qaBox.hovered.enabled ? qaBox.hovered.label : qaBox.hovered.label + ": " + qaBox.hovered.reason) : "Quick actions"
+        color: qaBox.hovered && !qaBox.hovered.enabled ? Tk.urgent : panel.dimColor
+      }
+      Row {
+        anchors.top: qaCap.bottom
+        anchors.topMargin: 6
+        spacing: 8
+        Repeater {
+          model: qaBox.items
+          delegate: Rectangle {
+            id: chip
+            required property var modelData
+            readonly property bool lit: qaBox.st && qaBox.st.on[modelData.id] === true
+            width: 30; height: 30; radius: Tk.r(15)
+            opacity: modelData.enabled ? 1 : 0.35
+            color: lit ? Tk.alpha(Tk.accent, 0.3) : (chipHit.containsMouse && modelData.enabled ? Tk.tint(0.22) : Tk.tint(0.1))
+            border.width: Tk.pxl ? Tk.bw(1) : 0
+            border.color: Tk.edge
+            Text {
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: Settings.ACTION_ICONS[modelData.icon] || "\u{F040A}"
+              color: chip.lit ? Tk.accent : panel.textColor
+              font.family: panel.family
+              font.pixelSize: Tk.fs.body
+            }
+            MouseArea {
+              id: chipHit
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: modelData.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onContainsMouseChanged: if (containsMouse) qaBox.hoverId = modelData.id; else if (qaBox.hoverId === modelData.id) qaBox.hoverId = ""
+              onPressed: if (qaBox.st) qaBox.st.run(modelData.id)
+            }
+          }
+        }
       }
     }
 

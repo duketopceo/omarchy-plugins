@@ -89,6 +89,9 @@ var FIELDS = [
   { key: "cameraWidth", section: "advanced", label: "Camera width", type: "int", min: 0, max: 400, step: 10, suffix: " px", zero: "auto",
     hint: "Camera cutout width; Auto detects it." },
 
+  { key: "quickActions", section: "advanced", label: "Edit quick actions", type: "actions", editor: true,
+    hint: "Shortcuts on Home: launch an app, run a command, or toggle something." },
+
   { key: "hiddenTabs", label: "Hidden tabs", type: "list", hidden: true },
   { key: "tabUsage", label: "Tab usage", type: "map", hidden: true },
   { key: "setupDone", label: "Setup done", type: "bool", hidden: true }
@@ -108,6 +111,56 @@ function field(key) {
   return null
 }
 
+// ---------------------------------------------------------- quick actions
+// An action is { id, label, kind: "app" | "command" | "toggle", cmd, icon, check? }.
+// `cmd` is one shell command line (run with sh -c, detached). `icon` is a key
+// of ACTION_ICONS. A toggle may carry `check`, a command whose exit 0 means
+// "on" (the chip lights up). Stored whole in shell.json; the seeds below are
+// used until the owner edits the list.
+var ACTION_KINDS = ["app", "command", "toggle"]
+var ACTION_ICONS = {
+  camera: "\u{F0100}", lock: "\u{F033E}", mic: "\u{F036C}", console: "\u{F018D}", play: "\u{F040A}",
+  folder: "\u{F024B}", star: "\u{F04CE}", web: "\u{F059F}", cog: "\u{F0493}", bell: "\u{F009C}", link: "\u{F0337}"
+}
+var ACTION_LIMITS = { max: 6, label: 16, cmd: 300 }
+var SEED_ACTIONS = [
+  { id: "screenshot", label: "Screenshot", kind: "command", cmd: "omarchy-capture-screenshot region", icon: "camera" },
+  { id: "lock", label: "Lock", kind: "command", cmd: "omarchy-system-lock", icon: "lock" },
+  { id: "wisp", label: "Ask Wisp", kind: "command", cmd: "wisp-trigger", icon: "star" },
+  { id: "dictate", label: "Dictate", kind: "toggle", cmd: "wordink dictation toggle", icon: "mic" },
+  { id: "terminal", label: "Terminal", kind: "app", cmd: "omarchy-launch-terminal", icon: "console" }
+]
+
+function oneLine(v, max) {
+  return String(v === undefined || v === null ? "" : v).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, max)
+}
+
+// A clean copy of an actions list: bad entries dropped, strings single-line
+// and capped, ids unique, at most ACTION_LIMITS.max.
+function sanitizeActions(list) {
+  var out = []
+  var seen = {}
+  ;(Array.isArray(list) ? list : []).forEach(function (a) {
+    if (out.length >= ACTION_LIMITS.max || !a || typeof a !== "object") return
+    var cmd = oneLine(a.cmd, ACTION_LIMITS.cmd)
+    if (cmd === "") return
+    var label = oneLine(a.label, ACTION_LIMITS.label) || cmd.split(/\s+/)[0].slice(0, ACTION_LIMITS.label)
+    var id = oneLine(a.id, 24).replace(/[^A-Za-z0-9_-]/g, "") || ("a" + (out.length + 1))
+    while (seen[id]) id += "x"
+    seen[id] = true
+    var item = {
+      id: id, label: label,
+      kind: ACTION_KINDS.indexOf(a.kind) >= 0 ? a.kind : "command",
+      cmd: cmd,
+      icon: ACTION_ICONS[a.icon] !== undefined ? a.icon : "play"
+    }
+    var check = oneLine(a.check, ACTION_LIMITS.cmd)
+    if (item.kind === "toggle" && check !== "") item.check = check
+    out.push(item)
+  })
+  return out
+}
+
 function clampInt(f, v, fallback) {
   var n = Number(v)
   if (typeof v === "boolean" || v === null || v === "" || !isFinite(n)) return fallback
@@ -117,6 +170,7 @@ function clampInt(f, v, fallback) {
 function coerce(f, v, fallback) {
   if (f.type === "bool") return typeof v === "boolean" ? v : fallback
   if (f.type === "int") return clampInt(f, v, fallback)
+  if (f.type === "actions") return Array.isArray(v) ? sanitizeActions(v) : fallback
   if (f.type === "list") {
     if (!Array.isArray(v)) return fallback
     var seen = {}
@@ -145,6 +199,7 @@ function resolve(entry, overrides) {
     var v = DEFAULTS[f.key]
     if (entry && typeof entry === "object" && entry[f.key] !== undefined) v = coerce(f, entry[f.key], v)
     if (overrides && typeof overrides === "object" && overrides[f.key] !== undefined) v = coerce(f, overrides[f.key], v)
+    if (f.key === "quickActions" && v === null) v = sanitizeActions(SEED_ACTIONS)
     out[f.key] = Array.isArray(v) ? v.slice() : (v !== null && typeof v === "object" ? JSON.parse(JSON.stringify(v)) : v)
   }
   out.unitName = out.unit === "C" ? "celsius" : "fahrenheit"
@@ -159,7 +214,7 @@ function next(settings, key, dir) {
   var cur = settings ? settings[key] : DEFAULTS[key]
   var d = Number(dir) < 0 ? -1 : 1
   if (f.type === "bool") return !cur
-  if (f.type === "list" || f.type === "map") return null
+  if (f.type === "list" || f.type === "map" || f.type === "actions") return null
   if (f.type === "int" && f.choices) {
     var list = choicesFor(f, cur)
     var at = list.indexOf(Number(cur))
@@ -192,7 +247,7 @@ function sections(tabs, pinned) {
     var rows = []
     FIELDS.forEach(function (f) {
       if (f.hidden || f.section !== sec.id) return
-      rows.push({ key: f.key, label: f.label, hint: f.hint || "", type: f.type, kind: "setting" })
+      rows.push({ key: f.key, label: f.label, hint: f.hint || "", detail: f.detail || "", detailWhen: f.detailWhen === undefined ? null : f.detailWhen, type: f.type, kind: "setting" })
     })
     return { id: sec.id, title: sec.title, rows: rows }
   })
@@ -284,6 +339,6 @@ function dataArgs(settings) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { DEFAULTS: DEFAULTS, FIELDS: FIELDS, SECTIONS: SECTIONS, prefFields: prefFields, featureFields: featureFields, choicesFor: choicesFor, sections: sections, rowValue: rowValue, rowPatch: rowPatch, field: field, resolve: resolve, next: next, format: format,
+  module.exports = { sanitizeActions: sanitizeActions, SEED_ACTIONS: SEED_ACTIONS, ACTION_ICONS: ACTION_ICONS, ACTION_KINDS: ACTION_KINDS, ACTION_LIMITS: ACTION_LIMITS, DEFAULTS: DEFAULTS, FIELDS: FIELDS, SECTIONS: SECTIONS, prefFields: prefFields, featureFields: featureFields, choicesFor: choicesFor, sections: sections, rowValue: rowValue, rowPatch: rowPatch, field: field, resolve: resolve, next: next, format: format,
     setupLayout: setupLayout, SETUP: SETUP, pluginEntry: pluginEntry, settingsMutator: settingsMutator, dataArgs: dataArgs }
 }
