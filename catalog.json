@@ -21,6 +21,15 @@
       "repo": "https://github.com/duketopceo/omarchy-standby"
     },
     {
+      "id": "lukedaduke.copyq",
+      "path": "plugins/lukedaduke.copyq",
+      "version": "0.1.0",
+      "kinds": [
+        "overlay"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-copyq"
+    },
+    {
       "id": "lukedaduke.nexus",
       "path": "plugins/lukedaduke.nexus",
       "version": "1.0.3",

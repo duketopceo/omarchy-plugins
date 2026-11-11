@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.copyq",
+  "name": "CopyQ Clipboard",
+  "version": "0.1.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Omarchy-native clipboard overlay backed by CopyQ — history, search, and paste with shell chrome; CopyQ owns storage and MCP",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Overlay.qml"
+  }
+}

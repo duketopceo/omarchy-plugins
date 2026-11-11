@@ -41,7 +41,7 @@
     },
     {
       "id": "clipboard",
-      "owner": "omarchy.clipboard",
+      "owner": "CopyQ daemon (UI: lukedaduke.copyq)",
       "purpose": "clipboard history and paste workflow",
       "egress": "none unless a user action invokes an external consumer",
       "retention": "7 days or 1000 entries, subject to host policy",
