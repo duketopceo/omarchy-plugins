@@ -111,6 +111,24 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-wordink"
+    },
+    {
+      "id": "lukedaduke.homeindex",
+      "path": "plugins/lukedaduke.homeindex",
+      "version": "0.1.0",
+      "kinds": [
+        "service"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-homeindex"
+    },
+    {
+      "id": "lukedaduke.screenshots",
+      "path": "plugins/lukedaduke.screenshots",
+      "version": "0.1.0",
+      "kinds": [
+        "service"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-screenshots"
     }
   ]
 }

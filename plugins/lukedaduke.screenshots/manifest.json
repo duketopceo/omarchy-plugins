@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.screenshots",
+  "name": "Screenshots",
+  "version": "0.1.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Unified screenshot sink: all captures land in ~/Pictures/Screenshots/YYYY-MM-DD/ with an INDEX.md log.",
+  "kinds": ["service"],
+  "entryPoints": {
+    "service": "bin/screenshot-sink"
+  }
+}
