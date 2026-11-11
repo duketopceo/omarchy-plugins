@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "author": "lukedaduke",
   "license": "MIT",
-  "description": "Omarchy menu viewer + audit for ~/INDEX.md and the home-index lanes (Work/bartlett, Projects/duketopceo, Agents, Screenshots).",
+  "description": "Omarchy menu viewer + audit for ~/INDEX.md and auto-detected home lanes.",
   "kinds": ["service"],
   "entryPoints": {
     "service": "bin/homeindex"

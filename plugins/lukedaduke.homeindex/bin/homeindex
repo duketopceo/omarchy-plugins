@@ -14,12 +14,24 @@ import sys
 from pathlib import Path
 
 HOME = Path.home()
-LANES = {
-    "work": HOME / "Work" / "bartlett",
-    "duke": HOME / "Projects" / "duketopceo",
-    "agents": HOME / "Agents",
-    "shots": HOME / "Pictures" / "Screenshots",
-}
+
+
+def find_lanes() -> dict[str, Path]:
+    """Auto-detect lanes from the local layout (no hardcoded names)."""
+    lanes: dict[str, Path] = {}
+    for label, tail in (("work", HOME / "Work"), ("projects", HOME / "Projects")):
+        if tail.is_dir():
+            for child in sorted(tail.iterdir()):
+                if child.is_dir() and not child.name.startswith("."):
+                    lanes[label] = child
+                    break
+    for label, path in (
+        ("agents", HOME / "Agents"),
+        ("shots", HOME / "Pictures" / "Screenshots"),
+    ):
+        if path.exists():
+            lanes[label] = path
+    return lanes
 
 
 def notify(title: str, body: str) -> None:
@@ -36,9 +48,10 @@ def main() -> int:
         subprocess.run(["xdg-open", str(path)], check=False)
         return 0
     if cmd == "open" and len(sys.argv) == 3:
-        lane = LANES.get(sys.argv[2])
+        lanes = find_lanes()
+        lane = lanes.get(sys.argv[2])
         if lane is None:
-            print(f"Unknown lane {sys.argv[2]!r}. Lanes: {', '.join(LANES)}")
+            print(f"Unknown lane {sys.argv[2]!r}. Lanes: {', '.join(lanes)}")
             return 2
         if not lane.exists():
             print(f"Lane missing: {lane}")
@@ -55,9 +68,15 @@ def main() -> int:
         print(last)
         return result.returncode
     if cmd == "rebuild":
-        indexer = HOME / "Projects" / "duketopceo" / "home-index" / "index.py"
-        if not indexer.exists():
-            print(f"No indexer at {indexer}")
+        indexer = None
+        projects = HOME / "Projects"
+        if projects.is_dir():
+            for candidate in sorted(projects.glob("*/home-index/index.py")):
+                if candidate.is_file():
+                    indexer = candidate
+                    break
+        if installer is None:
+            print("No indexer found under ~/Projects/*/home-index/index.py")
             return 1
         result = subprocess.run(["python3", str(indexer)], capture_output=True, text=True, timeout=300)
         notify("Home Index rebuild", (result.stdout.strip().splitlines() or ["done"])[-1][:200])

@@ -17,4 +17,7 @@ bin/screenshot-sink open    # open today's folder
 bin/screenshot-sink log "note"  # manual INDEX.md log entry
 ```
 
-Repoint Hyprland F10/F11/F12 binds at this binary (see `~/.config/hypr/`).
+Repoint Hyprland F-keys at this binary (see `~/.config/hypr/`) — or keep the
+stock `omarchy-capture-screenshot` (Omarchy 4.5 `omasnap`) and set
+`OMASNAP_SCREENSHOT_DIR=~/Pictures/Screenshots` to unify the folder. This
+plugin only adds the INDEX.log.
