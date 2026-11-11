@@ -7,7 +7,7 @@
 #   screenshot-sink log                 # append entry to INDEX.md log
 set -euo pipefail
 BASE="$HOME/Pictures/Screenshots"
-mkdir -puva "$BASE" >/dev/null
+mkdir -p "$BASE" >/dev/null
 
 case "${1:-}" in
   full|area)
@@ -31,6 +31,8 @@ case "${1:-}" in
     xdg-open "$day"
     ;;
   log)
+    mkdir -p "$BASE"
+    touch "$BASE/INDEX.md"
     printf -- '- %s %s\n' "$(date -Is)" "${2:-}" >> "$BASE/INDEX.md"
     ;;
   *)
