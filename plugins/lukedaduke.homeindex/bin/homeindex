@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Home Index helper: open INDEX.md / lanes, run home-index-audit.
+
+Usage:
+  homeindex open            # open ~/INDEX.md in editor
+  homeindex open <lane>     # open Work|duke|agents|shots lane folder
+  homeindex audit           # run home-index-audit (notify summary)
+  homeindex rebuild         # run home-index repo indexer if present
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+LANES = {
+    "work": HOME / "Work" / "bartlett",
+    "duke": HOME / "Projects" / "duketopceo",
+    "agents": HOME / "Agents",
+    "shots": HOME / "Pictures" / "Screenshots",
+}
+
+
+def notify(title: str, body: str) -> None:
+    subprocess.run(["notify-send", title, body], check=False)
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    cmd = sys.argv[1]
+    if cmd == "open" and len(sys.argv) == 2:
+        path = HOME / "INDEX.md"
+        subprocess.run(["xdg-open", str(path)], check=False)
+        return 0
+    if cmd == "open" and len(sys.argv) == 3:
+        lane = LANES.get(sys.argv[2])
+        if lane is None:
+            print(f"Unknown lane {sys.argv[2]!r}. Lanes: {', '.join(LANES)}")
+            return 2
+        if not lane.exists():
+            print(f"Lane missing: {lane}")
+            return 1
+        subprocess.run(["xdg-open", str(lane)], check=False)
+        return 0
+    if cmd == "audit":
+        result = subprocess.run(
+            ["home-index-audit"], capture_output=True, text=True, timeout=120
+        )
+        summary = (result.stdout + result.stderr).strip().splitlines()
+        last = summary[-1] if summary else "audit produced no output"
+        notify("Home Index audit", last[:200])
+        print(last)
+        return result.returncode
+    if cmd == "rebuild":
+        indexer = HOME / "Projects" / "duketopceo" / "home-index" / "index.py"
+        if not indexer.exists():
+            print(f"No indexer at {indexer}")
+            return 1
+        result = subprocess.run(["python3", str(indexer)], capture_output=True, text=True, timeout=300)
+        notify("Home Index rebuild", (result.stdout.strip().splitlines() or ["done"])[-1][:200])
+        print(result.stdout)
+        return result.returncode
+    print(__doc__)
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

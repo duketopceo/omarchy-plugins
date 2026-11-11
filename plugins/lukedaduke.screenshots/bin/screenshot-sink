@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Unified screenshot sink: ~/Pictures/Screenshots/YYYY-MM-DD/.
+# Usage:
+#   screenshot-sink full [output.png]   # grim fullscreen -> sink
+#   screenshot-sink area [output.png]   # grim area (slurp) -> sink
+#   screenshot-sink open                # open today's folder
+#   screenshot-sink log                 # append entry to INDEX.md log
+set -euo pipefail
+BASE="$HOME/Pictures/Screenshots"
+mkdir -puva "$BASE" >/dev/null
+
+case "${1:-}" in
+  full|area)
+    mode="$1"; shift
+    day="$BASE/$(date +%F)"
+    mkdir -p "$day"
+    name="shot-$(date +%Y%m%d-%H%M%S).png"
+    out="${1:-$day/$name}"
+    if [ "$mode" = full ]; then
+      grim "$out"
+    else
+      grim -g "$(slurp)" "$out"
+    fi
+    echo "$out"
+    printf -- '- %s `%s`\n' "$(date -Is)" "$out" >> "$BASE/INDEX.md"
+    notify-send "Screenshot saved" "$out" || true
+    ;;
+  open)
+    day="$BASE/$(date +%F)"
+    mkdir -p "$day"
+    xdg-open "$day"
+    ;;
+  log)
+    printf -- '- %s %s\n' "$(date -Is)" "${2:-}" >> "$BASE/INDEX.md"
+    ;;
+  *)
+    echo "Usage: screenshot-sink {full|area|open|log}"
+    exit 2
+    ;;
+esac
