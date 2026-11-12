@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "lukedaduke.copyq",
   "name": "CopyQ Clipboard",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "lukedaduke",
   "license": "MIT",
-  "description": "Paste-like Omarchy clipboard overlay backed by CopyQ — centered history, at-cursor menu, pins, images; CopyQ owns storage and MCP",
+  "description": "Paste-like Omarchy clipboard overlay backed by CopyQ \u2014 centered history, at-cursor menu, pins, images; CopyQ owns storage and MCP",
   "kinds": [
     "overlay"
   ],

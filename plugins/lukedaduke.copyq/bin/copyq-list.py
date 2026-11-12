@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Emit CopyQ history as JSON for the Omarchy overlay.
 
-Lists Pins tab first, then &clipboard. Text + image rows.
-Fixed CopyQ path; COPYQ_BIN override for tests.
+One `copyq eval` collects Pins + clipboard rows inside the CopyQ process —
+per-row CLI reads cost ~5ms each and made opening the overlay take seconds.
+Only image rows still cost an extra `copyq read` for thumbnail bytes.
+Text + image rows. Fixed CopyQ path; COPYQ_BIN override for tests.
 """
 from __future__ import annotations
 
@@ -16,22 +18,89 @@ from pathlib import Path
 COPYQ = os.environ.get("COPYQ_BIN", "/usr/bin/copyq")
 DEFAULT_LIMIT = 80
 MAX_LIMIT = 200
-# Overlay only needs a short preview; never buffer unbounded clip bodies.
-MAX_READ = 8_192
+# Overlay only needs a short preview; eval output is capped wholesale.
 MAX_IMAGE_PREVIEW = 2_000_000
-CLIPBOARD_TAB = "&clipboard"
-PINS_TAB = "Pins"
-IMAGE_MIMES = (
-    "image/png",
-    "image/jpeg",
-    "image/jpg",
-    "image/webp",
-    "image/bmp",
-    "image/gif",
-)
-RUN_TIMEOUT = 3.0
+MAX_EVAL_BYTES = 4_000_000
+RUN_TIMEOUT = 4.0
 HELPER_ALARM_SECS = 8
 ENV = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "")}
+
+# Runs inside CopyQ's script engine. __LIMIT__ is substituted by main().
+# tab() switches the script's row context; size()/read() follow it.
+# copyq eval unescapes backslash sequences in the script argument, so this
+# source must stay free of \n \s \uXXXX etc. — use String.fromCharCode and
+# charCodeAt comparisons instead.
+_EVAL_SCRIPT = r"""
+function __trim(s) {
+  var a = 0;
+  var b = s.length;
+  while (a < b && s.charCodeAt(a) <= 32) a++;
+  while (b > a && s.charCodeAt(b - 1) <= 32) b--;
+  return s.substring(a, b);
+}
+function __oneLine(s) {
+  return s.split(String.fromCharCode(13)).join(" ")
+          .split(String.fromCharCode(10)).join(" ");
+}
+function __collect(tabName, pinned, limit) {
+  var res = { entries: [], total: 0 };
+  try { tab(tabName); } catch (e) { return res; }
+  var n = 0;
+  try { n = size(); } catch (e) { return res; }
+  res.total = n;
+  var lim = n < limit ? n : limit;
+  var imgMimes = ["image/png", "image/jpeg", "image/jpg", "image/webp",
+                  "image/bmp", "image/gif"];
+  for (var i = 0; i < lim; i++) {
+    var formats = [];
+    try {
+      var flines = str(read("?", i)).split(String.fromCharCode(10));
+      for (var k = 0; k < flines.length; k++) {
+        var fm = __trim(flines[k]);
+        if (fm.length) formats.push(fm);
+      }
+    } catch (e) {}
+    var imgMime = "";
+    for (var a = 0; a < formats.length && !imgMime; a++) {
+      var low = formats[a].toLowerCase();
+      for (var b = 0; b < imgMimes.length; b++) {
+        if (low === imgMimes[b]) { imgMime = formats[a]; break; }
+      }
+    }
+    if (imgMime) {
+      res.entries.push({ index: i, tab: tabName, pinned: pinned,
+        type: "image", text: "", preview: "Image", previewPath: "",
+        mime: imgMime, imageMime: imgMime });
+      continue;
+    }
+    var plainIdx = -1;
+    var textIdx = -1;
+    for (var c = 0; c < formats.length; c++) {
+      var cl = formats[c].toLowerCase();
+      if (cl === "text/plain") plainIdx = c;
+      else if (textIdx < 0 && cl.indexOf("text/") === 0) textIdx = c;
+    }
+    var pick = plainIdx >= 0 ? plainIdx : textIdx;
+    if (pick < 0) continue;
+    var text = "";
+    try { text = str(read(formats[pick], i)); } catch (e) { continue; }
+    if (__trim(text) === "") continue;
+    var one = __oneLine(text);
+    var prev = one.length > 160
+      ? one.substring(0, 160) + String.fromCharCode(8230)
+      : one;
+    res.entries.push({ index: i, tab: tabName, pinned: pinned,
+      type: "text", text: prev, preview: prev, previewPath: "",
+      mime: formats[pick], imageMime: "" });
+  }
+  return res;
+}
+var __limit = __LIMIT__;
+var __pins = __collect("Pins", true, __limit);
+var __clips = __collect("&clipboard", false,
+  Math.max(1, __limit - __pins.entries.length));
+print(JSON.stringify({ pins: __pins, clips: __clips }));
+"""
 
 
 def _limit_from_argv() -> int:
@@ -139,22 +208,28 @@ def _copyq_args(*parts: str, tab: str | None = None) -> list[str]:
     return args
 
 
-def _formats(index: int, tab: str) -> list[str]:
-    try:
-        proc = _run(_copyq_args("read", "?", str(index), tab=tab))
-    except (OSError, subprocess.TimeoutExpired):
-        return []
+def _eval_collect(limit: int) -> dict:
+    """Run the in-process collector; returns {pins, clips} or raises."""
+    script = _EVAL_SCRIPT.replace("__LIMIT__", str(limit))
+    proc = _run([COPYQ, "eval", script], max_bytes=MAX_EVAL_BYTES)
+    out = proc.stdout or ""
     if proc.returncode != 0:
-        return []
-    return [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
-
-
-def _image_mime(formats: list[str]) -> str | None:
-    lower = {f.lower(): f for f in formats}
-    for mime in IMAGE_MIMES:
-        if mime in lower:
-            return lower[mime]
-    return None
+        # Byte-cap kill still yields a usable JSON prefix only if it parses;
+        # a truncated payload does not, so treat overflow as failure.
+        raise RuntimeError(f"copyq_eval:exit:{proc.returncode}")
+    text = out.strip()
+    if not text.startswith("{"):
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            text = text[start : end + 1]
+    try:
+        payload = json.loads(text)
+    except ValueError as exc:
+        raise RuntimeError(f"copyq_eval_json:{exc}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("copyq_eval_json:not_object")
+    return payload
 
 
 def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
@@ -178,7 +253,7 @@ def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
         ext = "gif"
     elif "bmp" in mime.lower():
         ext = "bmp"
-    safe_tab = "pins" if tab == PINS_TAB else "clip"
+    safe_tab = "pins" if tab == "Pins" else "clip"
     out = _preview_dir() / f"preview-{safe_tab}-{index}.{ext}"
     try:
         out.write_bytes(proc.stdout[:MAX_IMAGE_PREVIEW])
@@ -187,85 +262,51 @@ def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
     return str(out)
 
 
-def _read_text(index: int, tab: str) -> tuple[str | None, int]:
-    try:
-        proc = _run(
-            _copyq_args("read", str(index), tab=tab),
-            max_bytes=MAX_READ,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"copyq_read:{exc}") from exc
-    out = proc.stdout or ""
-    if proc.returncode == 0:
-        return out, 0
-    # Byte-cap kill still yields a usable preview prefix.
-    if proc.returncode == -9 and out.strip():
-        return out, 0
-    return None, proc.returncode or 1
-
-
-def _count(tab: str) -> int:
-    try:
-        proc = _run(_copyq_args("count", tab=tab))
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"copyq_count:{exc}") from exc
-    if proc.returncode != 0:
-        raise RuntimeError(f"copyq_count:exit:{proc.returncode}")
-    raw = (proc.stdout or "0").strip() or "0"
-    try:
-        return int(raw)
-    except ValueError as exc:
-        raise RuntimeError(f"copyq_count:{exc}") from exc
-
-
-def _collect_tab(tab: str, *, pinned: bool, limit: int) -> tuple[list[dict[str, object]], int]:
-    try:
-        total = _count(tab)
-    except RuntimeError:
-        if pinned:
-            # Pins tab may not exist yet.
-            return [], 0
-        raise
+def _collect_entries(group: dict) -> tuple[list[dict[str, object]], int]:
+    raw_entries = group.get("entries") if isinstance(group, dict) else None
+    total = group.get("total") if isinstance(group, dict) else None
+    if not isinstance(raw_entries, list):
+        return [], 0
     entries: list[dict[str, object]] = []
-    n = min(total, limit)
-    for index in range(n):
-        formats = _formats(index, tab)
-        image_mime = _image_mime(formats)
-        if image_mime:
-            preview_path = _write_image_preview(index, tab, image_mime)
-            entries.append(
-                {
-                    "index": index,
-                    "tab": tab,
-                    "pinned": pinned,
-                    "type": "image",
-                    "text": "",
-                    "preview": "Image",
-                    "previewPath": preview_path or "",
-                    "mime": image_mime,
-                }
-            )
+    for item in raw_entries:
+        if not isinstance(item, dict):
             continue
-        text, code = _read_text(index, tab)
-        if code != 0 or text is None:
+        entry_type = str(item.get("type") or "text")
+        preview = str(item.get("preview") or "")
+        if entry_type == "text" and not preview.strip():
             continue
-        if not text.strip():
-            continue
-        preview = _preview(text)
+        preview = _preview(preview)
+        if entry_type == "image":
+            text = ""
+        else:
+            text = preview
+        image_mime = str(item.get("imageMime") or "")
+        preview_path = ""
+        if entry_type == "image" and image_mime:
+            try:
+                index = int(item.get("index", -1))
+            except (TypeError, ValueError):
+                index = -1
+            tab = str(item.get("tab") or "")
+            if index >= 0 and tab:
+                preview_path = _write_image_preview(index, tab, image_mime) or ""
         entries.append(
             {
-                "index": index,
-                "tab": tab,
-                "pinned": pinned,
-                "type": "text",
-                # Overlay filters/displays preview only; activation uses index+tab.
-                "text": preview,
+                "index": item.get("index", 0),
+                "tab": str(item.get("tab") or "&clipboard"),
+                "pinned": bool(item.get("pinned")),
+                "type": entry_type,
+                "text": text,
                 "preview": preview,
-                "previewPath": "",
-                "mime": "text/plain",
+                "previewPath": preview_path,
+                "mime": str(item.get("mime") or "text/plain"),
             }
         )
-    return entries, total
+    try:
+        total_int = int(total) if total is not None else len(entries)
+    except (TypeError, ValueError):
+        total_int = len(entries)
+    return entries, total_int
 
 
 def main() -> int:
@@ -281,17 +322,16 @@ def main() -> int:
 
         limit = _limit_from_argv()
         try:
-            pin_entries, pin_total = _collect_tab(PINS_TAB, pinned=True, limit=limit)
-            remaining = max(1, limit - len(pin_entries))
-            clip_entries, clip_total = _collect_tab(
-                CLIPBOARD_TAB, pinned=False, limit=remaining
-            )
+            groups = _eval_collect(limit)
         except RuntimeError as exc:
             print(
                 json.dumps({"ok": False, "error": str(exc), "entries": []}),
                 flush=True,
             )
             return 1
+
+        pin_entries, pin_total = _collect_entries(groups.get("pins") or {})
+        clip_entries, clip_total = _collect_entries(groups.get("clips") or {})
 
         entries = pin_entries + clip_entries
         print(
