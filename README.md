@@ -44,6 +44,7 @@ required. See `.env.example`.
 |---|---|
 | `lukedaduke.fan` | RAM, CPU/GPU/NVMe temps, top processes, fan presets + custom curves |
 | `lukedaduke.standby` | OLED nightstand overlay: clock, weather, markets, red tint, caffeine |
+| `lukedaduke.copyq` | Omarchy clipboard overlay backed by stock CopyQ (theme-native picker) |
 | `lukedaduke.nexus` | Hardware topology radar: USB/BT/NVMe interconnect map |
 | `lukedaduke.power` | Battery status, charge graph, top consumers, power profiles |
 | `lukedaduke.lidguard` | Timed lid-close stay-awake so agents and VMs keep running with the lid shut |
@@ -71,6 +72,7 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 |---|---|
 | `lukedaduke.fan` | https://github.com/duketopceo/omarchy-fan |
 | `lukedaduke.standby` | https://github.com/duketopceo/omarchy-standby |
+| `lukedaduke.copyq` | https://github.com/duketopceo/omarchy-copyq |
 | `lukedaduke.nexus` | https://github.com/duketopceo/omarchy-nexus |
 | `lukedaduke.power` | https://github.com/duketopceo/omarchy-power |
 | `lukedaduke.lidguard` | https://github.com/duketopceo/omarchy-lidguard |

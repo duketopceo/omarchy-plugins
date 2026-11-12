@@ -18,6 +18,7 @@ declare -A REPO=(
   [lukedaduke.ticker]="git@github.com:duketopceo/omarchy-ticker.git"
   [lukedaduke.agents]="git@github.com:duketopceo/omarchy-agents.git"
   [lukedaduke.standby]="git@github.com:duketopceo/omarchy-standby.git"
+  [lukedaduke.copyq]="git@github.com:duketopceo/omarchy-copyq.git"
   [lukedaduke.nexus]="git@github.com:duketopceo/omarchy-nexus.git"
   [lukedaduke.connections]="git@github.com:duketopceo/omarchy-connections.git"
   [lukedaduke.power]="git@github.com:duketopceo/omarchy-power.git"
