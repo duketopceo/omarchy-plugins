@@ -116,9 +116,18 @@ def _preview(text: str) -> str:
 
 
 def _preview_dir() -> Path:
-    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    # Prefer the private runtime dir; never fall back to world-readable /tmp.
+    if not runtime:
+        runtime = os.path.join(
+            "/tmp", f"lukedaduke.copyq-{os.getuid()}-{os.getpid()}"
+        )
     path = Path(runtime) / "lukedaduke.copyq"
-    path.mkdir(parents=True, exist_ok=True)
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
     return path
 
 

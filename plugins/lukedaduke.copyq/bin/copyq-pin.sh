@@ -56,7 +56,10 @@ if [[ -n $mime ]]; then
   exit 0
 fi
 
-text="$(run_copyq tab "$TAB" read "$INDEX" 2>/dev/null || true)"
-[[ -n ${text//[[:space:]]/} ]] || exit 1
+# Preserve trailing newlines (command substitution would strip them).
+tmp_text="$(mktemp)"
+trap 'rm -f "$tmp_text"' EXIT
+run_copyq tab "$TAB" read "$INDEX" >"$tmp_text" 2>/dev/null || true
+[[ -s $tmp_text ]] || exit 1
 # Prefer insert at top of Pins.
-printf '%s' "$text" | run_copyq tab "$PINS_TAB" write 0 text/plain - >/dev/null
+run_copyq tab "$PINS_TAB" write 0 text/plain - <"$tmp_text" >/dev/null

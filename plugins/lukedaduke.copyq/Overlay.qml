@@ -216,7 +216,8 @@ Item {
       "--index", String(row.copyqIndex),
       "--tab", String(row.tabName || "&clipboard")
     ])
-    Qt.callLater(function() { root.reloadList() })
+    // Give CopyQ a beat to finish the remove before re-listing.
+    reloadAfterMutate.restart()
   }
 
   function pinSelected() {
@@ -227,18 +228,20 @@ Item {
       "--index", String(row.copyqIndex),
       "--tab", String(row.tabName || "&clipboard")
     ])
-    Qt.callLater(function() { root.reloadList() })
+    reloadAfterMutate.restart()
   }
 
   function applyCursorPos(raw) {
     var text = String(raw || "").trim()
-    var parts = text.split(",")
+    // Prefer "x,y mon:N" from hyprctl; fall back to "x,y".
+    var parts = text.split(/\s+/)[0].split(",")
     if (parts.length < 2) return
     var x = Number(parts[0])
     var y = Number(parts[1])
     if (!isFinite(x) || !isFinite(y)) return
-    root.cursorScreenX = x
-    root.cursorScreenY = y
+    // Panel is screen-local; subtract the focused monitor origin when known.
+    root.cursorScreenX = Math.max(0, x - panel.screen.x)
+    root.cursorScreenY = Math.max(0, y - panel.screen.y)
   }
 
   function cardX() {
@@ -257,7 +260,7 @@ Item {
     return Math.max(Style.gapsOut, Math.min(y, maxY))
   }
 
-  function handleKeys(event) {
+  function handleKeys(event, fromFilter) {
     if (event.key === Qt.Key_Down) { root.select(1); event.accepted = true }
     else if (event.key === Qt.Key_Up) { root.select(-1); event.accepted = true }
     else if (event.key === Qt.Key_PageDown) { root.page(1); event.accepted = true }
@@ -271,6 +274,8 @@ Item {
       root.dismiss()
       event.accepted = true
     } else if (event.key === Qt.Key_Delete) {
+      // Never delete history while the search field owns the key (char delete).
+      if (fromFilter) return
       root.removeSelected()
       event.accepted = true
     } else if (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) {
@@ -286,14 +291,42 @@ Item {
 
   ListModel { id: displayModel }
 
+  Timer {
+    id: reloadAfterMutate
+    interval: 180
+    repeat: false
+    onTriggered: root.reloadList()
+  }
+
+  Timer {
+    id: listWatchdog
+    interval: 9000
+    repeat: false
+    onTriggered: {
+      if (!root.listInFlight) return
+      listProc.running = false
+      root.listInFlight = false
+      root.errorText = "CopyQ list timed out"
+      root.statusText = root.errorText
+    }
+  }
+
   Process {
     id: listProc
     command: ["/usr/bin/python3", root.listHelper, "80"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.applyListPayload(text)
+      onStreamFinished: {
+        listWatchdog.stop()
+        root.applyListPayload(text)
+      }
+    }
+    onRunningChanged: {
+      if (running) listWatchdog.restart()
+      else listWatchdog.stop()
     }
     onExited: function(code) {
+      listWatchdog.stop()
       if (code !== 0 && root.listInFlight) {
         root.listInFlight = false
         if (!root.errorText) {
@@ -405,7 +438,7 @@ Item {
             selectByMouse: true
             text: root.filterText
             onTextChanged: root.setFilter(text)
-            Keys.onPressed: function(event) { root.handleKeys(event) }
+            Keys.onPressed: function(event) { root.handleKeys(event, true) }
           }
 
           Text {
@@ -521,7 +554,7 @@ Item {
     Item {
       id: keyCatcher
       focus: root.opened
-      Keys.onPressed: function(event) { root.handleKeys(event) }
+      Keys.onPressed: function(event) { root.handleKeys(event, false) }
     }
   }
 }
