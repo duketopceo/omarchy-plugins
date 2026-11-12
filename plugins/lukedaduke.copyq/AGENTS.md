@@ -36,7 +36,13 @@ next publish.** Make the change in the umbrella, then
 - Overlay kind: summon/hide via `omarchy-shell shell summon|hide lukedaduke.copyq`.
 - Cursor mode: `summon lukedaduke.copyq '{"mode":"cursor"}'`.
 - Theme only through `qs.Commons` `Color` / `Style` — no hardcoded theme hex.
-- Fixed `/usr/bin/copyq` and `/usr/bin/python3` (helpers honor `COPYQ_BIN` for tests).
+- Fixed `/usr/bin/copyq` and `/usr/bin/python3` (helpers honor `COPYQ_BIN`
+  for tests; activate also honors `WTYPE_BIN`, `HYPRCTL_BIN`, `JQ_BIN`,
+  `COPYQ_PASTE_DELAY`).
+- `copyq-list.py` collects rows with ONE `copyq eval` — never loop `copyq
+  read`/`count` per row; that costs seconds. The eval script must contain no
+  backslash escapes (`copyq eval` unescapes its argument): use
+  `String.fromCharCode` and `charCodeAt` instead of `\n`, `\s`, `\uXXXX`.
 - Every `Text` that binds clip or status strings uses `textFormat: Text.PlainText`.
 - Dismiss goes through `shell.hide(manifest.id)`. Do not call `copyq toggle` /
   `copyq show` from the overlay.

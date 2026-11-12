@@ -45,7 +45,12 @@ SUPER + ALT + V    →  silent copyq next (no UI)
 
 - Pins appear above clipboard history.
 - Image rows show a thumbnail preview written under `$XDG_RUNTIME_DIR/lukedaduke.copyq/`.
-- Paste is best-effort: some surfaces ignore `copyq paste`; the row is still selected onto the clipboard.
+- History loads via a single `copyq eval` (in-process), not per-row CLI reads.
+- Paste injects the universal chord with `wtype` — `Ctrl+Shift+V` into
+  terminals, `Ctrl+V` elsewhere — matching Omarchy's SUPER+V semantics;
+  `copyq paste` cannot inject keys on Wayland. If `wtype` is missing it falls
+  back to `copyq paste`, which some surfaces ignore; the row is still selected
+  onto the clipboard either way.
 - Opening the overlay calls `copyq hide` so the stock Qt window stays closed on these chords.
 - Not in scope: Clipboard Plus color tools, Tensaku annotate, draft/actions menu.
 
