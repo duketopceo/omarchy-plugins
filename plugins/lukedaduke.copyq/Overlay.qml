@@ -13,6 +13,7 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
+  property string uiMode: "center" // center | cursor
   property string filterText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -20,6 +21,8 @@ Item {
   property string statusText: "Loading…"
   property string errorText: ""
   property bool listInFlight: false
+  property real cursorScreenX: -1
+  property real cursorScreenY: -1
 
   readonly property string pluginDir: {
     var url = Qt.resolvedUrl(".")
@@ -27,6 +30,8 @@ Item {
   }
   readonly property string listHelper: pluginDir + "/bin/copyq-list.py"
   readonly property string activateHelper: pluginDir + "/bin/copyq-activate.sh"
+  readonly property string removeHelper: pluginDir + "/bin/copyq-remove.sh"
+  readonly property string pinHelper: pluginDir + "/bin/copyq-pin.sh"
 
   property color background: Commons.Color.menu.background
   property color foreground: Commons.Color.menu.text
@@ -39,19 +44,44 @@ Item {
   property int contentMargin: Style.spacing.panelPadding
   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
   property int contentSpacing: Style.spacing.md
-  property int cardWidth: Math.min(Style.space(720), panel.width - Style.gapsOut * 2)
-  property int cardHeight: Math.min(Style.space(560), panel.height - Style.gapsOut * 2)
+  property int thumbSize: Style.space(36)
+  property bool isCursorMode: root.uiMode === "cursor"
+  property int cardWidth: Math.min(
+    root.isCursorMode ? Style.space(420) : Style.space(720),
+    panel.width - Style.gapsOut * 2
+  )
+  property int cardHeight: Math.min(
+    root.isCursorMode ? Style.space(360) : Style.space(560),
+    panel.height - Style.gapsOut * 2
+  )
   property int rowHeight: Math.max(Style.space(48), Style.font.body + Style.spacing.rowPaddingX * 2)
 
+  function parsePayload(payloadJson) {
+    try {
+      var payload = typeof payloadJson === "string"
+        ? JSON.parse(payloadJson || "{}")
+        : (payloadJson || {})
+      if (payload && payload.mode === "cursor") return "cursor"
+    } catch (e) {}
+    return "center"
+  }
+
   function open(payloadJson) {
+    root.uiMode = root.parsePayload(payloadJson)
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
     root.cursorActive = true
     root.errorText = ""
+    root.cursorScreenX = -1
+    root.cursorScreenY = -1
     Quickshell.execDetached(["/usr/bin/copyq", "hide"])
+    if (root.isCursorMode) cursorPosProc.running = true
     root.reloadList()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus(); filterField.forceActiveFocus() })
+    Qt.callLater(function() {
+      keyCatcher.forceActiveFocus()
+      filterField.forceActiveFocus()
+    })
   }
 
   function close() {
@@ -90,7 +120,9 @@ Item {
       }
       root.entries = payload.entries
       root.errorText = ""
-      root.statusText = payload.count + " items"
+      var pins = payload.pinCount || 0
+      var clips = payload.clipCount || payload.count || 0
+      root.statusText = pins > 0 ? (pins + " pinned · " + clips + " items") : (clips + " items")
       root.rebuildDisplay()
     } catch (e) {
       root.entries = []
@@ -103,7 +135,8 @@ Item {
   function matchesFilter(entry) {
     if (!root.filterText) return true
     var q = String(root.filterText).toLowerCase()
-    var hay = String(entry.preview || entry.text || "").toLowerCase()
+    var hay = String(entry.preview || entry.text || entry.type || "").toLowerCase()
+    if (entry.pinned) hay = "pin " + hay
     return hay.indexOf(q) !== -1
   }
 
@@ -114,8 +147,12 @@ Item {
       if (!root.matchesFilter(entry)) continue
       displayModel.append({
         copyqIndex: entry.index,
+        tabName: String(entry.tab || "&clipboard"),
+        pinned: !!entry.pinned,
+        entryType: String(entry.type || "text"),
         previewText: String(entry.preview || ""),
-        fullText: String(entry.text || "")
+        fullText: String(entry.text || ""),
+        previewPath: String(entry.previewPath || "")
       })
     }
     if (displayModel.count === 0) root.selectedIndex = 0
@@ -141,14 +178,110 @@ Item {
     resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
   }
 
-  function activateSelected(copyOnly) {
+  function selectAbsolute(index) {
     if (displayModel.count === 0) return
-    var row = displayModel.get(root.selectedIndex)
+    root.cursorActive = true
+    root.selectedIndex = Math.max(0, Math.min(index, displayModel.count - 1))
+    resultList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+  }
+
+  function page(deltaPages) {
+    var step = Math.max(1, Math.floor(resultList.height / root.rowHeight) - 1)
+    root.selectAbsolute(root.selectedIndex + deltaPages * step)
+  }
+
+  function currentRow() {
+    if (displayModel.count === 0) return null
+    return displayModel.get(root.selectedIndex)
+  }
+
+  function activateSelected(copyOnly) {
+    var row = root.currentRow()
     if (!row) return
     root.dismiss()
-    var args = [root.activateHelper, "--index", String(row.copyqIndex)]
+    var args = [
+      root.activateHelper,
+      "--index", String(row.copyqIndex),
+      "--tab", String(row.tabName || "&clipboard")
+    ]
     if (copyOnly) args.push("--copy-only")
     Quickshell.execDetached(args)
+  }
+
+  function removeSelected() {
+    var row = root.currentRow()
+    if (!row) return
+    Quickshell.execDetached([
+      root.removeHelper,
+      "--index", String(row.copyqIndex),
+      "--tab", String(row.tabName || "&clipboard")
+    ])
+    Qt.callLater(function() { root.reloadList() })
+  }
+
+  function pinSelected() {
+    var row = root.currentRow()
+    if (!row || row.pinned) return
+    Quickshell.execDetached([
+      root.pinHelper,
+      "--index", String(row.copyqIndex),
+      "--tab", String(row.tabName || "&clipboard")
+    ])
+    Qt.callLater(function() { root.reloadList() })
+  }
+
+  function applyCursorPos(raw) {
+    var text = String(raw || "").trim()
+    var parts = text.split(",")
+    if (parts.length < 2) return
+    var x = Number(parts[0])
+    var y = Number(parts[1])
+    if (!isFinite(x) || !isFinite(y)) return
+    root.cursorScreenX = x
+    root.cursorScreenY = y
+  }
+
+  function cardX() {
+    if (!root.isCursorMode || root.cursorScreenX < 0)
+      return Math.round((panel.width - card.width) / 2)
+    var x = root.cursorScreenX + Style.space(12)
+    var maxX = panel.width - card.width - Style.gapsOut
+    return Math.max(Style.gapsOut, Math.min(x, maxX))
+  }
+
+  function cardY() {
+    if (!root.isCursorMode || root.cursorScreenY < 0)
+      return Math.round((panel.height - card.height) / 2)
+    var y = root.cursorScreenY + Style.space(12)
+    var maxY = panel.height - card.height - Style.gapsOut
+    return Math.max(Style.gapsOut, Math.min(y, maxY))
+  }
+
+  function handleKeys(event) {
+    if (event.key === Qt.Key_Down) { root.select(1); event.accepted = true }
+    else if (event.key === Qt.Key_Up) { root.select(-1); event.accepted = true }
+    else if (event.key === Qt.Key_PageDown) { root.page(1); event.accepted = true }
+    else if (event.key === Qt.Key_PageUp) { root.page(-1); event.accepted = true }
+    else if (event.key === Qt.Key_Home) { root.selectAbsolute(0); event.accepted = true }
+    else if (event.key === Qt.Key_End) { root.selectAbsolute(displayModel.count - 1); event.accepted = true }
+    else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+      root.activateSelected(event.modifiers & Qt.ShiftModifier)
+      event.accepted = true
+    } else if (event.key === Qt.Key_Escape) {
+      root.dismiss()
+      event.accepted = true
+    } else if (event.key === Qt.Key_Delete) {
+      root.removeSelected()
+      event.accepted = true
+    } else if (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) {
+      root.select(1); event.accepted = true
+    } else if (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) {
+      root.select(-1); event.accepted = true
+    } else if (event.key === Qt.Key_R && (event.modifiers & Qt.ControlModifier)) {
+      root.reloadList(); event.accepted = true
+    } else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) {
+      root.pinSelected(); event.accepted = true
+    }
   }
 
   ListModel { id: displayModel }
@@ -171,6 +304,15 @@ Item {
     }
   }
 
+  Process {
+    id: cursorPosProc
+    command: ["/usr/bin/hyprctl", "cursorpos"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyCursorPos(text)
+    }
+  }
+
   PanelWindow {
     id: panel
     visible: root.opened
@@ -187,7 +329,7 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: root.scrim
-      opacity: root.opened ? 0.45 : 0
+      opacity: root.opened ? (root.isCursorMode ? 0.25 : 0.45) : 0
       Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
       MouseArea {
@@ -200,7 +342,8 @@ Item {
       id: card
       width: root.cardWidth
       height: root.cardHeight
-      anchors.centerIn: parent
+      x: root.cardX()
+      y: root.cardY()
       radius: root.cornerRadius
       color: root.background
       border.color: root.border
@@ -221,7 +364,7 @@ Item {
           spacing: Style.spacing.sm
 
           Text {
-            text: "Clipboard"
+            text: root.isCursorMode ? "Paste" : "Clipboard"
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
@@ -262,23 +405,7 @@ Item {
             selectByMouse: true
             text: root.filterText
             onTextChanged: root.setFilter(text)
-            Keys.onPressed: function(event) {
-              if (event.key === Qt.Key_Down) { root.select(1); event.accepted = true }
-              else if (event.key === Qt.Key_Up) { root.select(-1); event.accepted = true }
-              else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                root.activateSelected(event.modifiers & Qt.ShiftModifier)
-                event.accepted = true
-              } else if (event.key === Qt.Key_Escape) {
-                root.dismiss()
-                event.accepted = true
-              } else if (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) {
-                root.select(1); event.accepted = true
-              } else if (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) {
-                root.select(-1); event.accepted = true
-              } else if (event.key === Qt.Key_R && (event.modifiers & Qt.ControlModifier)) {
-                root.reloadList(); event.accepted = true
-              }
-            }
+            Keys.onPressed: function(event) { root.handleKeys(event) }
           }
 
           Text {
@@ -304,9 +431,14 @@ Item {
           spacing: Style.spacing.xs
           currentIndex: root.cursorActive ? root.selectedIndex : -1
           delegate: Rectangle {
+            id: rowDelegate
             required property int index
             required property string previewText
             required property int copyqIndex
+            required property string tabName
+            required property bool pinned
+            required property string entryType
+            required property string previewPath
             width: resultList.width
             height: root.rowHeight
             radius: Math.max(6, root.cornerRadius - 2)
@@ -314,30 +446,60 @@ Item {
               ? root.selectedBackground
               : "transparent"
 
-            Text {
+            RowLayout {
               anchors.fill: parent
               anchors.margins: Style.spacing.rowPaddingX
-              verticalAlignment: Text.AlignVCenter
-              text: previewText
-              color: (root.cursorActive && index === root.selectedIndex)
-                ? root.selectedText
-                : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              elide: Text.ElideRight
-              textFormat: Text.PlainText
+              spacing: Style.spacing.sm
+
+              Text {
+                text: rowDelegate.pinned ? "★" : " "
+                color: (root.cursorActive && rowDelegate.index === root.selectedIndex)
+                  ? root.selectedText
+                  : root.foreground
+                opacity: rowDelegate.pinned ? 0.9 : 0.25
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                textFormat: Text.PlainText
+                Layout.preferredWidth: Style.space(16)
+              }
+
+              Image {
+                visible: rowDelegate.entryType === "image" && rowDelegate.previewPath.length > 0
+                source: rowDelegate.previewPath.length > 0 ? ("file://" + rowDelegate.previewPath) : ""
+                fillMode: Image.PreserveAspectCrop
+                Layout.preferredWidth: root.thumbSize
+                Layout.preferredHeight: root.thumbSize
+                asynchronous: true
+                cache: false
+              }
+
+              Text {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                verticalAlignment: Text.AlignVCenter
+                text: rowDelegate.previewText
+                color: (root.cursorActive && rowDelegate.index === root.selectedIndex)
+                  ? root.selectedText
+                  : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                elide: Text.ElideRight
+                textFormat: Text.PlainText
+              }
             }
 
             MouseArea {
               anchors.fill: parent
               hoverEnabled: true
+              acceptedButtons: Qt.LeftButton | Qt.RightButton
               onEntered: {
                 root.cursorActive = true
                 root.selectedIndex = index
               }
-              onClicked: {
+              onClicked: function(mouse) {
                 root.selectedIndex = index
-                root.activateSelected(false)
+                if (mouse.button === Qt.RightButton) root.pinSelected()
+                else root.activateSelected(false)
               }
             }
           }
@@ -345,7 +507,7 @@ Item {
 
         Text {
           Layout.fillWidth: true
-          text: root.errorText || "↑↓ / Ctrl+J/K  ·  Enter paste  ·  Shift+Enter copy  ·  Esc"
+          text: root.errorText || "↑↓  ·  Enter paste  ·  Shift+Enter copy  ·  Del  ·  Ctrl+P pin  ·  Esc"
           color: root.foreground
           opacity: root.errorText ? 0.9 : 0.45
           font.family: root.fontFamily
@@ -356,13 +518,10 @@ Item {
       }
     }
 
-    // Global key catcher when filter is not focused.
     Item {
       id: keyCatcher
       focus: root.opened
-      Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape) { root.dismiss(); event.accepted = true }
-      }
+      Keys.onPressed: function(event) { root.handleKeys(event) }
     }
   }
 }

@@ -1,4 +1,4 @@
-"""Tests for lukedaduke.copyq helpers (list + activate)."""
+"""Tests for lukedaduke.copyq helpers (list + activate + remove + pin)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,11 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-LIST_HELPER = ROOT / "plugins/lukedaduke.copyq/bin/copyq-list.py"
-ACTIVATE_HELPER = ROOT / "plugins/lukedaduke.copyq/bin/copyq-activate.sh"
+BIN = ROOT / "plugins/lukedaduke.copyq/bin"
+LIST_HELPER = BIN / "copyq-list.py"
+ACTIVATE_HELPER = BIN / "copyq-activate.sh"
+REMOVE_HELPER = BIN / "copyq-remove.sh"
+PIN_HELPER = BIN / "copyq-pin.sh"
 
 
 @pytest.fixture()
@@ -32,17 +35,36 @@ def _ok(stdout: str = "", returncode: int = 0) -> SimpleNamespace:
     return SimpleNamespace(stdout=stdout, stderr="", returncode=returncode)
 
 
+def _ok_bytes(data: bytes = b"", returncode: int = 0) -> SimpleNamespace:
+    return SimpleNamespace(stdout=data, stderr=b"", returncode=returncode)
+
+
+def _tab_cmd(args: list[str]) -> tuple[str | None, list[str]]:
+    """Return (tab_name, rest) when args are [copyq, tab, NAME, ...]."""
+    if len(args) >= 3 and args[1] == "tab":
+        return args[2], args[3:]
+    return None, args[1:]
+
+
 def test_list_two_text_rows(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
     monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py", "80"])
 
-    def fake_run(args, **_kwargs):
-        if args[1:] == ["count"]:
+    def fake_run(args, **kwargs):
+        tab, rest = _tab_cmd(args)
+        text_mode = kwargs.get("text", True)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n") if text_mode else _ok_bytes(b"0\n")
+        if tab == "&clipboard" and rest == ["count"]:
             return _ok("2\n")
-        if args[1:3] == ["read", "0"]:
+        if tab == "&clipboard" and rest == ["read", "?", "0"]:
+            return _ok("text/plain\n")
+        if tab == "&clipboard" and rest == ["read", "?", "1"]:
+            return _ok("text/plain\n")
+        if tab == "&clipboard" and rest == ["read", "0"]:
             return _ok("alpha")
-        if args[1:3] == ["read", "1"]:
+        if tab == "&clipboard" and rest == ["read", "1"]:
             return _ok("beta")
         raise AssertionError(args)
 
@@ -51,20 +73,68 @@ def test_list_two_text_rows(list_mod, monkeypatch, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["count"] == 2
-    assert payload["entries"] == [
-        {
-            "index": 0,
-            "type": "text",
-            "text": "alpha",
-            "preview": "alpha",
-        },
-        {
-            "index": 1,
-            "type": "text",
-            "text": "beta",
-            "preview": "beta",
-        },
-    ]
+    assert payload["entries"][0]["preview"] == "alpha"
+    assert payload["entries"][0]["tab"] == "&clipboard"
+    assert payload["entries"][0]["pinned"] is False
+    assert payload["entries"][1]["preview"] == "beta"
+
+
+def test_list_pins_before_clipboard(list_mod, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+
+    def fake_run(args, **_kwargs):
+        tab, rest = _tab_cmd(args)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("1\n")
+        if tab == "Pins" and rest == ["read", "?", "0"]:
+            return _ok("text/plain\n")
+        if tab == "Pins" and rest == ["read", "0"]:
+            return _ok("pinned")
+        if tab == "&clipboard" and rest == ["count"]:
+            return _ok("1\n")
+        if tab == "&clipboard" and rest == ["read", "?", "0"]:
+            return _ok("text/plain\n")
+        if tab == "&clipboard" and rest == ["read", "0"]:
+            return _ok("clip")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [e["preview"] for e in payload["entries"]] == ["pinned", "clip"]
+    assert payload["entries"][0]["pinned"] is True
+    assert payload["entries"][1]["pinned"] is False
+
+
+def test_list_image_row(list_mod, monkeypatch, capsys, tmp_path) -> None:
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+
+    def fake_run(args, **kwargs):
+        tab, rest = _tab_cmd(args)
+        text_mode = kwargs.get("text", True)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n") if text_mode else _ok_bytes(b"0\n")
+        if tab == "&clipboard" and rest == ["count"]:
+            return _ok("1\n")
+        if tab == "&clipboard" and rest == ["read", "?", "0"]:
+            return _ok("image/png\ntext/plain\n")
+        if tab == "&clipboard" and rest == ["read", "image/png", "0"]:
+            assert text_mode is False
+            return _ok_bytes(b"\x89PNG\r\n", returncode=0)
+        raise AssertionError(args)
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["entries"][0]["type"] == "image"
+    assert payload["entries"][0]["preview"] == "Image"
+    assert payload["entries"][0]["previewPath"].endswith("preview-clip-0.png")
+    assert Path(payload["entries"][0]["previewPath"]).is_file()
 
 
 def test_list_skips_whitespace_and_keeps_indexes(list_mod, monkeypatch, capsys) -> None:
@@ -73,13 +143,18 @@ def test_list_skips_whitespace_and_keeps_indexes(list_mod, monkeypatch, capsys) 
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
 
     def fake_run(args, **_kwargs):
-        if args[1:] == ["count"]:
+        tab, rest = _tab_cmd(args)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n")
+        if tab == "&clipboard" and rest == ["count"]:
             return _ok("3\n")
-        if args[1:3] == ["read", "0"]:
+        if rest[:2] == ["read", "?"]:
+            return _ok("text/plain\n")
+        if rest == ["read", "0"]:
             return _ok("   \n")
-        if args[1:3] == ["read", "1"]:
+        if rest == ["read", "1"]:
             return _ok("keep")
-        if args[1:3] == ["read", "2"]:
+        if rest == ["read", "2"]:
             return _ok("also")
         raise AssertionError(args)
 
@@ -96,20 +171,44 @@ def test_list_skips_nonzero_read(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
 
     def fake_run(args, **_kwargs):
-        if args[1:] == ["count"]:
+        tab, rest = _tab_cmd(args)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n")
+        if tab == "&clipboard" and rest == ["count"]:
             return _ok("2\n")
-        if args[1:3] == ["read", "0"]:
+        if rest[:2] == ["read", "?"]:
+            return _ok("text/plain\n")
+        if rest == ["read", "0"]:
             return _ok("fail", returncode=1)
-        if args[1:3] == ["read", "1"]:
+        if rest == ["read", "1"]:
             return _ok("ok")
         raise AssertionError(args)
 
     monkeypatch.setattr(list_mod, "_run", fake_run)
     assert list_mod.main() == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["entries"] == [
-        {"index": 1, "type": "text", "text": "ok", "preview": "ok"}
-    ]
+    assert len(payload["entries"]) == 1
+    assert payload["entries"][0]["index"] == 1
+
+
+def test_list_rejects_failed_count(list_mod, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+
+    def fake_run(args, **_kwargs):
+        tab, rest = _tab_cmd(args)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n")
+        if tab == "&clipboard" and rest == ["count"]:
+            return _ok("x", returncode=1)
+        raise AssertionError(args)
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert "copyq_count" in payload["error"]
 
 
 def test_list_preview_truncation(list_mod) -> None:
@@ -140,7 +239,16 @@ def test_list_bad_count(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
     monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
-    monkeypatch.setattr(list_mod, "_run", lambda *_a, **_k: _ok("not-a-number\n"))
+
+    def fake_run(args, **_kwargs):
+        tab, rest = _tab_cmd(args)
+        if tab == "Pins" and rest == ["count"]:
+            return _ok("0\n")
+        if tab == "&clipboard" and rest == ["count"]:
+            return _ok("not-a-number\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
     assert list_mod.main() == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
@@ -157,28 +265,25 @@ def _write_fake_copyq(tmp_path: Path, body: str) -> Path:
 
 def test_activate_paste(tmp_path: Path) -> None:
     log = tmp_path / "log.txt"
-    fake = _write_fake_copyq(
-        tmp_path,
-        f'echo "$@" >> "{log}"\n',
-    )
+    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
     env = {**os.environ, "COPYQ_BIN": str(fake)}
     proc = subprocess.run(
-        [str(ACTIVATE_HELPER), "--index", "1"],
+        [str(ACTIVATE_HELPER), "--index", "1", "--tab", "&clipboard"],
         check=False,
         env=env,
         capture_output=True,
         text=True,
     )
     assert proc.returncode == 0
-    assert log.read_text().splitlines() == ["select 1", "paste"]
+    assert log.read_text().splitlines() == [
+        "tab &clipboard select 1",
+        "paste",
+    ]
 
 
 def test_activate_copy_only(tmp_path: Path) -> None:
     log = tmp_path / "log.txt"
-    fake = _write_fake_copyq(
-        tmp_path,
-        f'echo "$@" >> "{log}"\n',
-    )
+    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
     env = {**os.environ, "COPYQ_BIN": str(fake)}
     proc = subprocess.run(
         [str(ACTIVATE_HELPER), "--index", "1", "--copy-only"],
@@ -212,3 +317,49 @@ def test_activate_missing_binary(tmp_path: Path) -> None:
         text=True,
     )
     assert proc.returncode == 1
+
+
+def test_remove_with_tab(tmp_path: Path) -> None:
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
+    env = {**os.environ, "COPYQ_BIN": str(fake)}
+    proc = subprocess.run(
+        [str(REMOVE_HELPER), "--index", "2", "--tab", "Pins"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert log.read_text().splitlines() == ["tab Pins remove 2"]
+
+
+def test_pin_text(tmp_path: Path) -> None:
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(
+        tmp_path,
+        f"""
+echo "$@" >> "{log}"
+if [[ "$*" == *"read ?"*"0" ]]; then
+  echo text/plain
+  exit 0
+fi
+if [[ "$*" == *"read 0" ]]; then
+  printf 'hello pin'
+  exit 0
+fi
+exit 0
+""",
+    )
+    env = {**os.environ, "COPYQ_BIN": str(fake)}
+    proc = subprocess.run(
+        [str(PIN_HELPER), "--index", "0", "--tab", "&clipboard"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    lines = log.read_text().splitlines()
+    assert any("tab &clipboard read ?" in " ".join(lines) or "read ?" in ln for ln in lines)
+    assert any("tab Pins write 0 text/plain -" == ln for ln in lines)

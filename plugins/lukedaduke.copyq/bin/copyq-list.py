@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Emit CopyQ history as JSON for the Omarchy overlay.
 
-Fixed CopyQ path; no ambient PATH resolution. Text rows only for v0.1.
+Lists Pins tab first, then &clipboard. Text + image rows.
+Fixed CopyQ path; COPYQ_BIN override for tests.
 """
 from __future__ import annotations
 
@@ -9,11 +10,23 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
-COPYQ = "/usr/bin/copyq"
+COPYQ = os.environ.get("COPYQ_BIN", "/usr/bin/copyq")
 DEFAULT_LIMIT = 80
 MAX_LIMIT = 200
 MAX_TEXT = 200_000
+CLIPBOARD_TAB = "&clipboard"
+PINS_TAB = "Pins"
+IMAGE_MIMES = (
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/webp",
+    "image/bmp",
+    "image/gif",
+)
+RUN_TIMEOUT = 3.0
 ENV = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "")}
 
 
@@ -27,12 +40,14 @@ def _limit_from_argv() -> int:
     return max(1, min(value, MAX_LIMIT))
 
 
-def _run(args: list[str], *, timeout: float = 3.0) -> subprocess.CompletedProcess[str]:
+def _run(
+    args: list[str], *, timeout: float = RUN_TIMEOUT, text: bool = True
+) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         args,
         check=False,
         capture_output=True,
-        text=True,
+        text=text,
         timeout=timeout,
         env=ENV,
     )
@@ -45,6 +60,140 @@ def _preview(text: str) -> str:
     return one
 
 
+def _preview_dir() -> Path:
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+    path = Path(runtime) / "lukedaduke.copyq"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _copyq_args(*parts: str, tab: str | None = None) -> list[str]:
+    args = [COPYQ]
+    if tab:
+        args.extend(["tab", tab])
+    args.extend(parts)
+    return args
+
+
+def _formats(index: int, tab: str) -> list[str]:
+    try:
+        proc = _run(_copyq_args("read", "?", str(index), tab=tab))
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+
+
+def _image_mime(formats: list[str]) -> str | None:
+    lower = {f.lower(): f for f in formats}
+    for mime in IMAGE_MIMES:
+        if mime in lower:
+            return lower[mime]
+    return None
+
+
+def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
+    try:
+        proc = _run(
+            _copyq_args("read", mime, str(index), tab=tab),
+            text=False,
+            timeout=5.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0 or not proc.stdout:
+        return None
+    ext = "jpg" if "jpeg" in mime.lower() or mime.lower().endswith("/jpg") else "png"
+    if "webp" in mime.lower():
+        ext = "webp"
+    elif "gif" in mime.lower():
+        ext = "gif"
+    elif "bmp" in mime.lower():
+        ext = "bmp"
+    safe_tab = "pins" if tab == PINS_TAB else "clip"
+    out = _preview_dir() / f"preview-{safe_tab}-{index}.{ext}"
+    try:
+        out.write_bytes(proc.stdout)
+    except OSError:
+        return None
+    return str(out)
+
+
+def _read_text(index: int, tab: str) -> tuple[str | None, int]:
+    try:
+        proc = _run(_copyq_args("read", str(index), tab=tab))
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"copyq_read:{exc}") from exc
+    if proc.returncode != 0:
+        return None, proc.returncode
+    return proc.stdout or "", 0
+
+
+def _count(tab: str) -> int:
+    try:
+        proc = _run(_copyq_args("count", tab=tab))
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"copyq_count:{exc}") from exc
+    if proc.returncode != 0:
+        raise RuntimeError(f"copyq_count:exit:{proc.returncode}")
+    raw = (proc.stdout or "0").strip() or "0"
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"copyq_count:{exc}") from exc
+
+
+def _collect_tab(tab: str, *, pinned: bool, limit: int) -> tuple[list[dict[str, object]], int]:
+    try:
+        total = _count(tab)
+    except RuntimeError:
+        if pinned:
+            # Pins tab may not exist yet.
+            return [], 0
+        raise
+    entries: list[dict[str, object]] = []
+    n = min(total, limit)
+    for index in range(n):
+        formats = _formats(index, tab)
+        image_mime = _image_mime(formats)
+        if image_mime:
+            preview_path = _write_image_preview(index, tab, image_mime)
+            entries.append(
+                {
+                    "index": index,
+                    "tab": tab,
+                    "pinned": pinned,
+                    "type": "image",
+                    "text": "",
+                    "preview": "Image",
+                    "previewPath": preview_path or "",
+                    "mime": image_mime,
+                }
+            )
+            continue
+        text, code = _read_text(index, tab)
+        if code != 0 or text is None:
+            continue
+        if not text.strip():
+            continue
+        if len(text) > MAX_TEXT:
+            text = text[:MAX_TEXT]
+        entries.append(
+            {
+                "index": index,
+                "tab": tab,
+                "pinned": pinned,
+                "type": "text",
+                "text": text,
+                "preview": _preview(text),
+                "previewPath": "",
+                "mime": "text/plain",
+            }
+        )
+    return entries, total
+
+
 def main() -> int:
     if not os.path.isfile(COPYQ) or not os.access(COPYQ, os.X_OK):
         print(
@@ -55,47 +204,28 @@ def main() -> int:
 
     limit = _limit_from_argv()
     try:
-        count_proc = _run([COPYQ, "count"])
-        total = int((count_proc.stdout or "0").strip() or "0")
-    except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+        pin_entries, pin_total = _collect_tab(PINS_TAB, pinned=True, limit=limit)
+        remaining = max(1, limit - len(pin_entries))
+        clip_entries, clip_total = _collect_tab(
+            CLIPBOARD_TAB, pinned=False, limit=remaining
+        )
+    except RuntimeError as exc:
         print(
-            json.dumps({"ok": False, "error": f"copyq_count:{exc}", "entries": []}),
+            json.dumps({"ok": False, "error": str(exc), "entries": []}),
             flush=True,
         )
         return 1
 
-    entries: list[dict[str, object]] = []
-    n = min(total, limit)
-    for index in range(n):
-        try:
-            read_proc = _run([COPYQ, "read", str(index)])
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            print(
-                json.dumps(
-                    {"ok": False, "error": f"copyq_read:{exc}", "entries": []}
-                ),
-                flush=True,
-            )
-            return 1
-        if read_proc.returncode != 0:
-            continue
-        text = read_proc.stdout or ""
-        if not text.strip():
-            continue
-        if len(text) > MAX_TEXT:
-            text = text[:MAX_TEXT]
-        entries.append(
-            {
-                "index": index,
-                "type": "text",
-                "text": text,
-                "preview": _preview(text),
-            }
-        )
-
+    entries = pin_entries + clip_entries
     print(
         json.dumps(
-            {"ok": True, "count": total, "entries": entries},
+            {
+                "ok": True,
+                "count": pin_total + clip_total,
+                "pinCount": pin_total,
+                "clipCount": clip_total,
+                "entries": entries,
+            },
             ensure_ascii=False,
         ),
         flush=True,
