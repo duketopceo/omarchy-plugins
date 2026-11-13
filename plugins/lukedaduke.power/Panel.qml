@@ -496,9 +496,13 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.showPercentage && !vertical
-      ? Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
-      : root.batteryIcon()
+    // The percentage belongs in labelText, not in the glyph text: glyph text is
+    // drawn into the fixed icon canvas and renders at icon size ("79%" came out
+    // microscopic). labelText gets real text metrics beside the icon.
+    text: root.batteryIcon()
+    labelText: root.showPercentage && !vertical
+      ? Math.round(root.batteryFraction * 100) + "%"
+      : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {

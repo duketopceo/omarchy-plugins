@@ -73,6 +73,10 @@ Panel {
 
   onOpenedChanged: if (opened) root.refresh()
 
+  // Without this the bar face renders "…" forever: refresh() was only wired to
+  // panel opens, so a fresh shell never did the first fetch.
+  Component.onCompleted: root.refresh()
+
   Process {
     id: listProc
     command: [root.py, root.pluginRoot + "/bin/hotkey-tally.py", "list", "--json"]
@@ -106,27 +110,31 @@ Panel {
 
   // Bar face
   Item {
-    implicitWidth: barRow.implicitWidth + Style.margin(1.4)
-    implicitHeight: bar ? bar.barHeight : 26
+    id: barFace
+    // A count of zero is not information. Hiding until there is something to
+    // show keeps the right section from overflowing on a thin bar.
+    visible: root.loaded && root.total > 0
+    implicitWidth: visible ? barRow.implicitWidth + Style.space(8) : 0
+    implicitHeight: bar ? bar.barSize : Style.bar.sizeHorizontal
 
     RowLayout {
       id: barRow
       anchors.centerIn: parent
-      spacing: Style.margin(0.6)
+      spacing: Style.space(4)
 
       Text {
         textFormat: Text.PlainText
         text: "\u2328"
         color: root.opened ? root.accent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.fontSize
+        font.pixelSize: Style.font.body
       }
       Text {
         textFormat: Text.PlainText
         text: root.loaded ? String(root.total) : "\u2026"
         color: root.opened ? root.accent : root.foreground
         font.family: root.fontFamily
-        font.pixelSize: Style.fontSize
+        font.pixelSize: Style.font.body
       }
     }
 
@@ -139,36 +147,55 @@ Panel {
 
   // Popup
   PopupWindow {
-    anchor.window: root.bar ? root.bar : null
-    anchor.rect.x: root.bar ? root.bar.width - 460 : 0
-    anchor.rect.y: root.bar ? root.bar.height : 0
-    visible: root.opened
+    id: popup
+    // A plugin's bar API object is not a window; the real surface is the one
+    // that holds the bar face item.
+    readonly property var anchorWin: barFace.QsWindow ? barFace.QsWindow.window : null
+    visible: root.opened && anchorWin !== null
     implicitWidth: 440
     implicitHeight: Math.min(520, 120 + root.filtered.length * 30)
     color: "transparent"
+
+    anchor {
+      id: popupAnchor
+      window: popup.anchorWin
+      adjustment: PopupAdjustment.Slide
+      edges: Edges.Top | Edges.Left
+      gravity: Edges.Bottom | Edges.Right
+      rect.width: 1
+      rect.height: 1
+
+      onAnchoring: {
+        var win = popup.anchorWin
+        if (!win) return
+        var p = win.contentItem.mapFromItem(barFace, barFace.width - popup.implicitWidth, barFace.height)
+        popupAnchor.rect.x = Math.round(p.x)
+        popupAnchor.rect.y = Math.round(p.y)
+      }
+    }
 
     Rectangle {
       anchors.fill: parent
       color: Commons.Color.background
       border.color: Commons.Color.menu.border
       border.width: 1
-      radius: Style.radius
+      radius: Style.cornerRadius
 
       ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Style.margin(1.2)
-        spacing: Style.margin(0.8)
+        anchors.margins: Style.space(8)
+        spacing: Style.space(6)
 
         RowLayout {
           Layout.fillWidth: true
-          spacing: Style.margin(0.8)
+          spacing: Style.space(6)
 
           TextInput {
             id: search
             Layout.fillWidth: true
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.fontSize
+            font.pixelSize: Style.font.body
             selectionColor: root.accent
             selectedTextColor: Commons.Color.background
             onTextChanged: root.query = text
@@ -187,7 +214,7 @@ Panel {
             text: "clear"
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.fontSize - 1
+            font.pixelSize: Style.font.bodySmall
             MouseArea {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
@@ -207,19 +234,19 @@ Panel {
           Layout.fillHeight: true
           model: root.filtered
           clip: true
-          spacing: Style.margin(0.3)
+          spacing: Style.space(2)
 
           delegate: RowLayout {
             required property var modelData
             width: ListView.view.width
-            spacing: Style.margin(0.8)
+            spacing: Style.space(6)
 
             Text {
               textFormat: Text.PlainText
               text: modelData.key || modelData.id
               color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
               Layout.preferredWidth: 150
             }
@@ -228,7 +255,7 @@ Panel {
               text: modelData.label || ""
               color: root.dim
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
               Layout.fillWidth: true
             }
@@ -237,14 +264,14 @@ Panel {
               text: String(modelData.count)
               color: root.accent
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
             }
             Text {
               textFormat: Text.PlainText
               text: root.fmtAge(modelData.last)
               color: root.dim
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 2
+              font.pixelSize: Style.font.caption
               Layout.preferredWidth: 52
               horizontalAlignment: Text.AlignRight
             }
@@ -259,7 +286,7 @@ Panel {
                           : "no bindings are wrapped yet — see the README"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.fontSize - 1
+          font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
         }
 
@@ -270,7 +297,7 @@ Panel {
           text: root.lastError
           color: Commons.Color.urgent
           font.family: root.fontFamily
-          font.pixelSize: Style.fontSize - 1
+          font.pixelSize: Style.font.bodySmall
         }
       }
     }
