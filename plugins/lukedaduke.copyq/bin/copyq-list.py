@@ -16,12 +16,15 @@ from pathlib import Path
 _BIN = Path(__file__).resolve().parent
 if str(_BIN) not in sys.path:
     sys.path.insert(0, str(_BIN))
-from copyq_hotkeys import harvest_texts, list_overlay_entries
+from copyq_hotkeys import classify_secret, harvest_texts, list_overlay_entries
 
 COPYQ = os.environ.get("COPYQ_BIN", "/usr/bin/copyq")
 DEFAULT_LIMIT = 80
 MAX_LIMIT = 200
 MAX_READ = 8_192
+# Caps a runaway eval dump. Real rows are truncated in the script (160, or
+# 512 for a key candidate), so a healthy payload stays well under this.
+DUMP_MAX_BYTES = 512_000
 MAX_IMAGE_PREVIEW = 2_000_000
 CLIPBOARD_TAB = "&clipboard"
 PINS_TAB = "Pins"
@@ -68,6 +71,7 @@ function dump(tabName, limit, pinned) {
     var one = t.replace(/\r/g, "").replace(/\n/g, " ");
     var trimmed = one.replace(/^\s+|\s+$/g, "");
     var keyish = /^(sk-|sk-or-v1-|sk-ant-|gh[pousr]_|github_pat_|xox[baprs]-|AIza|AKIA|Bearer\s)/i.test(trimmed);
+    if (keyish && trimmed.length > 512) keyish = false;
     var prev = one;
     if (!keyish && prev.length > 160) prev = prev.substring(0, 160) + "…";
     rows.push({
@@ -236,7 +240,7 @@ def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
 def _dump_eval(limit: int) -> dict[str, object]:
     script = _DUMP_SCRIPT.replace("LIMIT", str(limit))
     try:
-        proc = _run([COPYQ, "eval", "--", script], timeout=5.0)
+        proc = _run([COPYQ, "eval", "--", script], timeout=5.0, max_bytes=DUMP_MAX_BYTES)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"copyq_eval:{exc}") from exc
     raw = (proc.stdout or "").strip()
@@ -304,13 +308,16 @@ def main() -> int:
             if not isinstance(entry, dict):
                 continue
             text = str(entry.get("text") or entry.get("preview") or "")
-            if entry.get("keyish") is True or text.strip().startswith(
-                ("sk-", "sk-or-v1-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "xox", "AIza", "AKIA", "Bearer ")
-            ):
+            entry.pop("keyish", None)
+            # Prefix alone is not enough: `sk-example` matches the eval hint
+            # and fails classify_secret, so it must stay a normal row.
+            if classify_secret(text):
                 candidates.append(text)
                 continue
-            # Never ship full secrets in the list JSON.
-            entry.pop("keyish", None)
+            if len(text) > 160:
+                short = text[:160] + "…"
+                entry["preview"] = short
+                entry["text"] = short
             kept.append(entry)
 
         if candidates:

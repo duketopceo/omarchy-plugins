@@ -61,7 +61,7 @@ This repo may be indexed by `codebase-memory-mcp` (CBM) on an agent's local mach
 - This worktree (`~/.local/share/worktrees/omarchy-copyq-plugin`) authors `plugins/lukedaduke.copyq`; live dev uses `scripts/install.sh --link`.
 - Stock CopyQ owns capture, tabs (`&clipboard`, `Pins`), and storage; the plugin is overlay plus helpers only.
 - `copyq-mcp` is the supported AI clipboard surface (paired with CopyQ in Cursor MCP config).
-- Hypr history chords: SUPER+CTRL+V (center), SUPER+SHIFT+V (cursor), SUPER+ALT+V silent `copyq next`; stash-canonical binds in `~/.local/share/machine/lukekimball/bindings.lua`.
+- Hypr history chords: SUPER+SHIFT+V opens the cursor overlay and SUPER+ALT+V runs silent `copyq next`. SUPER+CTRL+V is planned to summon the center overlay (`omarchy-shell shell summon lukedaduke.copyq`) but the stash-canonical bind in `~/.local/share/machine/lukekimball/bindings.lua` still runs `copyq toggle`; that file is outside this repo.
 - Ship path: merge on `duketopceo/omarchy-plugins`, then `scripts/publish.sh lukedaduke.copyq` for `omarchy plugin add`.
 - Overlay summon: `omarchy-shell shell summon|hide lukedaduke.copyq`; cursor mode via `{"mode":"cursor"}`.
 - CopyQ-specific agent contract: `plugins/lukedaduke.copyq/AGENTS.md` (edits belong in the umbrella; subtree publish overwrites the public repo).

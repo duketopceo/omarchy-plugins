@@ -890,8 +890,9 @@ Panel {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
                 font.bold: true
-                elide: Text.ElideNone
+                elide: Text.ElideRight
                 wrapMode: Text.NoWrap
+                clip: true
               }
 
               // Watts magnitude over the same window (hidden when flat/idle).
@@ -899,8 +900,10 @@ Panel {
                 width: parent.width
                 visible: !!root.powerData.watts_graph
                 spacing: Style.space(8)
+                clip: true
 
                 Text {
+                  width: Math.max(0, parent.width - wattsLabel.implicitWidth - parent.spacing)
                   textFormat: Text.PlainText
                   text: root.powerData.watts_graph || ""
                   color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
@@ -908,9 +911,12 @@ Panel {
                   font.family: root.bar.fontFamily
                   font.pixelSize: Style.font.bodySmall
                   font.bold: true
+                  elide: Text.ElideRight
+                  wrapMode: Text.NoWrap
                 }
 
                 Text {
+                  id: wattsLabel
                   anchors.verticalCenter: parent.verticalCenter
                   textFormat: Text.PlainText
                   text: "W"

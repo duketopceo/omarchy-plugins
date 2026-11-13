@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -38,16 +39,33 @@ KEY_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
 ]
 
 
+def _require_private_dir(path: Path) -> None:
+    """Refuse a directory another user could have planted or can write."""
+    if path.is_symlink():
+        raise OSError(f"{path} is a symlink")
+    st = path.stat()
+    if not stat.S_ISDIR(st.st_mode):
+        raise OSError(f"{path} is not a directory")
+    if st.st_uid != os.getuid():
+        raise OSError(f"{path} is not owned by the current user")
+    if st.st_mode & 0o022:
+        raise OSError(f"{path} is writable by group or others")
+
+
 def _runtime_dir() -> Path:
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if not runtime:
-        runtime = os.path.join("/tmp", f"lukedaduke.copyq-{os.getuid()}")
-    path = Path(runtime) / "lukedaduke.copyq"
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    try:
-        os.chmod(path, 0o700)
-    except OSError:
-        pass
+        raise OSError("XDG_RUNTIME_DIR is unset")
+    base = Path(runtime)
+    _require_private_dir(base)
+    path = base / "lukedaduke.copyq"
+    path.mkdir(mode=0o700, exist_ok=True)
+    if path.is_symlink():
+        raise OSError("vault directory is a symlink")
+    os.chmod(path, 0o700)
+    st = path.stat()
+    if st.st_uid != os.getuid() or not stat.S_ISDIR(st.st_mode) or st.st_mode & 0o077:
+        raise OSError("vault directory is not private")
     return path
 
 
@@ -59,14 +77,51 @@ def _store_path() -> Path:
     return _runtime_dir() / "hotkeys.fernet"
 
 
+def _suppressed_path() -> Path:
+    return _runtime_dir() / "hotkeys.suppressed"
+
+
+def _read_private_bytes(path: Path) -> bytes:
+    if path.is_symlink():
+        raise OSError(f"{path} is a symlink")
+    st = path.stat()
+    if st.st_uid != os.getuid():
+        raise OSError(f"{path} is not owned by the current user")
+    if st.st_mode & 0o077:
+        os.chmod(path, 0o600)
+        st = path.stat()
+        if st.st_mode & 0o077:
+            raise OSError(f"{path} is not private")
+    return path.read_bytes()
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    if path.is_symlink():
+        raise OSError(f"{path} is a symlink")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
+    os.chmod(path, 0o600)
+
+
 def _fernet() -> Fernet:
     path = _key_path()
-    if path.is_file():
-        raw = path.read_bytes().strip()
+    if path.exists():
+        raw = _read_private_bytes(path).strip()
     else:
         raw = Fernet.generate_key()
-        path.write_bytes(raw + b"\n")
-        os.chmod(path, 0o600)
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            raw = _read_private_bytes(path).strip()
+        else:
+            try:
+                os.write(fd, raw + b"\n")
+            finally:
+                os.close(fd)
+            os.chmod(path, 0o600)
     return Fernet(raw)
 
 
@@ -101,7 +156,7 @@ def _load_items() -> list[dict]:
     if not path.is_file():
         return []
     try:
-        token = path.read_bytes()
+        token = _read_private_bytes(path)
         raw = _fernet().decrypt(token)
         data = json.loads(raw.decode("utf-8"))
     except (OSError, InvalidToken, json.JSONDecodeError, ValueError):
@@ -113,17 +168,45 @@ def _load_items() -> list[dict]:
 def _save_items(items: list[dict]) -> None:
     payload = json.dumps({"items": items}, ensure_ascii=False).encode("utf-8")
     token = _fernet().encrypt(payload)
-    path = _store_path()
-    path.write_bytes(token)
-    os.chmod(path, 0o600)
+    _write_private(_store_path(), token)
+
+
+def _load_suppressed() -> set[str]:
+    path = _suppressed_path()
+    if not path.is_file() or path.is_symlink():
+        return set()
+    try:
+        data = json.loads(_read_private_bytes(path).decode("utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError, ValueError):
+        return set()
+    if not isinstance(data, list):
+        return set()
+    return {item for item in data if isinstance(item, str) and item}
+
+
+def _remember_suppressed(fingerprints: list[str]) -> None:
+    fresh = [fp for fp in fingerprints if fp]
+    if not fresh:
+        return
+    current = _load_suppressed()
+    current.update(fresh)
+    _write_private(_suppressed_path(), json.dumps(sorted(current)).encode("utf-8"))
 
 
 def purge_expired(now: float | None = None, ttl_secs: int = DEFAULT_TTL_SECS) -> list[dict]:
     del ttl_secs  # expires_at already absolute
     now = time.time() if now is None else now
-    items = [i for i in _load_items() if float(i.get("expires_at", 0)) > now]
-    _save_items(items)
-    return items
+    kept: list[dict] = []
+    expired: list[str] = []
+    for item in _load_items():
+        if float(item.get("expires_at", 0)) > now:
+            kept.append(item)
+        elif item.get("fp"):
+            expired.append(str(item["fp"]))
+    if expired:
+        _remember_suppressed(expired)
+    _save_items(kept)
+    return kept
 
 
 def upsert_secret(
@@ -140,6 +223,10 @@ def upsert_secret(
     secret = secret.strip()
     fp = _fingerprint(secret)
     items = purge_expired(now=now)
+    # Drop and expiry tombstone the fingerprint so a later harvest of the
+    # same CopyQ history row cannot refresh the TTL or recreate the entry.
+    if fp in _load_suppressed():
+        return None
     for item in items:
         if item.get("fp") == fp:
             item["expires_at"] = now + ttl_secs
@@ -207,11 +294,24 @@ def get_secret(hot_id: str) -> str | None:
 
 def drop_secret(hot_id: str) -> bool:
     items = _load_items()
-    keep = [i for i in items if i.get("id") != hot_id]
-    if len(keep) == len(items):
+    removed = [i for i in items if i.get("id") == hot_id]
+    if not removed:
         return False
-    _save_items(keep)
+    _remember_suppressed([str(i["fp"]) for i in removed if i.get("fp")])
+    _save_items([i for i in items if i.get("id") != hot_id])
     return True
+
+
+def _copyq_stdin(args: list[str], secret: str) -> subprocess.CompletedProcess[bytes]:
+    """Hand plaintext to CopyQ on stdin. `copy -` / `add -` read it; argv stays empty of the secret."""
+    return subprocess.run(
+        args,
+        input=secret.encode("utf-8"),
+        check=False,
+        capture_output=True,
+        timeout=3,
+        env=ENV,
+    )
 
 
 def activate(hot_id: str, *, paste: bool) -> int:
@@ -220,25 +320,9 @@ def activate(hot_id: str, *, paste: bool) -> int:
         return 1
     if not os.path.isfile(COPYQ) or not os.access(COPYQ, os.X_OK):
         return 1
-    # Put secret on clipboard via CopyQ, then optional paste.
-    proc = subprocess.run(
-        [COPYQ, "copy", secret],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=3,
-        env=ENV,
-    )
+    proc = _copyq_stdin([COPYQ, "copy", "-"], secret)
     if proc.returncode != 0:
-        # Fallback write+select
-        proc = subprocess.run(
-            [COPYQ, "add", secret],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=3,
-            env=ENV,
-        )
+        proc = _copyq_stdin([COPYQ, "add", "-"], secret)
         if proc.returncode != 0:
             return 1
         subprocess.run(

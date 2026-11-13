@@ -457,7 +457,17 @@ def test_activate_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     item = module.upsert_secret(secret)
     assert item is not None
     log = tmp_path / "log.txt"
-    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
+    fake = _write_fake_copyq(
+        tmp_path,
+        f'''
+printf "argv:%s\\n" "$*" >> "{log}"
+if [[ "$1" == "copy" || "$1" == "add" ]]; then
+  printf "stdin:" >> "{log}"
+  cat >> "{log}"
+  printf "\\n" >> "{log}"
+fi
+''',
+    )
     env = {
         **os.environ,
         "COPYQ_BIN": str(fake),
@@ -471,7 +481,11 @@ def test_activate_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         text=True,
     )
     assert proc.returncode == 0
-    assert log.read_text().splitlines() == [f"copy {secret}"]
+    assert log.read_text().splitlines() == [
+        "argv:copy -",
+        f"stdin:{secret}",
+    ]
+    assert secret not in log.read_text().splitlines()[0]
 
 
 def test_remove_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -492,3 +506,58 @@ def test_remove_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert proc.returncode == 0
     assert module.list_overlay_entries() == []
+    assert module.upsert_secret("sk-" + ("g" * 40)) is None
+
+
+def test_expired_secret_is_not_reharvested(hot_mod) -> None:
+    secret = "sk-" + ("h" * 40)
+    now = 1_700_000_000.0
+    assert hot_mod.upsert_secret(secret, ttl_secs=60, now=now) is not None
+    assert hot_mod.list_overlay_entries(now=now + 120) == []
+    assert hot_mod.upsert_secret(secret, ttl_secs=60, now=now + 120) is None
+
+
+def test_runtime_dir_rejects_missing_and_shared(hot_mod, monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    with pytest.raises(OSError, match="XDG_RUNTIME_DIR"):
+        hot_mod._runtime_dir()
+    shared = tmp_path / "shared"
+    shared.mkdir(mode=0o777)
+    shared.chmod(0o777)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(shared))
+    with pytest.raises(OSError, match="writable"):
+        hot_mod._runtime_dir()
+
+
+def test_list_keeps_prefix_that_is_not_a_secret(list_mod, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+
+    def fake_run(args, **_kwargs):
+        return _ok(
+            _eval_payload(
+                [
+                    {
+                        "index": 0,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "sk-example",
+                        "text": "sk-example",
+                        "keyish": True,
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    }
+                ],
+                clip_count=1,
+            )
+        )
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hotCount"] == 0
+    assert payload["entries"][0]["preview"] == "sk-example"
+    assert "512" in list_mod._DUMP_SCRIPT
+    assert list_mod.DUMP_MAX_BYTES == 512_000

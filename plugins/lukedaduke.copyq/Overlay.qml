@@ -247,11 +247,9 @@ Item {
   function togglePinSelected() {
     var row = root.currentRow()
     if (!row) return
-    // Hot vault keys are not pin-able — Delete drops them instead.
-    if (row.hotId && String(row.hotId).length > 0) {
-      root.removeSelected()
+    // Hot vault keys are not pin-able. Pin must not delete them; Delete does.
+    if (row.hotId && String(row.hotId).length > 0)
       return
-    }
     // Pins tab → remove (unpin). Clipboard tab → copy into Pins.
     Quickshell.execDetached([
       root.pinHelper,
@@ -313,10 +311,10 @@ Item {
     } else if (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) {
       root.select(-1); event.accepted = true
     } else if (event.key === Qt.Key_R) {
-      // Bare R reloads when search is empty (or focus is not in the filter).
-      // Ctrl+R always reloads, even mid-load / while typing.
+      // While the search field is focused, R (and Shift+R) is a letter.
+      // Reload is Ctrl+R there, and bare R only when focus is on the list.
       var ctrl = !!(event.modifiers & Qt.ControlModifier)
-      if (ctrl || !fromFilter || root.filterText.length === 0) {
+      if (ctrl || !fromFilter) {
         root.reloadList(true)
         event.accepted = true
       }
