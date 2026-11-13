@@ -1,0 +1,6 @@
+[Unit]
+Description=netline retention prune (7 days)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/netline/netline.py prune 7

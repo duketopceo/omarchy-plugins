@@ -120,6 +120,15 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-wordink"
+    },
+    {
+      "id": "lukedaduke.netline",
+      "path": "plugins/lukedaduke.netline",
+      "version": "1.0.0",
+      "kinds": [
+        "bar-widget"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-netline"
     }
   ]
 }

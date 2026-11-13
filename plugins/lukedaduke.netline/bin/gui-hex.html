@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netline — hex map</title>
+<style>
+  /* Hex map: one cell per destination, area scaled by bytes. Pure CSS
+     clip-path, no canvas and no libraries, so the whole page stays a single
+     file that a browser parses faster than the daemon can serve it. */
+  :root{
+    --bg:#0a0c0f; --panel:#11151a; --line:#1d242c;
+    --txt:#dfe6ee; --muted:#7a8697; --dim:#4a5461;
+    --in:#3ddc84; --out:#f0a92b; --flag:#ef4444; --accent:#5b9cf8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font:13px/1.45 ui-sans-serif,system-ui,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    display:flex; align-items:center; gap:20px; padding:11px 16px;
+    border-bottom:1px solid var(--line); background:var(--panel); flex:none;
+  }
+  .mark{font:600 12px/1 ui-monospace,monospace; letter-spacing:.16em}
+  .mark span{color:var(--dim)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--in);
+       box-shadow:0 0 8px var(--in);animation:pulse 2.4s ease-in-out infinite;flex:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}}
+  .stats{display:flex;gap:22px;margin-left:auto}
+  .stat b{display:block;font:600 14px/1.1 ui-monospace,monospace;
+          font-variant-numeric:tabular-nums}
+  .stat i{font-style:normal;font-size:9px;letter-spacing:.1em;
+          text-transform:uppercase;color:var(--muted)}
+  .stat.bad b{color:var(--flag)}
+
+  main{flex:1;overflow:auto;padding:18px 16px 24px}
+  /* Offset every other row so cells interlock. Negative margin on the row
+     closes the vertical gap a hexagon's pointy top would otherwise leave. */
+  .hexrow{display:flex;gap:3px;margin-bottom:-13px;padding-left:0}
+  .hexrow:nth-child(even){padding-left:31px}
+  .hex{
+    --c:var(--accent);
+    position:relative;flex:none;width:60px;height:66px;
+    clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+    background:color-mix(in srgb,var(--c) 13%,var(--panel));
+    border:0;padding:0;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font:11px/1.1 ui-monospace,monospace;color:var(--txt);
+    transition:background .12s,transform .12s;
+  }
+  .hex:hover,.hex:focus-visible{background:color-mix(in srgb,var(--c) 26%,var(--panel));
+    outline:none;transform:scale(1.06);z-index:2}
+  .hex.flag{background:color-mix(in srgb,var(--flag) 30%,var(--panel))}
+  .hex.empty{background:var(--panel);cursor:default}
+  .hex .n{max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hex .v{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .hex.flag .v{color:var(--flag)}
+
+  aside{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+  aside h2{font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+           color:var(--muted);font-weight:600;margin-bottom:9px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+  .legend b{color:var(--txt);font-weight:600}
+  .key{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:9px;height:9px;border-radius:2px;display:inline-block}
+  .none{color:var(--dim);font-style:italic;font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="dot"></div>
+  <div class="mark">NETLINE <span>/ hex</span></div>
+  <div class="stats">
+    <div class="stat"><b id="s-in">—</b><i>in</i></div>
+    <div class="stat"><b id="s-out">—</b><i>out</i></div>
+    <div class="stat"><b id="s-dst">—</b><i>hosts</i></div>
+    <div class="stat bad"><b id="s-flag">—</b><i>flagged</i></div>
+  </div>
+</header>
+
+<main>
+  <div id="map"></div>
+  <aside>
+    <h2>legend · last 15 min</h2>
+    <div class="legend">
+      <span class="key"><i class="sw" style="background:var(--accent)"></i>destination</span>
+      <span class="key"><i class="sw" style="background:var(--flag)"></i>flagged</span>
+      <span>cell tint = share of traffic · <b id="scale">—</b> peak</span>
+    </div>
+  </aside>
+</main>
+
+<script>
+const PAL = ["#5b9cf8","#3ddc84","#c084fc","#22d3ee","#f0a92b","#f472b6",
+             "#a3e635","#fb923c","#2dd4bf","#e879f9","#94a3b8","#f87171"];
+const PER_ROW = 16;
+
+function human(n){
+  n = n || 0;
+  const u = ["B","K","M","G","T"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1){ n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(n < 10 ? 1 : 0)) + u[i];
+}
+
+function cell(d, scale, i){
+  const b = document.createElement("button");
+  b.className = "hex" + (d.flag ? " flag" : "");
+  // Tint by share of the busiest destination, floored so small cells stay
+  // legible rather than fading to background.
+  const share = scale > 0 ? d.bytes / scale : 0;
+  const c = d.flag ? "var(--flag)" : PAL[i % PAL.length];
+  b.style.setProperty("--c", c);
+  b.style.background = `color-mix(in srgb, ${c} ${Math.round(13 + share * 45)}%, var(--panel))`;
+  b.title = `${d.name}${d.ip ? " (" + d.ip + ")" : ""}\n${human(d.bytes)} · ${d.flows} flows`;
+  b.innerHTML = `<span class="n"></span><span class="v"></span>`;
+  b.querySelector(".n").textContent = d.name;
+  b.querySelector(".v").textContent = human(d.bytes);
+  return b;
+}
+
+function render(data){
+  const map = document.getElementById("map");
+  map.replaceChildren();
+  const dests = (data && data.dests) || [];
+  if (!dests.length){
+    map.innerHTML = '<p class="none">no traffic in the last 15 minutes</p>';
+    return;
+  }
+  const scale = dests[0].bytes || 1;
+  for (let i = 0; i < dests.length; i += PER_ROW){
+    const row = document.createElement("div");
+    row.className = "hexrow";
+    dests.slice(i, i + PER_ROW).forEach((d, j) => row.append(cell(d, scale, i + j)));
+    map.append(row);
+  }
+}
+
+function stats(d){
+  const t = (d && d.stats) || {};
+  document.getElementById("s-in").textContent = human(t.in);
+  document.getElementById("s-out").textContent = human(t.out);
+  document.getElementById("s-dst").textContent = (d && d.dests ? d.dests.length : 0);
+  const flags = (d && d.dests ? d.dests.filter(x => x.flag).length : 0);
+  document.getElementById("s-flag").textContent = flags;
+  document.getElementById("scale").textContent = human(
+    d && d.dests && d.dests[0] ? d.dests[0].bytes : 0);
+  document.getElementById("dot").style.background =
+    flags ? "var(--flag)" : "var(--in)";
+}
+
+let timer = null;
+async function tick(){
+  try {
+    const r = await fetch("/api/data", { cache: "no-store" });
+    const d = await r.json();
+    render(d); stats(d);
+  } catch (e) {
+    document.getElementById("dot").style.background = "var(--dim)";
+  }
+  timer = setTimeout(tick, 5000);
+}
+
+tick();
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden){ clearTimeout(timer); timer = null; }
+  else if (!timer) tick();
+});
+</script>
+</body>
+</html>

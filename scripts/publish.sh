@@ -22,6 +22,7 @@ declare -A REPO=(
   [lukedaduke.nexus]="git@github.com:duketopceo/omarchy-nexus.git"
   [lukedaduke.connections]="git@github.com:duketopceo/omarchy-connections.git"
   [lukedaduke.power]="git@github.com:duketopceo/omarchy-power.git"
+  [lukedaduke.netline]="git@github.com:duketopceo/omarchy-netline.git"
   [io.github.duketopceo.bumblebee]="git@github.com:duketopceo/omarchy-bumblebee.git"
   [io.github.duketopceo.numbat]="git@github.com:duketopceo/omarchy-numbat.git"
   [io.github.duketopceo.pplx]="git@github.com:duketopceo/omarchy-pplx.git"

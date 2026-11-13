@@ -1,0 +1,12 @@
+[Unit]
+Description=netline GUI (live traffic arc map)
+After=netline.service
+Wants=netline.service
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/share/netline/netline-gui.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
