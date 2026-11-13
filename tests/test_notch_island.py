@@ -170,12 +170,41 @@ def test_the_root_exposes_the_shell_summon_entry_point():
     assert re.search(r"^  function close\(\)", text, re.M)
 
 
+
+
+def test_no_object_declares_the_same_signal_handler_twice():
+    # QML fails the whole component to load with "Property value set multiple
+    # times" when one object carries the same handler twice. That blanked the
+    # island entirely while every other static check still passed. Scope each
+    # object body by its opening line's indentation so two different FileViews
+    # handling the same signal are not mistaken for a duplicate.
+    lines = source().splitlines()
+    seen = {}          # (indent, handler) -> count of open blocks at that level
+    stack = []         # (indent, {handler: count})
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("//"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        m = re.match(r"(on[A-Z][A-Za-z]+Changed):", stripped)
+        if m and stack:
+            frame = stack[-1][1]
+            frame[m.group(1)] = frame.get(m.group(1), 0) + 1
+            assert frame[m.group(1)] == 1, (
+                f"{m.group(1)} declared twice on the same object (line: {stripped[:40]})")
+        if stripped.endswith("{"):
+            stack.append((indent, {}))
+
+
 def test_a_rank_change_fills_an_empty_selection():
     # Opening while idle left selectedId empty forever, so the expanded view
-    # said "Nothing active" while an activity was live. The handler must take
-    # the top activity when nothing is held, not only drop a stale one.
+    # said "Nothing active" while an activity was live.
     text = source()
-    handler = text[text.index("onRankedChanged:"):]
-    handler = handler[:handler.index("\n      }")]
-    assert "Island.selected(ranked, selectedId) === null) selectedId = \"\"" in handler
-    assert "selectedId === \"\" && expanded && ranked.length" in handler
+    assert "function adopt()" in text
+    adopt = text[text.index("function adopt()"):]
+    adopt = adopt[:adopt.index("\n      }")]
+    assert 'selectedId === "" && ranked.length' in adopt
+    # adopted on open, not only on a rank change
+    assert "adopt()" in text[text.index("function pinOpen()"):text.index("function closeIsland()")]

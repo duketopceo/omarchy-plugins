@@ -326,22 +326,30 @@ Item {
         var r = Expand.step(xstate, e, root.settings.hoverDelay)
         xstate = r.state
         if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
-        if (xstate === "open" && selectedId === "" && ranked.length) selectedId = ranked[0].id
+        if (xstate === "open") adopt()
       }
       // Click: pin open and hold a selection, so leaving does not collapse it.
       function pinOpen() {
         pinned = true
-        if (selectedId === "" && ranked.length) selectedId = ranked[0].id
+        adopt()
         xtimer.stop()
         xstate = "open"
+      }
+      // Take the top activity when nothing is held. Called on open and on every
+      // rank change, because `ranked` is usually already populated when the
+      // window is built, so no change signal fires on the first open.
+      function adopt() {
+        if (selectedId === "" && ranked.length) selectedId = ranked[0].id
+        root.setTracking(modelData.name, selectedId === "media")
       }
       function closeIsland() {
         pinned = false
         xtimer.stop()
         xstate = "collapsed"
+        root.setTracking(modelData.name, false)
       }
       function openIsland(id) {
-        selectedId = id
+        if (id) selectedId = id
         pinOpen()
       }
 
@@ -359,7 +367,9 @@ Item {
         // clearing left the expanded view saying "Nothing active" after it was
         // opened while idle and an activity then started.
         if (selectedId !== "" && Island.selected(ranked, selectedId) === null) selectedId = ""
-        if (selectedId === "" && expanded && ranked.length) selectedId = ranked[0].id
+        // `adopt()` is called from the open paths instead of here: reading
+        // `expanded` in this handler closes a loop with xevent, which writes
+        // xstate. A rank change only ever drops a dead selection.
       }
 
       Connections {
@@ -377,8 +387,9 @@ Item {
       // MediaActivity owns the position tick; the expanded media view asks for
       // it. Recorded per screen, because the flag is a singleton and the last
       // writer would otherwise stop the tick another screen still needs.
-      onExpandedChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
-      onSelectedIdChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
+      // The position tick is requested imperatively from openIsland/closeIsland
+      // rather than bound: a binding here reads `expanded`, and writing the
+      // collector from it closed a loop through `ranked`.
 
       // A click anywhere outside the island clears the grab, which collapses
       // it. This is the outside-click-to-close path, not just Escape.
