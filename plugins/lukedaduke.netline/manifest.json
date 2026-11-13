@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "lukedaduke.netline",
+  "name": "Netline",
+  "version": "1.0.0",
+  "author": "lukedaduke",
+  "license": "MIT",
+  "description": "Network lineage on the bar — which process pulled what from where, with outliers flagged and a live arc map one click away",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Netline",
+    "description": "Live traffic map and anomaly flags for every process on this machine",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
