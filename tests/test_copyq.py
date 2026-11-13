@@ -561,3 +561,53 @@ def test_list_keeps_prefix_that_is_not_a_secret(list_mod, monkeypatch, capsys) -
     assert payload["entries"][0]["preview"] == "sk-example"
     assert "512" in list_mod._DUMP_SCRIPT
     assert list_mod.DUMP_MAX_BYTES == 512_000
+
+
+def test_list_reports_vault_unavailable_without_plaintext(list_mod, monkeypatch, capsys) -> None:
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+    secret = "sk-" + ("k" * 40)
+
+    def fake_run(args, **_kwargs):
+        return _ok(
+            _eval_payload(
+                [
+                    {
+                        "index": 0,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": secret,
+                        "text": secret,
+                        "keyish": True,
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                    {
+                        "index": 1,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "hello",
+                        "text": "hello",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                ],
+                clip_count=2,
+            )
+        )
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["hotError"] == "hot_vault_unavailable"
+    assert payload["hotCount"] == 0
+    rendered = json.dumps(payload)
+    assert secret not in rendered
+    assert payload["entries"][0]["preview"] == "Key hidden — vault unavailable"
+    assert payload["entries"][0]["text"] == ""
+    assert payload["entries"][1]["preview"] == "hello"

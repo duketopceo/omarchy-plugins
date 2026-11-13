@@ -320,20 +320,42 @@ def main() -> int:
                 entry["text"] = short
             kept.append(entry)
 
-        if candidates:
-            try:
+        vault_error: str | None = None
+        try:
+            if candidates:
                 harvest_texts(candidates)
-            except OSError:
-                pass
+        except OSError:
+            vault_error = "hot_vault_unavailable"
 
+        hot_rows: list[dict] = []
         try:
             hot_rows = list_overlay_entries()
         except OSError:
-            hot_rows = []
+            vault_error = "hot_vault_unavailable"
+
+        if vault_error and candidates and not hot_rows:
+            # Keep the secret out of the payload, but do not pretend the clip vanished.
+            for _text in candidates:
+                kept.insert(
+                    0,
+                    {
+                        "index": -1,
+                        "tab": "hot",
+                        "pinned": False,
+                        "hot": False,
+                        "type": "text",
+                        "preview": "Key hidden — vault unavailable",
+                        "text": "",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                )
 
         merged = hot_rows + kept
         payload["entries"] = merged
         payload["hotCount"] = len(hot_rows)
+        if vault_error:
+            payload["hotError"] = vault_error
         payload["count"] = (
             int(payload.get("pinCount") or 0)
             + int(payload.get("clipCount") or 0)
