@@ -75,13 +75,17 @@ def test_externally_sourced_text_is_plain():
 
 
 def test_keyboard_dismissal_and_focus_are_wired():
-    # R5: Escape dismisses; focus is only granted once open, so hover never
-    # steals the keyboard.
+    # R5: Escape dismisses; focus is only granted once open, so hovering to
+    # expand never steals the keyboard.
     text = source()
     assert re.search(r'sequence:\s*"Escape"', text)
     assert re.search(r"keyboardFocus:\s*win\.expanded\s*\?\s*WlrKeyboardFocus\.OnDemand"
                      r"\s*:\s*WlrKeyboardFocus\.None", text)
-    assert "HoverHandler" not in text, "a hover handler would take focus"
+    # Hover expands the island (owner-directed), so a HoverHandler is expected;
+    # what must not happen is the hover path granting keyboard focus.
+    assert "HoverHandler" in text
+    focus_line = re.search(r"keyboardFocus:.*", text).group(0)
+    assert "hover" not in focus_line.lower()
 
 
 def test_reduced_motion_snaps_the_shape():
@@ -131,11 +135,31 @@ def test_the_island_reuses_the_existing_collectors():
 
 
 def test_the_island_instantiates_no_removed_tab_content():
-    # R3: no network, power, system, stocks, weather, or plugins surface.
+    # R3: no network, power, system, stocks, or plugin-management *tabs*.
+    # The ambient idle cycle (weather, watchlist) is deliberately kept: it is
+    # what the compact notch showed, and it is not a tab.
     text = source()
     for banned in ("NetworkTab", "PowerTab", "SystemTab", "StocksTab",
-                   "PluginsTab", "WatchlistSlide", "PixelWeather"):
+                   "PluginsTab", "NetworkState"):
         assert banned not in text, banned
+
+
+def test_the_ambient_idle_cycle_is_present():
+    # The owner asked for weather and the watchlist back beside the clock;
+    # without them the compact island looks empty when nothing is happening.
+    text = source()
+    assert "WatchlistSlide" in text
+    assert "root.weather" in text and "root.quotes" in text
+    assert "Model.idleSlot" in text
+
+
+def test_compact_ears_use_the_real_ear_math():
+    # A hardcoded ear box gave 46 px on this panel, narrower than the time
+    # string, so the compact island rendered as an empty pill.
+    text = source()
+    assert "Model.earWidthFor(" in text
+    assert "Model.earWidthFit(" in text
+    assert "Model.maxEarWidth(" in text
 
 
 def test_the_root_exposes_the_shell_summon_entry_point():

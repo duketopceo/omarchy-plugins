@@ -4,7 +4,9 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.Commons as Commons
+import "Expand.js" as Expand
 import "Model.js" as Model
+import "Watchlist.js" as Watchlist
 import "Settings.js" as Settings
 import "Activity.js" as Activity
 import "Media.js" as Media
@@ -81,6 +83,55 @@ Item {
     onLoadFailed: root.deviceCompatible = ""
   }
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
+
+  // Live bar geometry, so the ears can grow into the room beside them
+  // (Model.maxEarWidth). Same source and cadence as Notch.qml.
+  property var barWidgets: []
+  property string barSig: ""
+  function refreshBar() {
+    var list = []
+    try { list = shell && shell.bar && typeof shell.bar.debugBarGeometry === "function" ? shell.bar.debugBarGeometry() : [] } catch (e) { list = [] }
+    if (!Array.isArray(list)) list = []
+    var sig = JSON.stringify(list.map(function (w) { return [w.section, w.x, w.width, w.visible] }))
+    if (sig === barSig) return
+    barSig = sig
+    barWidgets = list
+  }
+  Timer { interval: 2000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refreshBar() }
+
+  // The ambient idle cycle: weather and the stock watchlist, read from the
+  // same cache `bin/notch-data` fills. This is the content the old compact
+  // notch showed beside the clock, and its absence is what made the island
+  // look empty when nothing was happening.
+  property var weather: null
+  property var quotes: []
+  readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
+  FileView {
+    id: cacheFile
+    path: Quickshell.env("HOME") + "/.cache/omarchy/notch.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      root.weather = Model.parseWeather(text())
+      root.quotes = Watchlist.parseQuotes(text())
+    }
+    onLoadFailed: root.weather = null
+    onFileChanged: reload()
+  }
+  Process {
+    id: fetcher
+    command: [Qt.resolvedUrl("bin/notch-data").toString().replace("file://", "")].concat(Settings.dataArgs(root.settings))
+    onExited: cacheFile.reload()
+  }
+  readonly property string unitName: settings.unitName
+  onUnitNameChanged: if (!fetcher.running) fetcher.running = true
+  Timer {
+    interval: 10 * 60 * 1000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!fetcher.running) fetcher.running = true
+  }
 
   // ------------------------------------------------------------ collectors
   // The same five entries Notch.qml builds, in the same shape: each activity is
@@ -217,42 +268,89 @@ Item {
         transform: monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
       }) : 0
       readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride, cut) || Model.SIZES.cameraWidth
-      // The prototype's calibration: the internal panel is the widest camera
-      // on omarchy-max; an external panel gets a narrower virtual notch.
-      readonly property int sensorWidth: modelData.name === "eDP-1" ? Math.max(186, camW) : 95
+      // Ear widths come from the notch's own screen math (Model.earWidthFor /
+      // earWidthFit / maxEarWidth), not from constants: a hardcoded pair gave
+      // 46 px boxes on this panel, narrower than the time string, so the
+      // compact island looked empty.
+      readonly property int earBase: Model.earWidthFor(modelData.width)
+      readonly property int earMax: Model.maxEarWidth(root.barWidgets, modelData.width, camW, earBase, 12, 280)
 
       // Expanded geometry from the prototype (KTD3).
-      // The compact width leaves room for an ear either side of the camera. A
-      // second activity needs two ear widths more, so the width grows with the
-      // ranked count rather than staying at the single-activity size: at the
-      // old fixed width canSplit() was false on every screen, so the second
-      // segment could never appear (R1).
-      readonly property int earRoom: 70
-      readonly property int compactWidth: Math.min(modelData.width - 16,
-        Math.max(250, sensorWidth + 120 + (ranked.length > 1 ? 2 * earRoom : 0)))
       readonly property int compactHeight: 37
       readonly property int expandedWidth: 374
       readonly property int expandedHeight: 180
 
-      property bool expanded: false
+      // What the right ear must show: the top activity, else the idle slot.
+      readonly property string idleSlot: Model.idleSlot(root.now.getTime() / 1000,
+        (root.weather && settings.showWeather ? ["weather"] : [])
+          .concat(root.quotes.length && settings.showStocks ? ["watchlist"] : []),
+        settings.slideSeconds)
+      readonly property var segments: ranked.slice(0, 2)
+      readonly property real sideNeed: {
+        if (segments.length > 0) return mSide + 8
+        if (idleSlot === "weather") return mWeather + 8
+        if (idleSlot === "watchlist") return mDate + 96
+        return mDate
+      }
+      readonly property int earTarget: Model.earWidthFit(sideNeed, earBase, earMax)
+      readonly property int compactWidth: Math.min(modelData.width - 16, camW + 2 * earTarget)
+
+      // Measures the ear text so the island grows to fit it, as Notch.qml does.
+      // TextMetrics measures its own `text` (advanceWidth), so each shape the
+      // ear can take gets an instance.
+      readonly property int mClock: clockMetrics.advanceWidth
+      readonly property int mDate: dateMetrics.advanceWidth
+      readonly property int mWeather: weatherMetrics.advanceWidth
+      readonly property int mSide: sideMetrics.advanceWidth
+      TextMetrics { id: clockMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: root.timeText }
+      TextMetrics { id: dateMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: root.dateText }
+      TextMetrics { id: weatherMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: root.dateText + "  \u00b7 " + root.weatherText }
+      TextMetrics { id: sideMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: win.segments.length > 1 ? win.segments[0].text + "  \u00b7  " + win.segments[1].text : (win.segments.length ? win.segments[0].text : "") }
+
+      // Hover expands after a delay; leaving collapses; a click pins it open
+      // so it survives the pointer leaving. Escape or a click outside closes
+      // it. The timing state machine is Expand.js, the same one the old notch
+      // used, so hover/leave/arm behaviour matches what you already know.
+      property string xstate: "collapsed"
+      property bool pinned: false
+      readonly property bool expanded: Expand.isExpanded(xstate)
+      Timer {
+        id: xtimer
+        onTriggered: win.xevent("timer")
+      }
+      function xevent(e) {
+        if (pinned && e !== "timer") {
+          if (e === "enter" && xstate !== "open") xstate = "open"
+          return
+        }
+        var r = Expand.step(xstate, e, root.settings.hoverDelay)
+        xstate = r.state
+        if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
+        if (xstate === "open" && selectedId === "" && ranked.length) selectedId = ranked[0].id
+      }
+      // Click: pin open and hold a selection, so leaving does not collapse it.
+      function pinOpen() {
+        pinned = true
+        if (selectedId === "" && ranked.length) selectedId = ranked[0].id
+        xtimer.stop()
+        xstate = "open"
+      }
+      function closeIsland() {
+        pinned = false
+        xtimer.stop()
+        xstate = "collapsed"
+      }
+      function openIsland(id) {
+        selectedId = id
+        pinOpen()
+      }
+
       // The activity the expanded view is about. Held by id, never by rank, so
       // a reorder cannot move a control onto a different activity (KTD6).
       property string selectedId: ""
 
       readonly property var ranked: root.ranked
       readonly property var selected: Island.selected(ranked, selectedId)
-      readonly property var segments: {
-        if (!Island.canSplit(compactWidth, sensorWidth + 40, earRoom, earRoom)) return ranked.slice(0, 1)
-        return ranked.slice(0, 2)
-      }
-
-      function openIsland(id) {
-        selectedId = id
-        expanded = true
-      }
-      function closeIsland() {
-        expanded = false
-      }
       // When the selected activity ends, keep the window but show a neutral
       // state instead of another activity's controls (KTD6).
       onRankedChanged: {
@@ -268,7 +366,7 @@ Item {
           if (modelData.name !== root.primaryScreenName()) return
           // Re-select when the held id is gone, not only when it is empty.
           if (win.selected === null && win.ranked.length) win.selectedId = win.ranked[0].id
-          win.expanded = true
+          win.pinOpen()
         }
 
       }
@@ -279,8 +377,10 @@ Item {
       onExpandedChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
       onSelectedIdChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
 
+      // A click anywhere outside the island clears the grab, which collapses
+      // it. This is the outside-click-to-close path, not just Escape.
       HyprlandFocusGrab {
-        active: win.expanded
+        active: win.expanded && !root.dashboardOpen
         windows: [win]
         onCleared: win.closeIsland()
       }
@@ -308,6 +408,8 @@ Item {
         color: root.islandColor
         clip: true
         visible: !root.dashboardOpen
+        // Half the island either side of the camera: where the ears sit.
+        readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         Accessible.role: Accessible.Pane
         Accessible.name: win.expanded ? qsTr("Notch island, expanded") : qsTr("Notch island")
 
@@ -330,10 +432,22 @@ Item {
           visible: opacity > 0
           Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : Motion.ISLAND_FADE_MS; easing.type: Easing.OutCubic } }
 
+          // Hover expands (after the configured delay), leaving collapses;
+          // a click pins it open. Same pointer handlers the old notch used.
+          HoverHandler {
+            id: hover
+            enabled: !win.expanded
+            onHoveredChanged: {
+              if (hovered) win.xevent("enter")
+              else win.xevent("leave")
+            }
+          }
+
+          // Left ear: the clock, right-aligned against the camera.
           Text {
             anchors.verticalCenter: parent.verticalCenter
             x: 8
-            width: Math.max(0, (parent.width - win.sensorWidth) / 2 - 14)
+            width: Math.max(0, island.earLive - 14)
             horizontalAlignment: Text.AlignRight
             text: root.timeText
             textFormat: Text.PlainText
@@ -344,35 +458,51 @@ Item {
             font.weight: Font.DemiBold
           }
 
-          // Right ear: the top-ranked activity, else the date. This is the
-          // compact half of R1; the second segment lives here too when space
-          // allows (segments is capped by canSplit).
+          // Right ear: the top activity if anything is live, else the ambient
+          // idle cycle (weather, then the watchlist), else the date. The "·"
+          // separates the date from the slot, as the old notch did.
           Text {
             anchors.verticalCenter: parent.verticalCenter
-            x: (parent.width + win.sensorWidth) / 2 + 6
+            x: island.earLive + win.camW + 6
             width: Math.max(0, parent.width - x - 8)
+            // Message and screenshot text is externally sourced; PlainText
+            // keeps markup inert (KTD7).
             text: {
-              // Message and screenshot text is externally sourced; PlainText
-              // keeps markup inert (KTD7).
               if (win.segments.length > 0) {
                 var a = win.segments[0]
-                var second = win.segments.length > 1 ? "  ·  " + win.segments[1].text : ""
+                var second = win.segments.length > 1 ? "  \u00b7  " + win.segments[1].text : ""
                 return Activity.label(a) + second
               }
+              if (win.idleSlot === "weather") return root.dateText + "  \u00b7 " + root.weatherText
+              if (win.idleSlot === "watchlist") return root.dateText + "  \u00b7 " + watch.slideText
               return root.dateText
             }
             textFormat: Text.PlainText
             elide: Text.ElideRight
-            color: root.brightText
+            color: root.dimText
             font.family: root.fontFamily
-            font.pixelSize: 12
+            font.pixelSize: 13
             Accessible.role: Accessible.StaticText
             Accessible.name: win.segments.length ? win.segments[0].text : root.dateText
           }
 
+          // The watchlist slide renders quotes in colour, so it replaces the
+          // plain text while that slot is showing.
+          WatchlistSlide {
+            id: watch
+            visible: win.idleSlot === "watchlist" && win.segments.length === 0
+            anchors.verticalCenter: parent.verticalCenter
+            x: island.earLive + win.camW + 6 + mDate + 4
+            quotes: root.quotes
+            index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
+            notched: true
+            maxWidth: Math.max(0, parent.width - x - 8)
+            family: root.fontFamily
+          }
+
           TapHandler {
             enabled: !win.expanded
-            onTapped: win.openIsland(win.ranked.length ? win.ranked[0].id : "")
+            onTapped: win.pinOpen()
           }
         }
 
