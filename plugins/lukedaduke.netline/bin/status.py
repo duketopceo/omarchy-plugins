@@ -27,6 +27,15 @@ def db():
     return sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
 
 
+def clip(text: str, limit: int = 120) -> str:
+    """Bound each string field.
+
+    Hostnames and comm names come from the packet path, so a long or junk
+    value should not be able to grow the payload the bar parses. The panel is
+    the only reader and it truncates for display anyway."""
+    return str(text or "")[:limit]
+
+
 def human(n):
     n = float(n or 0)
     for u in ("B", "K", "M", "G", "T"):
@@ -60,11 +69,13 @@ def status():
         "live": (time.time() - d) < 30,
         "stale_s": int(time.time() - d),
         "flagged": [
-            {"comm": c or "?", "where": h or dst, "why": r, "bytes": b, "pretty": human(b)}
+            {"comm": clip(c or "?"), "where": clip(h or dst), "why": clip(r),
+             "bytes": b, "pretty": human(b)}
             for c, h, dst, r, b in flags
         ],
         "top": [
-            {"dest": h, "bytes": b, "pretty": human(b), "procs": (p or "").split(",")[:3]}
+            {"dest": clip(h), "bytes": b, "pretty": human(b),
+             "procs": [clip(x) for x in (p or "").split(",")[:3]]}
             for h, dst, b, p in top
         ],
         "bytes_in": human(tot[1]),

@@ -141,8 +141,21 @@ Panel {
     agentsProc.running = true
   }
 
+  // Poll only while the bar can actually show the result. VisibilityGate
+  // accounts for the session lock and output DPMS: a locked screen or a
+  // powered-down output costs no helper spawns.
+  VisibilityGate {
+    id: gate
+    shell: root.bar ? root.bar.shell : null
+    panelOpen: root.opened
+    barShown: true
+  }
   Timer { id: statusDeadline; interval: 12000; onTriggered: { statusProc.signal(9); root.lastError = "timeout" } }
-  Timer { id: statusTimer; interval: 15000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
+  Timer { id: statusTimer; interval: 15000; running: gate.visible; repeat: true; triggeredOnStart: true; onTriggered: root.refresh() }
+  Connections {
+    target: gate
+    function onRevealed() { root.refresh() }
+  }
   Timer { id: restartSettle; interval: 3000; onTriggered: root.refresh() }
 
   implicitWidth: button.implicitWidth
