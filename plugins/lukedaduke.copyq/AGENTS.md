@@ -9,7 +9,8 @@ Inherits from [luke-agents/AGENTS.md](https://github.com/duketopceo/luke-agents/
 
 Paste-like Omarchy Quickshell overlay for clipboard history. Stock CopyQ owns
 capture, history storage, and MCP. This plugin is the theme-native picker:
-centered history, at-cursor menu, pins, and image thumbs.
+centered history, at-cursor menu, pins, image thumbs, and a ~30m Fernet hot
+vault for API-key-shaped clips.
 
 ## Provenance — edit in the umbrella, not here
 
@@ -26,10 +27,11 @@ next publish.** Make the change in the umbrella, then
 |---|---|
 | `manifest.json` | Plugin contract. `kinds: ["overlay"]`, `entryPoints.overlay` |
 | `Overlay.qml` | Picker UI (center + cursor modes) |
-| `bin/copyq-list.py` | Pins + clipboard JSON (text/image) |
-| `bin/copyq-activate.sh` | `select` + optional `paste` by index/tab |
-| `bin/copyq-remove.sh` | Remove by index/tab |
-| `bin/copyq-pin.sh` | Copy row into CopyQ `Pins` tab |
+| `bin/copyq-list.py` | Pins + clipboard JSON; harvests key-shaped clips into hot vault |
+| `bin/copyq_hotkeys.py` | Fernet vault under `$XDG_RUNTIME_DIR` (~30m TTL); list/activate/drop |
+| `bin/copyq-activate.sh` | `select` + optional `paste` by index/tab, or `--hot-id` |
+| `bin/copyq-remove.sh` | Remove by index/tab, or drop vault entry via `--hot-id` |
+| `bin/copyq-pin.sh` | Pin clipboard row into `Pins`, or unpin when tab is `Pins` |
 
 ## Runtime Contract
 

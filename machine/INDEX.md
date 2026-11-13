@@ -81,6 +81,11 @@ The following user-service families are part of the current desktop contract:
   capture/voice surfaces; Dim is opt-in
 - `voxtype.service` as the default voice owner
 - `omarchy-sleep-lock.service`, desktop portals, and Hyprland session services
+- `netline.service` (system, root) plus `netline-gui.service` (user) for passive
+  flow capture. Requires `net.netfilter.nf_conntrack_acct=1`, set in
+  `/etc/sysctl.d/90-netline-conntrack-acct.conf`; without it conntrack reports
+  no `bytes=` fields, the daemon's byte deltas are all zero, and every row is
+  skipped, so the widget silently goes stale while the service stays active.
 
 The inventory is descriptive. The live audit records which services are
 running and healthy without copying journal contents or credentials. Run

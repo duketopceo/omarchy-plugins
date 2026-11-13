@@ -32,8 +32,9 @@ run_copyq() {
   /usr/bin/timeout "$TIMEOUT_SECS" "$COPYQ" "$@"
 }
 
-# Already on Pins — no-op success.
+# Already on Pins → unpin (remove that pin row).
 if [[ $TAB == "$PINS_TAB" ]]; then
+  run_copyq tab "$PINS_TAB" remove "$INDEX"
   exit 0
 fi
 

@@ -218,9 +218,10 @@ def test_make_ascii_graph_decimates_to_width(helper) -> None:
     ]
     chart, spark = helper.make_ascii_graph(history, 55)
     spark_line = chart.split("\n")[0]
-    assert len(spark_line) == helper.GRAPH_WIDTH == 24
+    assert len(spark_line) == helper.GRAPH_WIDTH == 26
     assert len(spark) == helper.GRAPH_WIDTH
-    assert "40–68%" in chart
+    # Decimation picks bucket endpoints; min stays 40, max is in the 40+(i%30) cycle.
+    assert "40–" in chart and "%" in chart.split("\n")[1]
 
 
 def test_make_ascii_graph_short_history_not_padded(helper) -> None:

@@ -439,7 +439,11 @@ def update_history(current_cap, status, power_w=None):
     return history
 
 
-GRAPH_WIDTH = 24
+# Charge-history well is ~336px inside the 380px panel (24px card pad + 20px
+# well inset). The spark renders at Style.font.body (12px) and the watts run
+# at bodySmall (11px) plus an 8px gap and a "W" label. 26 glyphs stay inside
+# that well at a 1em advance; 36 overflowed the watts row.
+GRAPH_WIDTH = 26
 
 
 def analyze_history(history, current_cap, telemetry=None):
