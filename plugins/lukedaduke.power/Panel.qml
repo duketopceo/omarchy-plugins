@@ -531,9 +531,14 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.showPercentage && !vertical
-      ? Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
-      : root.batteryIcon()
+    // Keep the percentage in labelText, not text: `text` is painted by
+    // OpticalGlyph at Style.bar.iconSize (12px), which shrinks the whole
+    // string. labelText renders at Style.bar.iconFont (13px) beside a
+    // full-size glyph, matching the stock power panel.
+    text: root.batteryIcon()
+    labelText: root.showPercentage && !vertical
+      ? Commons.I18n.formatNumber(Math.round(root.batteryFraction * 100)) + "%"
+      : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {
