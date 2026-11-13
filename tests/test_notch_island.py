@@ -94,19 +94,30 @@ def test_the_dashboard_route_loads_the_old_panel():
     # R6/KTD8: the old surface must actually open. The plugin has one entry
     # point, so there is no separate panel to summon; Notch.qml is loaded here.
     text = source()
-    assert "function openDashboard()" in text
+    assert "function openDashboard(" in text
     assert 'source: "Notch.qml"' in text
     assert "active: root.dashboardOpen" in text
     assert 'qsTr("Open the dashboard")' in text
 
 
-def test_activity_targets_are_focusable_and_named():
-    # R5: keyboard users need focusable targets with labels.
+def test_the_dashboard_can_hand_control_back():
+    # The island hides while the dashboard is open, so if nothing clears that
+    # flag the primary surface stays gone for the session. Notch.qml's own
+    # Escape/outside-click ends in collapseRequested.
+    text = source()
+    assert "function onCollapseRequested() { root.dashboardOpen = false }" in text
+
+
+def test_activity_targets_are_focusable_and_activate_from_the_keyboard():
+    # R5: a focusable target that only answers the pointer is inert for
+    # keyboard users, so count key handlers as well as focus flags.
     text = source()
     buttons = text.count("Accessible.role: Accessible.Button")
     focusable = text.count("activeFocusOnTab: true")
+    keys = text.count("Keys.onPressed")
     assert buttons >= 6, buttons
     assert buttons == focusable, f"{buttons} buttons but {focusable} focusable"
+    assert keys >= focusable, f"{focusable} focusable targets but {keys} key handlers"
 
 
 # --------------------------------------------------------------- collectors

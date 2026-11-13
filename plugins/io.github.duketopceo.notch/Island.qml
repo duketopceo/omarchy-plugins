@@ -137,6 +137,17 @@ Item {
     function openTab(id: string): void { root.openTabRequested(id) }
   }
 
+  // Which screens currently want MediaActivity's position tick.
+  property var trackingScreens: ({})
+  function setTracking(name, on) {
+    if (!!trackingScreens[name] === on) return
+    var copy = {}
+    for (var k in trackingScreens) copy[k] = trackingScreens[k]
+    if (on) copy[name] = true; else delete copy[name]
+    trackingScreens = copy
+    media.tracking = Object.keys(copy).length > 0
+  }
+
   function primaryScreenName() {
     var list = Quickshell.screens || []
     for (var i = 0; i < list.length; i++) if (list[i].name === "eDP-1") return list[i].name
@@ -153,20 +164,36 @@ Item {
   // forwards openTab — and the alternative would edit Notch.qml, which is the
   // rollback target and stays untouched (KTD1).
   property bool dashboardOpen: false
-  function openDashboard() { root.dashboardOpen = true }
+  property string pendingTab: ""
+  function openDashboard(tab) { root.pendingTab = tab || ""; root.dashboardOpen = true }
 
   Loader {
     id: dashboard
     active: root.dashboardOpen
-    anchors.fill: parent
     source: "Notch.qml"
-    onLoaded: if (item) item.shell = root.shell
+    // Notch.qml builds its own per-screen windows, so this item needs no size.
+    onLoaded: {
+      if (!item) return
+      item.shell = root.shell
+      if (root.pendingTab !== "") item.openTabRequested(root.pendingTab)
+    }
+    // Notch.qml's own Escape / outside-click ends in collapseRequested. While
+    // loaded as the dashboard that must return us to the island, or the
+    // island stays hidden for the rest of the session.
+    Connections {
+      target: dashboard.item
+      ignoreUnknownSignals: true
+      function onCollapseRequested() { root.dashboardOpen = false }
+      function onOpenTabRequested(id) { root.dashboardOpen = true }
+    }
   }
 
   Connections {
     target: root
     function onDashboardRequested() { root.openDashboard() }
-    function onOpenTabRequested() { root.openDashboard() }
+    function onOpenTabRequested(id) { root.openDashboard(id) }
+    // `close` dismisses whichever surface is showing.
+    function onDismissRequested() { root.dashboardOpen = false }
   }
 
   Variants {
@@ -195,8 +222,8 @@ Item {
       // old fixed width canSplit() was false on every screen, so the second
       // segment could never appear (R1).
       readonly property int earRoom: 70
-      readonly property int compactWidth: Math.max(250, sensorWidth + 120
-        + (ranked.length > 1 ? 2 * earRoom : 0))
+      readonly property int compactWidth: Math.min(modelData.width - 16,
+        Math.max(250, sensorWidth + 120 + (ranked.length > 1 ? 2 * earRoom : 0)))
       readonly property int compactHeight: 37
       readonly property int expandedWidth: 374
       readonly property int expandedHeight: 180
@@ -223,24 +250,28 @@ Item {
       // When the selected activity ends, keep the window but show a neutral
       // state instead of another activity's controls (KTD6).
       onRankedChanged: {
-        if (expanded && selectedId !== "" && Island.selected(ranked, selectedId) === null) selectedId = ""
+        // Not gated on `expanded`: an activity can end while collapsed, and the
+        // stale id would then hide a live activity behind "Nothing active".
+        if (selectedId !== "" && Island.selected(ranked, selectedId) === null) selectedId = ""
       }
 
       Connections {
         target: root
-        function onDismissRequested() { win.closeIsland() }
+        function onDismissRequested() { win.closeIsland() }  // dashboard close is handled at root
         function onOpenRequested() {
           if (modelData.name !== root.primaryScreenName()) return
-          if (win.selectedId === "" && win.ranked.length) win.selectedId = win.ranked[0].id
+          // Re-select when the held id is gone, not only when it is empty.
+          if (win.selected === null && win.ranked.length) win.selectedId = win.ranked[0].id
           win.expanded = true
         }
 
       }
 
-      // MediaActivity owns the position tick; it only runs while something
-      // asks for it, and the expanded media view is what asks.
-      onExpandedChanged: media.tracking = expanded && selectedId === "media"
-      onSelectedIdChanged: media.tracking = expanded && selectedId === "media"
+      // MediaActivity owns the position tick; the expanded media view asks for
+      // it. Recorded per screen, because the flag is a singleton and the last
+      // writer would otherwise stop the tick another screen still needs.
+      onExpandedChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
+      onSelectedIdChanged: root.setTracking(modelData.name, expanded && selectedId === "media")
 
       HyprlandFocusGrab {
         active: win.expanded
@@ -249,7 +280,10 @@ Item {
       }
 
       anchors.top: true
-      implicitWidth: expandedWidth + 40
+      // Sized from the island itself, plus slack for the shadow-less edge: a
+      // constant here clips the island whenever compactWidth grows (two
+      // activities, or a camera-width override).
+      implicitWidth: Math.max(expandedWidth, compactWidth) + 40
       implicitHeight: expanded ? expandedHeight + 20 : compactHeight + 20
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch-island"
@@ -276,10 +310,11 @@ Item {
         Behavior on height { enabled: !root.reduceMotion; NumberAnimation { duration: Motion.ISLAND_OPEN_MS; easing.type: Easing.OutBack; easing.overshoot: Motion.ISLAND_HEIGHT_OVERSHOOT } }
         Behavior on radius { enabled: !root.reduceMotion; NumberAnimation { duration: Motion.ISLAND_RADIUS_MS; easing.type: Easing.OutCubic } }
 
-        Shortcut { sequence: "Escape"; enabled: win.expanded; onActivated: win.closeIsland() }
-        Connections {
-          target: root
-          function onDismissRequested() { root.dashboardOpen = false }
+        // Escape only while the island is expanded and no dashboard covers it.
+        Shortcut {
+          sequence: "Escape"
+          enabled: win.expanded && !root.dashboardOpen
+          onActivated: win.closeIsland()
         }
 
         // ---------------------------------------------------------- compact
@@ -445,12 +480,16 @@ Item {
                       color: root.altText
                       font.pixelSize: transport.modelData === "toggle" ? 25 : 18
                     }
-                    TapHandler {
-                      onTapped: {
-                        if (!media.player) return
-                        if (transport.modelData === "previous") media.player.previous()
-                        else if (transport.modelData === "next") media.player.next()
-                        else media.player.togglePlaying()
+                    function activate() {
+                      if (!media.player) return
+                      if (transport.modelData === "previous") media.player.previous()
+                      else if (transport.modelData === "next") media.player.next()
+                      else media.player.togglePlaying()
+                    }
+                    TapHandler { onTapped: transport.activate() }
+                    Keys.onPressed: function (e) {
+                      if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                        transport.activate(); e.accepted = true
                       }
                     }
                   }
@@ -494,7 +533,13 @@ Item {
                   font.pixelSize: 13
                   font.weight: Font.DemiBold
                 }
-                TapHandler { onTapped: dictation.toggle() }
+                function activate() { dictation.toggle() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
               }
             }
 
@@ -530,7 +575,13 @@ Item {
                   font.pixelSize: 13
                   font.weight: Font.DemiBold
                 }
-                TapHandler { onTapped: agents.openApp() }
+                function activate() { agents.openApp() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
               }
             }
 
@@ -566,7 +617,13 @@ Item {
                   font.pixelSize: 13
                   font.weight: Font.DemiBold
                 }
-                TapHandler { onTapped: messagesAct.openBlip() }
+                function activate() { messagesAct.openBlip() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
               }
             }
 
@@ -593,6 +650,9 @@ Item {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Open screenshot library")
+                // Hidden rather than inert: opening nothing is not an action.
+                visible: shots.libraryOk
+                enabled: shots.libraryOk
                 Text {
                   anchors.centerIn: parent
                   text: qsTr("Library")
@@ -602,7 +662,13 @@ Item {
                   font.pixelSize: 13
                   font.weight: Font.DemiBold
                 }
-                TapHandler { onTapped: shots.openLibrary() }
+                function activate() { shots.openLibrary() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
               }
             }
           }
@@ -623,7 +689,13 @@ Item {
               color: root.mutedText
               font.pixelSize: 16
             }
-            TapHandler { onTapped: root.openDashboard() }
+            function activate() { root.openDashboard() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
           }
 
           // Close control.
@@ -642,7 +714,13 @@ Item {
               color: root.mutedText
               font.pixelSize: 21
             }
-            TapHandler { onTapped: win.closeIsland() }
+            function activate() { win.closeIsland() }
+                TapHandler { onTapped: activate() }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    activate(); e.accepted = true
+                  }
+                }
           }
         }
       }
