@@ -133,6 +133,21 @@ Panel {
     return Model.profileIcon(name)
   }
 
+  // Options for kit ButtonGroup (Rune SegmentedControl / OpenTUI TabSelect).
+  readonly property var profileOptions: {
+    var out = []
+    for (var i = 0; i < root.profiles.length; i++) {
+      var name = String(root.profiles[i] || "")
+      if (!name) continue
+      out.push({
+        value: name,
+        label: name.charAt(0).toUpperCase() + name.slice(1),
+        icon: root.profileIcon(name)
+      })
+    }
+    return out
+  }
+
   readonly property bool fullyCharged: {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
@@ -202,6 +217,26 @@ Panel {
     if (fullyCharged) return "Fully charged"
     if (rotatingPhrases) return activePhrases[phraseIndex % activePhrases.length]
     return modeLabel()
+  }
+
+  // ascii_graph is "spark\\ncaption" — split so the spark can be large and
+  // the caption stays a quiet footnote under the well.
+  readonly property string historySpark: {
+    var g = String((root.powerData && root.powerData.ascii_graph) || "")
+    var i = g.indexOf("\n")
+    return i >= 0 ? g.substring(0, i) : g
+  }
+  readonly property string historyCaption: {
+    var g = String((root.powerData && root.powerData.ascii_graph) || "")
+    var i = g.indexOf("\n")
+    return i >= 0 ? g.substring(i + 1) : ""
+  }
+
+  // 0..1 mark for the charge-limit knob on the progress track (if set).
+  readonly property real chargeLimitFraction: {
+    var n = Number(root.tele.charge_limit_pct)
+    if (!isFinite(n) || n <= 0 || n >= 100) return -1
+    return Math.max(0, Math.min(1, n / 100))
   }
 
   // Absolute tool paths and no shell: a PATH-preceding shadow binary or a
@@ -465,7 +500,7 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: heroStatus; property: "opacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: {
@@ -475,7 +510,7 @@ Panel {
     }
     PropertyAnimation {
       target: heroStatus; property: "opacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -545,12 +580,18 @@ Panel {
         width: scrollView.width
         spacing: Style.space(14)
 
+        // Soft card chrome — control-border tokens (α≈0.4) read as frames;
+        // these cards want a hairline only.
+        readonly property color cardBorder: Util.alpha(root.bar.foreground, 0.08)
+        readonly property color trackFill: Util.alpha(root.bar.foreground, 0.12)
+        readonly property color wellFill: Util.alpha(root.bar.foreground, 0.06)
+
         // ---------- Battery card ----------
         Rectangle {
           width: parent.width
           radius: Style.cornerRadius
           color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
-          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.color: column.cardBorder
           border.width: 1
           implicitHeight: batteryCard.implicitHeight + Style.space(24)
 
@@ -561,32 +602,41 @@ Panel {
             width: parent.width - Style.space(24)
             spacing: Style.space(14)
 
-        // ---------- Hero: battery icon · title/status · percentage ----------
+        // ---------- Hero: fixed icon slot · title/status · percentage ----------
+        // Nerd Font battery glyphs report a tiny implicit box — give them a
+        // reserved square so the icon never collapses against the title.
         Item {
           width: parent.width
-          implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroPercent.implicitHeight)
+          implicitHeight: Math.max(heroIconSlot.height, heroLabels.implicitHeight, heroPercent.implicitHeight)
 
-          Text {
-            id: heroIcon
-            textFormat: Text.PlainText
-            text: root.batteryIcon()
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.display
+          Item {
+            id: heroIconSlot
+            width: Style.space(40)
+            height: Style.space(40)
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
 
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Text {
+              id: heroIcon
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: root.batteryIcon()
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.display
+
+              Behavior on color { ColorAnimation { duration: Style.duration(200) } }
+            }
           }
 
           Column {
             id: heroLabels
-            anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(14)
+            anchors.left: heroIconSlot.right
+            anchors.leftMargin: Style.space(12)
             anchors.right: heroPercent.left
             anchors.rightMargin: Style.space(10)
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(3)
 
             Text {
               textFormat: Text.PlainText
@@ -602,12 +652,10 @@ Panel {
             Text {
               id: heroStatus
               textFormat: Text.PlainText
-              text: root.heroStatusText.toUpperCase()
-              color: Qt.darker(root.bar.foreground, 1.4)
+              text: root.heroStatusText
+              color: Qt.darker(root.bar.foreground, 1.35)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
-              font.bold: true
-              font.letterSpacing: 1.2
               elide: Text.ElideRight
               width: parent.width
             }
@@ -624,20 +672,20 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
 
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Behavior on color { ColorAnimation { duration: Style.duration(200) } }
           }
         }
 
-        // ---------- Battery progress bar ----------
+        // ---------- Battery progress bar + charge-limit tick ----------
         Item {
           width: parent.width
-          implicitHeight: Style.space(8)
+          implicitHeight: Style.space(10)
 
           Rectangle {
             id: barTrack
             anchors.fill: parent
             radius: height / 2
-            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+            color: column.trackFill
           }
 
           Rectangle {
@@ -649,17 +697,28 @@ Panel {
             color: root.batteryFillColor
             width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
 
-            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: 220 } }
+            Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
+            Behavior on color { ColorAnimation { duration: Style.duration(220) } }
 
-            // Subtle pulse while charging — visible signal that energy is flowing in.
             SequentialAnimation on opacity {
-              running: root.charging && !root.fullyCharged && root.opened
+              running: root.charging && !root.fullyCharged && root.opened && !Style.reduceMotion
               loops: Animation.Infinite
               alwaysRunToEnd: true
-              NumberAnimation { from: 1.0; to: 0.55; duration: 950; easing.type: Easing.InOutSine }
-              NumberAnimation { from: 0.55; to: 1.0; duration: 950; easing.type: Easing.InOutSine }
+              NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
+              NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
+          }
+
+          // Charge-limit marker (e.g. 80%) — a quiet tick on the track.
+          Rectangle {
+            visible: root.chargeLimitFraction >= 0
+            width: Style.space(2)
+            height: parent.height + Style.space(4)
+            radius: 1
+            color: root.bar.foreground
+            opacity: 0.45
+            anchors.verticalCenter: parent.verticalCenter
+            x: Math.round(barTrack.width * root.chargeLimitFraction) - width / 2
           }
         }
 
@@ -783,7 +842,7 @@ Panel {
           width: parent.width
           radius: Style.cornerRadius
           color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
-          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.color: column.cardBorder
           border.width: 1
           visible: !!root.powerData.ascii_graph
           implicitHeight: historyCard.implicitHeight + Style.space(24)
@@ -796,58 +855,80 @@ Panel {
             spacing: Style.space(6)
 
           PanelSectionHeader {
-            text: "BATTERY CHARGE HISTORY"
+            text: "CHARGE HISTORY"
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
           }
 
           Rectangle {
             width: parent.width
-            implicitHeight: asciiText.implicitHeight + Style.space(12)
+            implicitHeight: historyWellCol.implicitHeight + Style.space(16)
             radius: Style.space(6)
-            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.06)
+            color: column.wellFill
 
-            Text {
-              id: asciiText
-              anchors.centerIn: parent
-              textFormat: Text.PlainText
-              text: root.powerData.ascii_graph || ""
-              color: root.bar.foreground
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              font.bold: true
-              lineHeight: 1.15
+            Column {
+              id: historyWellCol
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.leftMargin: Style.space(10)
+              anchors.rightMargin: Style.space(10)
+              spacing: Style.space(6)
+
+              // Spark alone — wide glyph run, left-aligned so it reads as a chart.
+              Text {
+                id: asciiText
+                width: parent.width
+                textFormat: Text.PlainText
+                text: root.historySpark
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideNone
+                wrapMode: Text.NoWrap
+              }
+
+              // Watts magnitude over the same window (hidden when flat/idle).
+              Row {
+                width: parent.width
+                visible: !!root.powerData.watts_graph
+                spacing: Style.space(8)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: root.powerData.watts_graph || ""
+                  color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
+                  opacity: 0.85
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  text: "W"
+                  color: root.bar.foreground
+                  opacity: 0.4
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
             }
           }
-          // Watts over the same window — the charge line shows where the
-          // level went, this shows the flow that moved it. Magnitude only;
-          // sign lives in the "Power" readout above.
-          Text {
-            width: parent.width
-            visible: !!root.powerData.watts_graph
-            textFormat: Text.PlainText
-            text: root.powerData.watts_graph || ""
-            color: Style.selectedFillFor(root.bar.foreground, Commons.Color.accent)
-            opacity: 0.8
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            font.bold: true
-            elide: Text.ElideRight
-          }
 
           Text {
             width: parent.width
-            visible: !!root.powerData.watts_graph
+            visible: root.historyCaption.length > 0
             textFormat: Text.PlainText
-            text: "watts"
+            text: root.historyCaption
             color: root.bar.foreground
-            opacity: 0.4
+            opacity: 0.45
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignRight
+            wrapMode: Text.WordWrap
           }
-          // The caption under the sparkline already carries the least-squares
-          // drain slope, so a separate "Drain rate" row would only repeat it.
           }
         }
 
@@ -856,7 +937,7 @@ Panel {
           width: parent.width
           radius: Style.cornerRadius
           color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
-          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.color: column.cardBorder
           border.width: 1
           visible: !!root.powerData.top_consumers && root.powerData.top_consumers.length > 0
           implicitHeight: consumersCard.implicitHeight + Style.space(24)
@@ -951,7 +1032,7 @@ Panel {
           width: parent.width
           radius: Style.cornerRadius
           color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
-          border.color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.08)
+          border.color: column.cardBorder
           border.width: 1
           implicitHeight: profileCard.implicitHeight + Style.space(24)
 
@@ -978,23 +1059,24 @@ Panel {
               : 0
 
             Repeater {
-              model: root.profiles
+              model: root.profileOptions
               Button {
                 required property var modelData
                 required property int index
                 width: profileRow.cellWidth
-                iconText: root.profileIcon(String(modelData))
+                iconText: modelData.icon || ""
                 iconSize: Style.font.title
-                text: String(modelData).charAt(0).toUpperCase() + String(modelData).slice(1)
+                text: modelData.label || ""
                 fontSize: Style.font.bodySmall
                 foreground: root.bar.foreground
+                accent: Commons.Color.accent
                 fontFamily: root.bar.fontFamily
                 horizontalPadding: Style.spacing.controlPaddingX
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
-                active: root.activeProfile === modelData
+                selected: root.activeProfile === modelData.value
                 hasCursor: root.cursorActive && root.profileIndex === index
-                onClicked: root.setProfile(modelData)
+                onClicked: root.setProfile(modelData.value)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
@@ -1052,7 +1134,7 @@ Panel {
         font.pixelSize: Style.font.bodySmall
         font.bold: true
 
-        Behavior on color { ColorAnimation { duration: 260 } }
+        Behavior on color { ColorAnimation { duration: Style.duration(260) } }
       }
     }
 
@@ -1060,7 +1142,7 @@ Panel {
       width: parent.width
       height: Style.space(3)
       radius: height / 2
-      color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+      color: Util.alpha(root.bar.foreground, 0.12)
 
       Rectangle {
         id: gaugeFill
@@ -1070,8 +1152,8 @@ Panel {
         opacity: 0.85
         width: Math.max(0, Math.min(1, gauge.fraction)) * parent.width
 
-        Behavior on width { NumberAnimation { duration: 480; easing.type: Easing.OutCubic } }
-        Behavior on color { ColorAnimation { duration: 260 } }
+        Behavior on width { NumberAnimation { duration: Style.duration(480); easing.type: Easing.OutCubic } }
+        Behavior on color { ColorAnimation { duration: Style.duration(260) } }
       }
     }
 
