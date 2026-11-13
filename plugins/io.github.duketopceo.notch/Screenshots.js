@@ -117,9 +117,15 @@ function pendingText(n) {
   return n === 0 ? "All captioned" : n + " unprocessed"
 }
 
-// The directory "Open library" reveals: the processed-shots folder when the
-// library index exists, else "" so the caller opens nothing rather than a
-// destination that is not there (KTD4).
+// The directory the island's "Library" control reveals: the conventional
+// processed-shots folder, and only when its index exists ("" otherwise, so the
+// caller opens nothing rather than a missing destination — KTD4).
+//
+// This deliberately does not consult snapdex's own reported `library` field:
+// the activity holds no panel JSON, and fetching it here would put a second
+// snapdex-ctl call on the activity's path. When snapdex is pointed at a
+// non-default library, the dashboard's "Open folder" follows it and this does
+// not — recorded as a known gap in the plan rather than papered over.
 function libraryDir(home, libraryExists) {
   return libraryExists === true ? String(home) + LIBRARY_REL : ""
 }

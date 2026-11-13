@@ -64,6 +64,8 @@ The notch today is a side-text slot with an eleven-tab dashboard behind it. Nine
 
 **Outside this plan**
 
+- Following a non-default snapdex library path from the island's Library control. `ScreenshotsActivity` holds no snapdex panel JSON, so `libraryDir` reveals the conventional `~/Pictures/Screenshots/Library`; the dashboard's "Open folder" follows snapdex's reported path. Making them agree needs a panel read on the activity, which is a new backend call rather than reuse.
+- Lifting Notch.qml's `notch` IpcHandler so the dashboard can load without a duplicate-registration warning. It needs an edit to Notch.qml, the rollback target, so it waits until the dashboard is either retired or re-pointed.
 - The standalone prototype at `prototypes/island-v02/`; it keeps running untouched.
 - Any new backend collector. The five existing ones are the whole integration surface.
 

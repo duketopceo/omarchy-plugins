@@ -81,7 +81,7 @@ def test_keyboard_dismissal_and_focus_are_wired():
     assert re.search(r'sequence:\s*"Escape"', text)
     assert re.search(r"keyboardFocus:\s*win\.expanded\s*\?\s*WlrKeyboardFocus\.OnDemand"
                      r"\s*:\s*WlrKeyboardFocus\.None", text)
-    assert "tapHandler" not in text.lower(), "a hover handler would take focus"
+    assert "HoverHandler" not in text, "a hover handler would take focus"
 
 
 def test_reduced_motion_snaps_the_shape():
@@ -90,12 +90,13 @@ def test_reduced_motion_snaps_the_shape():
     assert text.count("enabled: !root.reduceMotion") >= 3
 
 
-def test_the_dashboard_route_is_explicit():
-    # R6/KTD8: the old panel is reachable, and the route goes through the
-    # plugin's own open chain rather than assuming a bar widget exists.
+def test_the_dashboard_route_loads_the_old_panel():
+    # R6/KTD8: the old surface must actually open. The plugin has one entry
+    # point, so there is no separate panel to summon; Notch.qml is loaded here.
     text = source()
     assert "function openDashboard()" in text
-    assert "Plugins.openChain(pluginId" in text
+    assert 'source: "Notch.qml"' in text
+    assert "active: root.dashboardOpen" in text
     assert 'qsTr("Open the dashboard")' in text
 
 

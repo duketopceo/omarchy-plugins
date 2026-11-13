@@ -27,12 +27,9 @@ Scope {
 
   function poll() { if (enabled && !lsProc.running) lsProc.running = true }
 
-  // Route to herdr from the Island's expanded view. herdr-app is the GUI
-  // entry point; absent, nothing happens rather than inventing a fallback.
-  function openApp() {
-    if (appBin === "") return
-    Quickshell.execDetached([appBin])
-  }
+  // Route to herdr from the Island's expanded view. Same executable the
+  // dashboard's "Open herdr" runs (AgentsTab.qml).
+  function openApp() { Quickshell.execDetached([appBin]) }
 
   Process {
     id: lsProc

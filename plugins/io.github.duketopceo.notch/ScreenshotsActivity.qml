@@ -50,9 +50,9 @@ Scope {
     onLoaded: sa.ingest(text())
   }
 
-  // Open the processed-shots folder from the Island's expanded view. Uses the
-  // library directory when it exists, else the old flat location; nothing is
-  // opened when neither resolves (KTD4: no invented destination).
+  // Open the processed-shots folder from the Island's expanded view. Opens
+  // nothing when the library is absent (KTD4), rather than revealing a
+  // destination that is not there.
   function openLibrary() {
     var home = Quickshell.env("HOME")
     var dir = Screenshots.libraryDir(home, sa.libraryOk)

@@ -14,19 +14,18 @@ function visible(activities) {
   return result.map(function (row) { return row.activity })
 }
 
-function selected(activities, id) {
-  var list = visible(activities)
-  for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]
+// Lookup in an already-ranked list (the output of visible). Re-ranking here
+// would re-sort the whole list on every change for no new information.
+function selected(ranked, id) {
+  if (!Array.isArray(ranked)) return null
+  for (var i = 0; i < ranked.length; i++) if (ranked[i] && ranked[i].id === id) return ranked[i]
   return null
 }
 
+// The only state-changing control the island offers is stopping dictation,
+// and only while it is recording. Other detail views select by activity id.
 function action(id, state) {
-  if (id === "dictation") return state === "recording" ? "stop" : null
-  if (id === "media") return "media"
-  if (id === "messages") return "messages"
-  if (id === "agents") return "agents"
-  if (id === "screenshots") return "screenshots"
-  return null
+  return id === "dictation" && state === "recording" ? "stop" : null
 }
 
 function canSplit(available, fixed, first, second) {

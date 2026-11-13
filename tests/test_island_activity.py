@@ -1,10 +1,14 @@
 """Behavior of the Island's activity selection and safe actions."""
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 MODULE = Path(__file__).resolve().parents[1] / "plugins/io.github.duketopceo.notch/IslandActivity.js"
+pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
 
 def evaluate(expression):
