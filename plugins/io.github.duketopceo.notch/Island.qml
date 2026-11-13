@@ -354,9 +354,12 @@ Item {
       // When the selected activity ends, keep the window but show a neutral
       // state instead of another activity's controls (KTD6).
       onRankedChanged: {
-        // Not gated on `expanded`: an activity can end while collapsed, and the
-        // stale id would then hide a live activity behind "Nothing active".
+        // Keep the held id honest in both directions: drop it when its
+        // activity ends, and take the top one when there is none held. Only
+        // clearing left the expanded view saying "Nothing active" after it was
+        // opened while idle and an activity then started.
         if (selectedId !== "" && Island.selected(ranked, selectedId) === null) selectedId = ""
+        if (selectedId === "" && expanded && ranked.length) selectedId = ranked[0].id
       }
 
       Connections {
@@ -809,11 +812,12 @@ Item {
             }
           }
 
-          // Dashboard route (R6, KTD8): a deliberate, always-present control.
+          // Dashboard route (R6, KTD8): a deliberate, always-present control,
+          // bottom-right beside Close so the top of the box is the activity.
           Item {
             anchors.right: parent.right
-            anchors.rightMargin: 24
-            y: 17
+            anchors.rightMargin: 64
+            y: 132
             width: 24; height: 24
             activeFocusOnTab: true
             Accessible.role: Accessible.Button

@@ -168,3 +168,14 @@ def test_the_root_exposes_the_shell_summon_entry_point():
     text = source()
     assert re.search(r"^  function open\(\)", text, re.M)
     assert re.search(r"^  function close\(\)", text, re.M)
+
+
+def test_a_rank_change_fills_an_empty_selection():
+    # Opening while idle left selectedId empty forever, so the expanded view
+    # said "Nothing active" while an activity was live. The handler must take
+    # the top activity when nothing is held, not only drop a stale one.
+    text = source()
+    handler = text[text.index("onRankedChanged:"):]
+    handler = handler[:handler.index("\n      }")]
+    assert "Island.selected(ranked, selectedId) === null) selectedId = \"\"" in handler
+    assert "selectedId === \"\" && expanded && ranked.length" in handler
