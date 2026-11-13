@@ -117,11 +117,18 @@ function pendingText(n) {
   return n === 0 ? "All captioned" : n + " unprocessed"
 }
 
+// The directory "Open library" reveals: the processed-shots folder when the
+// library index exists, else "" so the caller opens nothing rather than a
+// destination that is not there (KTD4).
+function libraryDir(home, libraryExists) {
+  return libraryExists === true ? String(home) + LIBRARY_REL : ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     PYTHON: PYTHON, FLASH_MS: FLASH_MS, PRIORITY: PRIORITY, THUMBS: THUMBS,
     ctlArgs: ctlArgs, indexPath: indexPath, libraryIndexPath: libraryIndexPath, folders: folders, autoArgs: autoArgs, parseIndex: parseIndex,
     flashText: flashText, initial: initial, step: step, isActive: isActive,
-    parsePanel: parsePanel, shortPath: shortPath, pendingText: pendingText
+    parsePanel: parsePanel, shortPath: shortPath, pendingText: pendingText, libraryDir: libraryDir
   }
 }
