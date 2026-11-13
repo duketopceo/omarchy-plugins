@@ -130,6 +130,7 @@ Item {
       var clips = payload.clipCount || 0
       var hot = payload.hotCount || 0
       var bits = []
+      if (payload.hotError) bits.push("hot vault unavailable")
       if (hot > 0) bits.push(hot + " hot")
       if (pins > 0) bits.push(pins + " pinned")
       bits.push(clips + " items")
