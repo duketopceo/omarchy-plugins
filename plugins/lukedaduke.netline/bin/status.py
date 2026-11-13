@@ -8,6 +8,7 @@ side never has to distinguish "crashed" from "nothing to report".
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import time
 
@@ -77,7 +78,12 @@ def main():
         if cmd == "status":
             print(json.dumps(status()))
         elif cmd == "open":
-            os.system("xdg-open http://127.0.0.1:8899/ >/dev/null 2>&1 &")
+            # Detached, no shell: the browser must outlive this helper and
+            # nothing here needs a command line to be interpreted.
+            subprocess.Popen(
+                ["xdg-open", "http://127.0.0.1:8899/"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True)
             print(json.dumps({"ok": True, "opened": "http://127.0.0.1:8899/"}))
         else:
             print(json.dumps({"ok": False, "error": f"unknown command {cmd}"}))
