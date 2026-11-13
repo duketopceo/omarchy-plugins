@@ -38,8 +38,22 @@ sudo sysctl -w net.netfilter.nf_conntrack_acct=1
 omarchy plugin add https://github.com/duketopceo/omarchy-netline
 ```
 
-Then install the collector service and the GUI unit from `systemd/`, and edit
-the `NETLINE_HOME` line if your operator account is not `lukekimball`.
+Then install the units and point the collector at your state directory. The
+collector runs as root, so it reads its home from an env file rather than `%h`:
+
+```bash
+sudo install -d /etc/netline
+echo "NETLINE_STATE=$HOME/.local/share/netline" \
+  | sudo tee /etc/netline/netline.env
+sudo cp systemd/netline.service /etc/systemd/system/
+sudo systemctl enable --now netline
+mkdir -p ~/.config/systemd/user
+cp systemd/netline-gui.service systemd/netline-prune.* ~/.config/systemd/user/
+systemctl --user enable --now netline-gui netline-prune.timer
+```
+
+`NETLINE_STATE` defaults to `~/.local/share/netline`, and `NETLINE_DB` overrides
+the store path outright.
 
 ## Layout
 

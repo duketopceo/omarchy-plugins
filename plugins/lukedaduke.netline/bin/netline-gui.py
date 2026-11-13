@@ -16,7 +16,10 @@ import time
 from urllib.parse import urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DB = os.environ.get("NETLINE_DB", "/home/lukekimball/.local/share/netline/netline.db")
+# Derive the store from the state directory rather than this machine's home.
+_STATE = os.environ.get("NETLINE_STATE") or os.path.expanduser(
+    "~/.local/share/netline")
+DB = os.environ.get("NETLINE_DB", os.path.join(_STATE, "netline.db"))
 PORT = int(os.environ.get("NETLINE_GUI_PORT", "8899"))
 WINDOW_S = 900
 

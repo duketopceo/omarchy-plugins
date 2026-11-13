@@ -2,7 +2,6 @@
 # Requires net.netfilter.nf_conntrack_acct=1; see README. Without it every
 # flow reports zero bytes and the collector silently stores nothing.
 Description=netline packet/flow lineage tracker (passive capture, SQLite store)
-Documentation=file:///home/lukekimball/.local/share/netline/netline.py
 After=network-online.target
 Wants=network-online.target
 
@@ -13,8 +12,14 @@ Group=root
 # /proc/net/nf_conntrack is root-only (IP_NF_CONNTRACK_FILE permissions), so
 # the poller must run privileged. Raw AF_PACKET needs it too for SNI/DNS.
 NoNewPrivileges=yes
-Environment=NETLINE_HOME=/home/lukekimball
-ExecStart=/usr/bin/python3 ${NETLINE_HOME}/.local/share/netline/netline.py daemon
+# The collector runs as root, so it cannot use %h (that resolves to /root).
+# The install step writes the operator's state directory here:
+#   sudo install -d /etc/netline
+#   echo 'NETLINE_STATE=<your-home>/.local/share/netline' \
+#     | sudo tee /etc/netline/netline.env
+EnvironmentFile=/etc/netline/netline.env
+Environment=NETLINE_PLUGIN=%d
+ExecStart=/usr/bin/python3 ${NETLINE_STATE}/netline.py daemon
 Restart=always
 RestartSec=3
 # Capture buffer is preallocated; keep the daemon modest and predictable.
