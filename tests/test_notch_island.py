@@ -136,3 +136,11 @@ def test_the_island_instantiates_no_removed_tab_content():
     for banned in ("NetworkTab", "PowerTab", "SystemTab", "StocksTab",
                    "PluginsTab", "WatchlistSlide", "PixelWeather"):
         assert banned not in text, banned
+
+
+def test_the_root_exposes_the_shell_summon_entry_point():
+    # The shell calls open() on a panel's root item when it summons the
+    # plugin. Without it, summon prints ok and nothing appears.
+    text = source()
+    assert re.search(r"^  function open\(\)", text, re.M)
+    assert re.search(r"^  function close\(\)", text, re.M)

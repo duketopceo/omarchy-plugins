@@ -163,6 +163,12 @@ Item {
   // the dashboard's copy. Nothing depends on it — the island's handler
   // forwards openTab — and the alternative would edit Notch.qml, which is the
   // rollback target and stays untouched (KTD1).
+  // The shell calls `open()` on a panel's root item when it summons the plugin
+  // (shell.qml deliverIfLoaded). Without it `summon` prints ok and nothing
+  // appears, which is how a panel reads as enabled but never shows.
+  function open() { root.openRequested() }
+  function close() { root.dismissRequested() }
+
   property bool dashboardOpen: false
   property string pendingTab: ""
   function openDashboard(tab) { root.pendingTab = tab || ""; root.dashboardOpen = true }
