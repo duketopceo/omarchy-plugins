@@ -100,10 +100,16 @@ Item {
     else root.open("{}")
   }
 
-  function reloadList() {
-    if (root.listInFlight) return
+  function reloadList(force) {
+    if (root.listInFlight) {
+      if (!force) return
+      listProc.running = false
+      root.listInFlight = false
+      listWatchdog.stop()
+    }
     root.listInFlight = true
     root.statusText = "Loading…"
+    root.errorText = ""
     listProc.running = true
   }
 
@@ -121,8 +127,13 @@ Item {
       root.entries = payload.entries
       root.errorText = ""
       var pins = payload.pinCount || 0
-      var clips = payload.clipCount || payload.count || 0
-      root.statusText = pins > 0 ? (pins + " pinned · " + clips + " items") : (clips + " items")
+      var clips = payload.clipCount || 0
+      var hot = payload.hotCount || 0
+      var bits = []
+      if (hot > 0) bits.push(hot + " hot")
+      if (pins > 0) bits.push(pins + " pinned")
+      bits.push(clips + " items")
+      root.statusText = bits.join(" · ")
       root.rebuildDisplay()
     } catch (e) {
       root.entries = []
@@ -137,6 +148,7 @@ Item {
     var q = String(root.filterText).toLowerCase()
     var hay = String(entry.preview || entry.text || entry.type || "").toLowerCase()
     if (entry.pinned) hay = "pin " + hay
+    if (entry.hot || entry.hotId) hay = "hot key api " + hay
     return hay.indexOf(q) !== -1
   }
 
@@ -146,9 +158,11 @@ Item {
       var entry = root.entries[i]
       if (!root.matchesFilter(entry)) continue
       displayModel.append({
-        copyqIndex: entry.index,
+        copyqIndex: entry.index === undefined || entry.index === null ? -1 : entry.index,
         tabName: String(entry.tab || "&clipboard"),
         pinned: !!entry.pinned,
+        hot: !!(entry.hot || entry.hotId),
+        hotId: String(entry.hotId || ""),
         entryType: String(entry.type || "text"),
         previewText: String(entry.preview || ""),
         fullText: String(entry.text || ""),
@@ -198,31 +212,47 @@ Item {
   function activateSelected(copyOnly) {
     var row = root.currentRow()
     if (!row) return
-    root.dismiss()
-    var args = [
-      root.activateHelper,
-      "--index", String(row.copyqIndex),
-      "--tab", String(row.tabName || "&clipboard")
-    ]
+    var args
+    if (row.hotId && String(row.hotId).length > 0) {
+      args = [root.activateHelper, "--hot-id", String(row.hotId)]
+    } else {
+      args = [
+        root.activateHelper,
+        "--index", String(row.copyqIndex),
+        "--tab", String(row.tabName || "&clipboard")
+      ]
+    }
     if (copyOnly) args.push("--copy-only")
+    // Dismiss first so the previous window can take focus before paste.
+    root.dismiss()
     Quickshell.execDetached(args)
   }
 
   function removeSelected() {
     var row = root.currentRow()
     if (!row) return
-    Quickshell.execDetached([
-      root.removeHelper,
-      "--index", String(row.copyqIndex),
-      "--tab", String(row.tabName || "&clipboard")
-    ])
+    if (row.hotId && String(row.hotId).length > 0) {
+      Quickshell.execDetached([root.removeHelper, "--hot-id", String(row.hotId)])
+    } else {
+      Quickshell.execDetached([
+        root.removeHelper,
+        "--index", String(row.copyqIndex),
+        "--tab", String(row.tabName || "&clipboard")
+      ])
+    }
     // Give CopyQ a beat to finish the remove before re-listing.
     reloadAfterMutate.restart()
   }
 
-  function pinSelected() {
+  function togglePinSelected() {
     var row = root.currentRow()
-    if (!row || row.pinned) return
+    if (!row) return
+    // Hot vault keys are not pin-able — Delete drops them instead.
+    if (row.hotId && String(row.hotId).length > 0) {
+      root.removeSelected()
+      return
+    }
+    // Pins tab → remove (unpin). Clipboard tab → copy into Pins.
     Quickshell.execDetached([
       root.pinHelper,
       "--index", String(row.copyqIndex),
@@ -282,10 +312,16 @@ Item {
       root.select(1); event.accepted = true
     } else if (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) {
       root.select(-1); event.accepted = true
-    } else if (event.key === Qt.Key_R && (event.modifiers & Qt.ControlModifier)) {
-      root.reloadList(); event.accepted = true
+    } else if (event.key === Qt.Key_R) {
+      // Bare R reloads when search is empty (or focus is not in the filter).
+      // Ctrl+R always reloads, even mid-load / while typing.
+      var ctrl = !!(event.modifiers & Qt.ControlModifier)
+      if (ctrl || !fromFilter || root.filterText.length === 0) {
+        root.reloadList(true)
+        event.accepted = true
+      }
     } else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) {
-      root.pinSelected(); event.accepted = true
+      root.togglePinSelected(); event.accepted = true
     }
   }
 
@@ -460,6 +496,8 @@ Item {
           Layout.fillWidth: true
           Layout.fillHeight: true
           clip: true
+          interactive: true
+          pressDelay: 0
           model: displayModel
           spacing: Style.spacing.xs
           currentIndex: root.cursorActive ? root.selectedIndex : -1
@@ -470,6 +508,8 @@ Item {
             required property int copyqIndex
             required property string tabName
             required property bool pinned
+            required property bool hot
+            required property string hotId
             required property string entryType
             required property string previewPath
             width: resultList.width
@@ -483,13 +523,14 @@ Item {
               anchors.fill: parent
               anchors.margins: Style.spacing.rowPaddingX
               spacing: Style.spacing.sm
+              z: 0
 
               Text {
-                text: rowDelegate.pinned ? "★" : " "
+                text: rowDelegate.hot ? "⏱" : (rowDelegate.pinned ? "★" : " ")
                 color: (root.cursorActive && rowDelegate.index === root.selectedIndex)
                   ? root.selectedText
                   : root.foreground
-                opacity: rowDelegate.pinned ? 0.9 : 0.25
+                opacity: (rowDelegate.hot || rowDelegate.pinned) ? 0.9 : 0.25
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
                 textFormat: Text.PlainText
@@ -523,15 +564,23 @@ Item {
 
             MouseArea {
               anchors.fill: parent
+              z: 1
               hoverEnabled: true
+              preventStealing: true
+              cursorShape: Qt.PointingHandCursor
               acceptedButtons: Qt.LeftButton | Qt.RightButton
               onEntered: {
                 root.cursorActive = true
-                root.selectedIndex = index
+                root.selectedIndex = rowDelegate.index
+              }
+              onPressed: function(mouse) {
+                root.cursorActive = true
+                root.selectedIndex = rowDelegate.index
+                mouse.accepted = true
               }
               onClicked: function(mouse) {
-                root.selectedIndex = index
-                if (mouse.button === Qt.RightButton) root.pinSelected()
+                root.selectedIndex = rowDelegate.index
+                if (mouse.button === Qt.RightButton) root.togglePinSelected()
                 else root.activateSelected(false)
               }
             }
@@ -540,7 +589,7 @@ Item {
 
         Text {
           Layout.fillWidth: true
-          text: root.errorText || "↑↓  ·  Enter paste  ·  Shift+Enter copy  ·  Del  ·  Ctrl+P pin  ·  Esc"
+          text: root.errorText || "↑↓ move  ·  Enter paste  ·  Shift+Enter copy  ·  r reload  ·  Del remove  ·  Ctrl+P pin/unpin  ·  Esc  ·  ⏱ keys ~30m"
           color: root.foreground
           opacity: root.errorText ? 0.9 : 0.45
           font.family: root.fontFamily

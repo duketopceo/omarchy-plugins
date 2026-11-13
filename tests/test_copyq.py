@@ -16,15 +16,30 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / "plugins/lukedaduke.copyq/bin"
 LIST_HELPER = BIN / "copyq-list.py"
+HOTKEYS_HELPER = BIN / "copyq_hotkeys.py"
 ACTIVATE_HELPER = BIN / "copyq-activate.sh"
 REMOVE_HELPER = BIN / "copyq-remove.sh"
 PIN_HELPER = BIN / "copyq-pin.sh"
 
 
 @pytest.fixture()
-def list_mod(monkeypatch: pytest.MonkeyPatch):
+def list_mod(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.syspath_prepend(str(BIN))
     loader = importlib.machinery.SourceFileLoader("copyq_list", str(LIST_HELPER))
     spec = importlib.util.spec_from_loader("copyq_list", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    monkeypatch.setattr(module, "COPYQ", "/usr/bin/copyq")
+    return module
+
+
+@pytest.fixture()
+def hot_mod(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.syspath_prepend(str(BIN))
+    loader = importlib.machinery.SourceFileLoader("copyq_hotkeys", str(HOTKEYS_HELPER))
+    spec = importlib.util.spec_from_loader("copyq_hotkeys", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     monkeypatch.setattr(module, "COPYQ", "/usr/bin/copyq")
@@ -39,11 +54,18 @@ def _ok_bytes(data: bytes = b"", returncode: int = 0) -> SimpleNamespace:
     return SimpleNamespace(stdout=data, stderr=b"", returncode=returncode)
 
 
-def _tab_cmd(args: list[str]) -> tuple[str | None, list[str]]:
-    """Return (tab_name, rest) when args are [copyq, tab, NAME, ...]."""
-    if len(args) >= 3 and args[1] == "tab":
-        return args[2], args[3:]
-    return None, args[1:]
+def _eval_payload(entries: list[dict], *, pin_count: int = 0, clip_count: int | None = None) -> str:
+    if clip_count is None:
+        clip_count = len([e for e in entries if not e.get("pinned")])
+    return json.dumps(
+        {
+            "ok": True,
+            "pinCount": pin_count,
+            "clipCount": clip_count,
+            "count": pin_count + clip_count,
+            "entries": entries,
+        }
+    )
 
 
 def test_list_two_text_rows(list_mod, monkeypatch, capsys) -> None:
@@ -51,22 +73,36 @@ def test_list_two_text_rows(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py", "80"])
 
-    def fake_run(args, **kwargs):
-        tab, rest = _tab_cmd(args)
-        text_mode = kwargs.get("text", True)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n") if text_mode else _ok_bytes(b"0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("2\n")
-        if tab == "&clipboard" and rest == ["read", "?", "0"]:
-            return _ok("text/plain\n")
-        if tab == "&clipboard" and rest == ["read", "?", "1"]:
-            return _ok("text/plain\n")
-        if tab == "&clipboard" and rest == ["read", "0"]:
-            return _ok("alpha")
-        if tab == "&clipboard" and rest == ["read", "1"]:
-            return _ok("beta")
-        raise AssertionError(args)
+    def fake_run(args, **_kwargs):
+        assert args[0] == "/usr/bin/copyq"
+        assert args[1] == "eval"
+        return _ok(
+            _eval_payload(
+                [
+                    {
+                        "index": 0,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "alpha",
+                        "text": "alpha",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                    {
+                        "index": 1,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "beta",
+                        "text": "beta",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                ],
+                clip_count=2,
+            )
+        )
 
     monkeypatch.setattr(list_mod, "_run", fake_run)
     assert list_mod.main() == 0
@@ -85,20 +121,35 @@ def test_list_pins_before_clipboard(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
 
     def fake_run(args, **_kwargs):
-        tab, rest = _tab_cmd(args)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("1\n")
-        if tab == "Pins" and rest == ["read", "?", "0"]:
-            return _ok("text/plain\n")
-        if tab == "Pins" and rest == ["read", "0"]:
-            return _ok("pinned")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("1\n")
-        if tab == "&clipboard" and rest == ["read", "?", "0"]:
-            return _ok("text/plain\n")
-        if tab == "&clipboard" and rest == ["read", "0"]:
-            return _ok("clip")
-        raise AssertionError(args)
+        assert args[1] == "eval"
+        return _ok(
+            _eval_payload(
+                [
+                    {
+                        "index": 0,
+                        "tab": "Pins",
+                        "pinned": True,
+                        "type": "text",
+                        "preview": "pinned",
+                        "text": "pinned",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                    {
+                        "index": 0,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "clip",
+                        "text": "clip",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                ],
+                pin_count=1,
+                clip_count=1,
+            )
+        )
 
     monkeypatch.setattr(list_mod, "_run", fake_run)
     assert list_mod.main() == 0
@@ -115,15 +166,27 @@ def test_list_image_row(list_mod, monkeypatch, capsys, tmp_path) -> None:
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
 
     def fake_run(args, **kwargs):
-        tab, rest = _tab_cmd(args)
         text_mode = kwargs.get("text", True)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n") if text_mode else _ok_bytes(b"0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("1\n")
-        if tab == "&clipboard" and rest == ["read", "?", "0"]:
-            return _ok("image/png\ntext/plain\n")
-        if tab == "&clipboard" and rest == ["read", "image/png", "0"]:
+        if len(args) >= 2 and args[1] == "eval":
+            return _ok(
+                _eval_payload(
+                    [
+                        {
+                            "index": 0,
+                            "tab": "&clipboard",
+                            "pinned": False,
+                            "type": "image",
+                            "preview": "Image",
+                            "text": "",
+                            "previewPath": "",
+                            "mime": "image/png",
+                        }
+                    ],
+                    clip_count=1,
+                )
+            )
+        # Thumbnail fetch after eval.
+        if args[1:] == ["tab", "&clipboard", "read", "image/png", "0"]:
             assert text_mode is False
             return _ok_bytes(b"\x89PNG\r\n", returncode=0)
         raise AssertionError(args)
@@ -135,80 +198,6 @@ def test_list_image_row(list_mod, monkeypatch, capsys, tmp_path) -> None:
     assert payload["entries"][0]["preview"] == "Image"
     assert payload["entries"][0]["previewPath"].endswith("preview-clip-0.png")
     assert Path(payload["entries"][0]["previewPath"]).is_file()
-
-
-def test_list_skips_whitespace_and_keeps_indexes(list_mod, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
-    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
-    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
-
-    def fake_run(args, **_kwargs):
-        tab, rest = _tab_cmd(args)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("3\n")
-        if rest[:2] == ["read", "?"]:
-            return _ok("text/plain\n")
-        if rest == ["read", "0"]:
-            return _ok("   \n")
-        if rest == ["read", "1"]:
-            return _ok("keep")
-        if rest == ["read", "2"]:
-            return _ok("also")
-        raise AssertionError(args)
-
-    monkeypatch.setattr(list_mod, "_run", fake_run)
-    assert list_mod.main() == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert [e["index"] for e in payload["entries"]] == [1, 2]
-    assert [e["text"] for e in payload["entries"]] == ["keep", "also"]
-
-
-def test_list_skips_nonzero_read(list_mod, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
-    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
-    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
-
-    def fake_run(args, **_kwargs):
-        tab, rest = _tab_cmd(args)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("2\n")
-        if rest[:2] == ["read", "?"]:
-            return _ok("text/plain\n")
-        if rest == ["read", "0"]:
-            return _ok("fail", returncode=1)
-        if rest == ["read", "1"]:
-            return _ok("ok")
-        raise AssertionError(args)
-
-    monkeypatch.setattr(list_mod, "_run", fake_run)
-    assert list_mod.main() == 0
-    payload = json.loads(capsys.readouterr().out)
-    assert len(payload["entries"]) == 1
-    assert payload["entries"][0]["index"] == 1
-
-
-def test_list_rejects_failed_count(list_mod, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
-    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
-    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
-
-    def fake_run(args, **_kwargs):
-        tab, rest = _tab_cmd(args)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("x", returncode=1)
-        raise AssertionError(args)
-
-    monkeypatch.setattr(list_mod, "_run", fake_run)
-    assert list_mod.main() == 1
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["ok"] is False
-    assert "copyq_count" in payload["error"]
 
 
 def test_list_preview_truncation(list_mod) -> None:
@@ -235,24 +224,20 @@ def test_list_missing_binary(list_mod, monkeypatch, capsys) -> None:
     assert payload == {"ok": False, "error": "copyq_missing", "entries": []}
 
 
-def test_list_bad_count(list_mod, monkeypatch, capsys) -> None:
+def test_list_eval_failure(list_mod, monkeypatch, capsys) -> None:
     monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
     monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
 
     def fake_run(args, **_kwargs):
-        tab, rest = _tab_cmd(args)
-        if tab == "Pins" and rest == ["count"]:
-            return _ok("0\n")
-        if tab == "&clipboard" and rest == ["count"]:
-            return _ok("not-a-number\n")
-        raise AssertionError(args)
+        assert args[1] == "eval"
+        return _ok("not-json", returncode=1)
 
     monkeypatch.setattr(list_mod, "_run", fake_run)
     assert list_mod.main() == 1
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False
-    assert payload["error"].startswith("copyq_count:")
+    assert payload["error"].startswith("copyq_eval:")
     assert payload["entries"] == []
 
 
@@ -363,3 +348,147 @@ exit 0
     lines = log.read_text().splitlines()
     assert any("tab &clipboard read ?" in " ".join(lines) or "read ?" in ln for ln in lines)
     assert any("tab Pins write 0 text/plain -" == ln for ln in lines)
+
+
+def test_unpin_from_pins_tab(tmp_path: Path) -> None:
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
+    env = {**os.environ, "COPYQ_BIN": str(fake)}
+    proc = subprocess.run(
+        [str(PIN_HELPER), "--index", "1", "--tab", "Pins"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert log.read_text().splitlines() == ["tab Pins remove 1"]
+
+
+def test_classify_openrouter_and_openai(hot_mod) -> None:
+    assert hot_mod.classify_secret("sk-or-v1-" + ("a" * 40))[0] == "openrouter"
+    assert hot_mod.classify_secret("sk-" + ("b" * 40))[0] == "openai"
+    assert hot_mod.classify_secret("not-a-key") is None
+
+
+def test_hot_vault_roundtrip(hot_mod, tmp_path: Path) -> None:
+    secret = "sk-or-v1-" + ("c" * 48)
+    item = hot_mod.upsert_secret(secret, ttl_secs=1800)
+    assert item is not None
+    assert "sk-or-v1-" in item["preview"]
+    assert "…" in item["preview"]
+    assert secret not in item["preview"]
+    store = tmp_path / "lukedaduke.copyq" / "hotkeys.fernet"
+    keyf = tmp_path / "lukedaduke.copyq" / "hotkeys.key"
+    assert store.is_file()
+    assert keyf.is_file()
+    assert secret.encode() not in store.read_bytes()
+    rows = hot_mod.list_overlay_entries()
+    assert len(rows) == 1
+    assert rows[0]["hotId"] == item["id"]
+    assert hot_mod.get_secret(item["id"]) == secret
+    assert hot_mod.drop_secret(item["id"]) is True
+    assert hot_mod.list_overlay_entries() == []
+
+
+def test_hot_vault_expires(hot_mod) -> None:
+    secret = "sk-" + ("d" * 40)
+    now = 1_700_000_000.0
+    hot_mod.upsert_secret(secret, ttl_secs=60, now=now)
+    assert len(hot_mod.list_overlay_entries(now=now + 10)) == 1
+    assert hot_mod.list_overlay_entries(now=now + 120) == []
+
+
+def test_list_harvests_api_key(list_mod, monkeypatch, capsys, tmp_path: Path) -> None:
+    monkeypatch.setattr(list_mod.os.path, "isfile", lambda _p: True)
+    monkeypatch.setattr(list_mod.os, "access", lambda _p, _m: True)
+    monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py"])
+    secret = "sk-or-v1-" + ("e" * 48)
+
+    def fake_run(args, **_kwargs):
+        assert args[1] == "eval"
+        return _ok(
+            _eval_payload(
+                [
+                    {
+                        "index": 0,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": secret,
+                        "text": secret,
+                        "keyish": True,
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                    {
+                        "index": 1,
+                        "tab": "&clipboard",
+                        "pinned": False,
+                        "type": "text",
+                        "preview": "hello",
+                        "text": "hello",
+                        "previewPath": "",
+                        "mime": "text/plain",
+                    },
+                ],
+                clip_count=2,
+            )
+        )
+
+    monkeypatch.setattr(list_mod, "_run", fake_run)
+    assert list_mod.main() == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hotCount"] == 1
+    assert payload["entries"][0]["hot"] is True
+    assert "…" in payload["entries"][0]["preview"]
+    assert secret not in json.dumps(payload)
+    assert payload["entries"][1]["preview"] == "hello"
+
+
+def test_activate_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.syspath_prepend(str(BIN))
+    loader = importlib.machinery.SourceFileLoader("copyq_hotkeys_act", str(HOTKEYS_HELPER))
+    spec = importlib.util.spec_from_loader("copyq_hotkeys_act", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    secret = "sk-" + ("f" * 40)
+    item = module.upsert_secret(secret)
+    assert item is not None
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(tmp_path, f'echo "$@" >> "{log}"\n')
+    env = {
+        **os.environ,
+        "COPYQ_BIN": str(fake),
+        "XDG_RUNTIME_DIR": str(tmp_path),
+    }
+    proc = subprocess.run(
+        [str(ACTIVATE_HELPER), "--hot-id", item["id"], "--copy-only"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert log.read_text().splitlines() == [f"copy {secret}"]
+
+
+def test_remove_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.syspath_prepend(str(BIN))
+    loader = importlib.machinery.SourceFileLoader("copyq_hotkeys_drop", str(HOTKEYS_HELPER))
+    spec = importlib.util.spec_from_loader("copyq_hotkeys_drop", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    item = module.upsert_secret("sk-" + ("g" * 40))
+    assert item is not None
+    proc = subprocess.run(
+        [str(REMOVE_HELPER), "--hot-id", item["id"]],
+        check=False,
+        env={**os.environ, "XDG_RUNTIME_DIR": str(tmp_path)},
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert module.list_overlay_entries() == []

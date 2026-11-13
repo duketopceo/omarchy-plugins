@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Emit CopyQ history as JSON for the Omarchy overlay.
 
-Lists Pins tab first, then &clipboard. Text + image rows.
-Fixed CopyQ path; COPYQ_BIN override for tests.
+One CopyQ `eval` dump for Pins + &clipboard (fast). Image thumbnails are
+fetched only for image rows. Fixed CopyQ path; COPYQ_BIN override for tests.
 """
 from __future__ import annotations
 
@@ -13,10 +13,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+_BIN = Path(__file__).resolve().parent
+if str(_BIN) not in sys.path:
+    sys.path.insert(0, str(_BIN))
+from copyq_hotkeys import harvest_texts, list_overlay_entries
+
 COPYQ = os.environ.get("COPYQ_BIN", "/usr/bin/copyq")
 DEFAULT_LIMIT = 80
 MAX_LIMIT = 200
-# Overlay only needs a short preview; never buffer unbounded clip bodies.
 MAX_READ = 8_192
 MAX_IMAGE_PREVIEW = 2_000_000
 CLIPBOARD_TAB = "&clipboard"
@@ -32,6 +36,68 @@ IMAGE_MIMES = (
 RUN_TIMEOUT = 3.0
 HELPER_ALARM_SECS = 8
 ENV = {"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "")}
+
+# CopyQ script: dump previews in-process (one spawn). LIMIT is substituted.
+_DUMP_SCRIPT = r"""
+function dump(tabName, limit, pinned) {
+  tab(tabName);
+  var n = Math.min(count(), limit);
+  var rows = [];
+  for (var i = 0; i < n; ++i) {
+    var fmts = str(read("?", i)).split("\n");
+    var image = "";
+    for (var f = 0; f < fmts.length; ++f) {
+      var m = fmts[f];
+      if (m.indexOf("image/") === 0) { image = m; break; }
+    }
+    if (image !== "") {
+      rows.push({
+        index: i,
+        tab: tabName,
+        pinned: pinned,
+        type: "image",
+        mime: image,
+        preview: "Image",
+        text: "",
+        previewPath: ""
+      });
+      continue;
+    }
+    var t = str(read(i));
+    if (t.replace(/\s+/g, "") === "") continue;
+    var one = t.replace(/\r/g, "").replace(/\n/g, " ");
+    var trimmed = one.replace(/^\s+|\s+$/g, "");
+    var keyish = /^(sk-|sk-or-v1-|sk-ant-|gh[pousr]_|github_pat_|xox[baprs]-|AIza|AKIA|Bearer\s)/i.test(trimmed);
+    var prev = one;
+    if (!keyish && prev.length > 160) prev = prev.substring(0, 160) + "…";
+    rows.push({
+      index: i,
+      tab: tabName,
+      pinned: pinned,
+      type: "text",
+      mime: "text/plain",
+      preview: keyish ? trimmed : prev,
+      text: keyish ? trimmed : prev,
+      keyish: keyish,
+      previewPath: ""
+    });
+  }
+  return { rows: rows, total: count() };
+}
+var pinPack = { rows: [], total: 0 };
+try { pinPack = dump("Pins", LIMIT, true); } catch (e) { pinPack = { rows: [], total: 0 }; }
+var remaining = LIMIT - pinPack.rows.length;
+if (remaining < 1) remaining = 1;
+var clipPack = dump("&clipboard", remaining, false);
+var all = pinPack.rows.concat(clipPack.rows);
+print(JSON.stringify({
+  ok: true,
+  pinCount: pinPack.total,
+  clipCount: clipPack.total,
+  count: pinPack.total + clipPack.total,
+  entries: all
+}));
+"""
 
 
 def _limit_from_argv() -> int:
@@ -117,7 +183,6 @@ def _preview(text: str) -> str:
 
 def _preview_dir() -> Path:
     runtime = os.environ.get("XDG_RUNTIME_DIR")
-    # Prefer the private runtime dir; never fall back to world-readable /tmp.
     if not runtime:
         runtime = os.path.join(
             "/tmp", f"lukedaduke.copyq-{os.getuid()}-{os.getpid()}"
@@ -139,24 +204,6 @@ def _copyq_args(*parts: str, tab: str | None = None) -> list[str]:
     return args
 
 
-def _formats(index: int, tab: str) -> list[str]:
-    try:
-        proc = _run(_copyq_args("read", "?", str(index), tab=tab))
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    if proc.returncode != 0:
-        return []
-    return [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
-
-
-def _image_mime(formats: list[str]) -> str | None:
-    lower = {f.lower(): f for f in formats}
-    for mime in IMAGE_MIMES:
-        if mime in lower:
-            return lower[mime]
-    return None
-
-
 def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
     try:
         proc = _run(
@@ -168,7 +215,6 @@ def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
     except (OSError, subprocess.TimeoutExpired):
         return None
     if proc.returncode not in (0, -9) or not proc.stdout:
-        # -9: killed after cap; still usable if we kept capped bytes
         if not proc.stdout:
             return None
     ext = "jpg" if "jpeg" in mime.lower() or mime.lower().endswith("/jpg") else "png"
@@ -187,85 +233,42 @@ def _write_image_preview(index: int, tab: str, mime: str) -> str | None:
     return str(out)
 
 
-def _read_text(index: int, tab: str) -> tuple[str | None, int]:
+def _dump_eval(limit: int) -> dict[str, object]:
+    script = _DUMP_SCRIPT.replace("LIMIT", str(limit))
     try:
-        proc = _run(
-            _copyq_args("read", str(index), tab=tab),
-            max_bytes=MAX_READ,
-        )
+        proc = _run([COPYQ, "eval", "--", script], timeout=5.0)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"copyq_read:{exc}") from exc
-    out = proc.stdout or ""
-    if proc.returncode == 0:
-        return out, 0
-    # Byte-cap kill still yields a usable preview prefix.
-    if proc.returncode == -9 and out.strip():
-        return out, 0
-    return None, proc.returncode or 1
-
-
-def _count(tab: str) -> int:
+        raise RuntimeError(f"copyq_eval:{exc}") from exc
+    raw = (proc.stdout or "").strip()
+    if proc.returncode != 0 or not raw:
+        err = (proc.stderr or "").strip() or f"exit:{proc.returncode}"
+        raise RuntimeError(f"copyq_eval:{err}")
     try:
-        proc = _run(_copyq_args("count", tab=tab))
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"copyq_count:{exc}") from exc
-    if proc.returncode != 0:
-        raise RuntimeError(f"copyq_count:exit:{proc.returncode}")
-    raw = (proc.stdout or "0").strip() or "0"
-    try:
-        return int(raw)
-    except ValueError as exc:
-        raise RuntimeError(f"copyq_count:{exc}") from exc
-
-
-def _collect_tab(tab: str, *, pinned: bool, limit: int) -> tuple[list[dict[str, object]], int]:
-    try:
-        total = _count(tab)
-    except RuntimeError:
-        if pinned:
-            # Pins tab may not exist yet.
-            return [], 0
-        raise
-    entries: list[dict[str, object]] = []
-    n = min(total, limit)
-    for index in range(n):
-        formats = _formats(index, tab)
-        image_mime = _image_mime(formats)
-        if image_mime:
-            preview_path = _write_image_preview(index, tab, image_mime)
-            entries.append(
-                {
-                    "index": index,
-                    "tab": tab,
-                    "pinned": pinned,
-                    "type": "image",
-                    "text": "",
-                    "preview": "Image",
-                    "previewPath": preview_path or "",
-                    "mime": image_mime,
-                }
-            )
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"copyq_eval:json:{exc}") from exc
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        raise RuntimeError("copyq_eval:bad_payload")
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        raise RuntimeError("copyq_eval:bad_entries")
+    for entry in entries:
+        if not isinstance(entry, dict):
             continue
-        text, code = _read_text(index, tab)
-        if code != 0 or text is None:
+        if entry.get("type") != "image":
             continue
-        if not text.strip():
+        mime = str(entry.get("mime") or "")
+        tab = str(entry.get("tab") or CLIPBOARD_TAB)
+        try:
+            index = int(entry.get("index"))
+        except (TypeError, ValueError):
             continue
-        preview = _preview(text)
-        entries.append(
-            {
-                "index": index,
-                "tab": tab,
-                "pinned": pinned,
-                "type": "text",
-                # Overlay filters/displays preview only; activation uses index+tab.
-                "text": preview,
-                "preview": preview,
-                "previewPath": "",
-                "mime": "text/plain",
-            }
-        )
-    return entries, total
+        if mime not in IMAGE_MIMES and not mime.lower().startswith("image/"):
+            continue
+        path = _write_image_preview(index, tab, mime)
+        if path:
+            entry["previewPath"] = path
+    return payload
 
 
 def main() -> int:
@@ -281,11 +284,7 @@ def main() -> int:
 
         limit = _limit_from_argv()
         try:
-            pin_entries, pin_total = _collect_tab(PINS_TAB, pinned=True, limit=limit)
-            remaining = max(1, limit - len(pin_entries))
-            clip_entries, clip_total = _collect_tab(
-                CLIPBOARD_TAB, pinned=False, limit=remaining
-            )
+            payload = _dump_eval(limit)
         except RuntimeError as exc:
             print(
                 json.dumps({"ok": False, "error": str(exc), "entries": []}),
@@ -293,20 +292,48 @@ def main() -> int:
             )
             return 1
 
-        entries = pin_entries + clip_entries
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "count": pin_total + clip_total,
-                    "pinCount": pin_total,
-                    "clipCount": clip_total,
-                    "entries": entries,
-                },
-                ensure_ascii=False,
-            ),
-            flush=True,
+        entries = payload.get("entries")
+        if not isinstance(entries, list):
+            entries = []
+
+        # Pull API-key shaped clips into the encrypted hot vault (~30m TTL),
+        # then hide the plaintext rows from the main list.
+        candidates: list[str] = []
+        kept: list[object] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            text = str(entry.get("text") or entry.get("preview") or "")
+            if entry.get("keyish") is True or text.strip().startswith(
+                ("sk-", "sk-or-v1-", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_", "xox", "AIza", "AKIA", "Bearer ")
+            ):
+                candidates.append(text)
+                continue
+            # Never ship full secrets in the list JSON.
+            entry.pop("keyish", None)
+            kept.append(entry)
+
+        if candidates:
+            try:
+                harvest_texts(candidates)
+            except OSError:
+                pass
+
+        try:
+            hot_rows = list_overlay_entries()
+        except OSError:
+            hot_rows = []
+
+        merged = hot_rows + kept
+        payload["entries"] = merged
+        payload["hotCount"] = len(hot_rows)
+        payload["count"] = (
+            int(payload.get("pinCount") or 0)
+            + int(payload.get("clipCount") or 0)
+            + len(hot_rows)
         )
+
+        print(json.dumps(payload, ensure_ascii=False), flush=True)
         return 0
     finally:
         signal.alarm(0)
