@@ -208,3 +208,18 @@ def test_a_rank_change_fills_an_empty_selection():
     assert 'selectedId === "" && ranked.length' in adopt
     # adopted on open, not only on a rank change
     assert "adopt()" in text[text.index("function pinOpen()"):text.index("function closeIsland()")]
+
+
+def test_compact_height_follows_the_cutout_not_a_constant():
+    # A constant 37 px sat a few pixels below the bar on this panel. The
+    # compact island must be the camera cutout tall when there is one.
+    text = source()
+    assert "compactHeight: cut > 0 ? Math.max(cut, barHeight)" in text
+
+
+def test_physical_size_is_derived_when_hyprland_reports_none():
+    # Hyprland.monitorFor() returns 0x0 here, so cutoutTop got the logical
+    # width and matched no panel entry; the cutout was never detected.
+    text = source()
+    assert "Math.round(modelData.width * dpr)" in text
+    assert "Math.round(modelData.height * dpr)" in text

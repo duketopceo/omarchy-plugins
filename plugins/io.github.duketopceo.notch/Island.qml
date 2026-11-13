@@ -253,6 +253,27 @@ Item {
     function onDismissRequested() { root.dashboardOpen = false }
   }
 
+  // Click-outside-to-close, as its own transparent surface under the island.
+  Variants {
+    model: Quickshell.screens
+    PanelWindow {
+      id: catcher
+      required property var modelData
+      screen: modelData
+      visible: root.anyExpanded && !root.dashboardOpen
+      anchors { top: true; bottom: true; left: true; right: true }
+      color: "transparent"
+      WlrLayershell.namespace: "omarchy-notch-catcher"
+      WlrLayershell.layer: WlrLayer.Overlay
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      TapHandler { onTapped: root.dismissRequested() }
+    }
+  }
+
+  // True while any screen's island is open, for the catcher above.
+  property bool anyExpanded: false
+
   Variants {
     model: Quickshell.screens
 
@@ -262,11 +283,17 @@ Item {
       screen: modelData
 
       readonly property var monitor: Hyprland.monitorFor(modelData)
-      readonly property int cut: monitor ? Model.cutoutTop(root.cutouts, modelData.name, modelData.width, {
-        width: monitor.width,
-        height: monitor.height,
-        transform: monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
-      }) : 0
+      // Hyprland.monitorFor() reports 0x0 here, so the physical size comes
+      // from the screen and its scale factor; the monitor object is used only
+      // when it actually carries a size.
+      readonly property real dpr: modelData.devicePixelRatio > 0 ? modelData.devicePixelRatio : 1
+      readonly property int physW: monitor && monitor.width > 0 ? monitor.width : Math.round(modelData.width * dpr)
+      readonly property int physH: monitor && monitor.height > 0 ? monitor.height : Math.round(modelData.height * dpr)
+      readonly property int cut: Model.cutoutTop(root.cutouts, modelData.name, modelData.width, {
+        width: physW,
+        height: physH,
+        transform: monitor && monitor.lastIpcObject ? monitor.lastIpcObject.transform : 0
+      })
       readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride, cut) || Model.SIZES.cameraWidth
       // Ear widths come from the notch's own screen math (Model.earWidthFor /
       // earWidthFit / maxEarWidth), not from constants: a hardcoded pair gave
@@ -275,8 +302,12 @@ Item {
       readonly property int earBase: Model.earWidthFor(modelData.width)
       readonly property int earMax: Model.maxEarWidth(root.barWidgets, modelData.width, camW, earBase, 12, 280)
 
-      // Expanded geometry from the prototype (KTD3).
-      readonly property int compactHeight: 37
+      // The compact island is the camera cutout tall when the panel has one
+      // (so it reads as the notch, not a pill floating below it) and the bar
+      // height when it does not. The prototype's 37 was a constant that sat
+      // a few px below the bar on this panel.
+      readonly property int barHeight: 32
+      readonly property int compactHeight: cut > 0 ? Math.max(cut, barHeight) : barHeight
       readonly property int expandedWidth: 374
       readonly property int expandedHeight: 180
 
@@ -326,7 +357,8 @@ Item {
         var r = Expand.step(xstate, e, root.settings.hoverDelay)
         xstate = r.state
         if (r.timer > 0) { xtimer.interval = r.timer; xtimer.restart() } else xtimer.stop()
-        if (xstate === "open") adopt()
+        if (xstate === "open") { adopt(); root.anyExpanded = true }
+        else if (xstate === "collapsed") root.anyExpanded = false
       }
       // Click: pin open and hold a selection, so leaving does not collapse it.
       function pinOpen() {
@@ -334,6 +366,7 @@ Item {
         adopt()
         xtimer.stop()
         xstate = "open"
+        root.anyExpanded = true
       }
       // Take the top activity when nothing is held. Called on open and on every
       // rank change, because `ranked` is usually already populated when the
@@ -347,6 +380,7 @@ Item {
         xtimer.stop()
         xstate = "collapsed"
         root.setTracking(modelData.name, false)
+        root.anyExpanded = false
       }
       function openIsland(id) {
         if (id) selectedId = id
@@ -391,13 +425,10 @@ Item {
       // rather than bound: a binding here reads `expanded`, and writing the
       // collector from it closed a loop through `ranked`.
 
-      // A click anywhere outside the island clears the grab, which collapses
-      // it. This is the outside-click-to-close path, not just Escape.
-      HyprlandFocusGrab {
-        active: win.expanded && !root.dashboardOpen
-        windows: [win]
-        onCleared: win.closeIsland()
-      }
+      // Outside-click closes: a transparent catcher fills the screen while
+      // expanded and takes the next click. HyprlandFocusGrab was used first,
+      // but it clears on its own within a few seconds here and force-collapsed
+      // a pinned island, which is why the expanded view kept vanishing.
 
       anchors.top: true
       // Sized from the island itself, plus slack for the shadow-less edge: a
