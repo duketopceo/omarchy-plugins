@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.hotkey-tally",
+  "name": "Hotkey Tally",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "description": "Counts how often each wrapped Hyprland binding is used. Aggregate counts only, stored locally — no keystroke or clipboard capture",
+  "kinds": [
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Hotkey Tally",
+    "description": "Which of your keybindings you actually use, ranked by count",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
