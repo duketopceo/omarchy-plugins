@@ -6,10 +6,10 @@
   "author": "duketopceo",
   "license": "MIT",
   "homepage": "https://github.com/duketopceo/omarchy-notch",
-  "description": "A Mac-style notch island at the top center of every screen: clock and date with up to two live activities, and playback, dictation and app controls when expanded. Sizes itself from Omarchy's display-cutout data on notched MacBook panels.",
+  "description": "A Mac-style notch island at the top center of every screen: clock and date, with weather and a stock watchlist cycling in. Sizes itself from Omarchy's display-cutout data on notched MacBook panels.",
   "kinds": ["panel"],
   "keepLoaded": true,
   "entryPoints": {
-    "panel": "Island.qml"
+    "panel": "Notch.qml"
   }
 }
