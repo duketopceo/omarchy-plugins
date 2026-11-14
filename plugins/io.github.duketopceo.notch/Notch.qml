@@ -334,7 +334,7 @@ Item {
       property string xstate: "collapsed"
       readonly property bool expanded: Expand.isExpanded(xstate)
       readonly property int baseWidth: notched ? camW + 2 * earTarget : root.virtualWidth
-      readonly property int baseHeight: notched ? cut : root.barHeight  // exactly the cutout height
+      readonly property int baseHeight: notched ? Math.min(cut, root.barHeight) : root.barHeight  // match the bar height exactly
       property string currentTab: "home"   // the expanded panel's tab; sizes the panel
       readonly property var panelSz: Expand.panelSize(modelData.width, Tabs.sizeFor(currentTab))
       readonly property int minPanelHeight: Expand.panelSize(modelData.width).height
