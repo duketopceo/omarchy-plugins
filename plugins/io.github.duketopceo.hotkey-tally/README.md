@@ -31,7 +31,7 @@ tally.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })
 tally.bind("SUPER + M", "Blip iMessage", "blip-toggle")
 
 -- untouched and uncounted
-o.bind("SUPER + D", "Wisp push-to-talk (hold)", { launch = "/home/x/.local/bin/wisp-trigger start" })
+o.bind("SUPER + D", "Wisp push-to-talk (hold)", { launch = "~/.local/bin/wisp-trigger start" })
 ```
 
 `tally.bind` records `(id, key, label, timestamp)`, then runs the same command

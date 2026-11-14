@@ -592,7 +592,9 @@ Panel {
           anchors.fill: parent; hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
           onClicked: {
-            Quickshell.execDetached(["/home/lukekimball/.local/bin/perplexity"])
+            // Home-relative so the release copy carries no host path; the
+            // binary is user-installed to ~/.local/bin on every machine.
+            Quickshell.execDetached([(Quickshell.env("HOME") || "~") + "/.local/bin/perplexity"])
             root.close()
           }
         }
