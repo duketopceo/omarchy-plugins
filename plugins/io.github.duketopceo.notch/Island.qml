@@ -136,7 +136,7 @@ Item {
   MediaActivity { id: media }
   WordinkActivity { id: dictation }
   readonly property bool wordinkOn: settings.optWordink !== false
-  MessagesActivity { id: messagesAct; enabled: root.settings.optMessages === true }
+  MessagesActivity { id: messagesAct }
   AgentsActivity { id: agents; enabled: root.settings.optAgents === true }
   ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
   ChargingActivity {
