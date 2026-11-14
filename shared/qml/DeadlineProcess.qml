@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 import Quickshell.Io
 
 // A Process with a paired kill deadline. When the deadline passes, the whole

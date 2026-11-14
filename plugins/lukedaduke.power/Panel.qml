@@ -1,4 +1,4 @@
-import QtQuick
+import QtQuick 6.11
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
@@ -496,9 +496,12 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.showPercentage && !vertical
-      ? Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
-      : root.batteryIcon()
+    // Omarchy 4.5 draws `text` as the icon and scales it into the slot, so the
+    // percentage goes in labelText (drawn beside the icon at the bar's font size).
+    text: root.batteryIcon()
+    labelText: root.showPercentage && !vertical
+      ? Math.round(root.batteryFraction * 100) + "%"
+      : ""
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {

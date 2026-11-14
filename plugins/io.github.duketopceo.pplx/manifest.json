@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "io.github.duketopceo.pplx",
-  "name": "Perplexity Search",
-  "version": "0.2.1",
+  "name": "Perplexity Computer",
+  "version": "0.2.2",
   "author": "duketopceo",
   "license": "MIT",
-  "description": "Quick-ask UI for the Perplexity Search API (pplx CLI)",
+  "description": "Desktop Computer launcher and Perplexity Search for the Omarchy bar",
   "kinds": [
     "bar-widget"
   ],
@@ -14,8 +14,8 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Perplexity Search",
-    "description": "Quick-ask web search without leaving the desktop",
+    "displayName": "Perplexity Computer",
+    "description": "Open Perplexity Desktop and search from the bar",
     "category": "Productivity",
     "allowMultiple": false,
     "defaultSection": "right"
