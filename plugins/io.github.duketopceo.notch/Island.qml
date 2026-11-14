@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import qs.Commons as Commons
 import "Expand.js" as Expand
 import "Model.js" as Model
+import "IslandGeom.js" as Geom
 import "Watchlist.js" as Watchlist
 import "Settings.js" as Settings
 import "Activity.js" as Activity
@@ -13,9 +14,8 @@ import "Media.js" as Media
 import "Motion.js" as Motion
 import "IslandActivity.js" as Island
 
-// Island: Dynamic Island look (prototype geometry) — floating 37px capsule
-// over the camera, morphs to ~374×180 activity card. Notch cutout-fill is gone.
-// Tabbed dashboard features port next; dashboard Loader (Notch.qml) removed.
+// Island: Dynamic Island pill (sizes in IslandGeom.js). Morphs to an activity
+// card on hover/click. Notch cutout-fill is gone; tab dashboard ports next.
 
 
 Item {
@@ -304,10 +304,10 @@ Item {
       // height when it does not. The prototype's 37 was a constant that sat
       // a few px below the bar on this panel.
       readonly property int barHeight: 32
-      // Prototype Dynamic Island: fixed 37px pill, not cutout-fill.
-      readonly property int compactHeight: 37
-      readonly property int expandedWidth: 374
-      readonly property int expandedHeight: 180
+      // Geom.js owns Dynamic Island sizes (compact pill, not cutout-fill).
+      readonly property int compactHeight: Geom.COMPACT_H
+      readonly property int expandedWidth: Geom.EXPANDED_W
+      readonly property int expandedHeight: Geom.EXPANDED_H
 
       // What the right ear must show: the top activity, else the idle slot.
       readonly property string idleSlot: Model.idleSlot(root.now.getTime() / 1000,
@@ -327,7 +327,7 @@ Item {
         return mDate
       }
       readonly property int earTarget: Model.earWidthFit(sideNeed, earBase, earMax)
-      readonly property int compactWidth: Math.min(modelData.width - 16, Math.max(250, camW + 120, camW + 2 * earTarget))
+      readonly property int compactWidth: Geom.compactWidth(camW, earTarget, modelData.width)
 
       // Measures the ear text so the island grows to fit it, as Notch.qml does.
       // TextMetrics measures its own `text` (advanceWidth), so each shape the
@@ -434,11 +434,9 @@ Item {
       // a pinned island, which is why the expanded view kept vanishing.
 
       anchors.top: true
-      // Sized from the island itself, plus slack for the shadow-less edge: a
-      // constant here clips the island whenever compactWidth grows (two
-      // activities, or a camera-width override).
-      implicitWidth: Math.max(expandedWidth, compactWidth) + 40
-      implicitHeight: expanded ? expandedHeight + 20 : compactHeight + 20
+      // Window follows the island; slack lives in Geom.js (keep it small).
+      implicitWidth: Math.max(Geom.windowWidth(true, 0), Geom.windowWidth(false, compactWidth))
+      implicitHeight: Geom.windowHeight(expanded)
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch-island"
       WlrLayershell.layer: WlrLayer.Overlay
