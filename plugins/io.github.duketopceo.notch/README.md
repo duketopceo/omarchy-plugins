@@ -101,7 +101,7 @@ Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateS
 
 ## Activity contract
 
-The side text (right ear, or the virtual notch line) shows the highest-priority active activity, else the idle cycle. `Notch.qml` keeps one list:
+The side text (right ear, or the virtual notch line) shows up to two active activities in priority order when they fit; otherwise it shows the highest-priority activity. When none are active, it shows the idle cycle. Clicking an activity opens its tab, or Home when that tab is unavailable. `Notch.qml` keeps one list:
 
 ```qml
 readonly property var activities: [

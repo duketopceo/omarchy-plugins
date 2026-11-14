@@ -114,6 +114,18 @@ def test_label_prefixes_glyph():
     assert run("A.label(null)") == ""
 
 
+def test_two_activities_ordered_with_stable_ties_and_filtered():
+    assert run("A.top([{id:'a',active:true,priority:5,text:'a'},{id:'b',active:true,priority:9,text:'b'},{id:'c',active:true,priority:5,text:'c'},{id:'d',active:true,priority:99,text:''}],2).map(x=>x.id)") == ["b", "a"]
+    assert run("A.top([],2)") == []
+
+
+def test_activity_tabs_respect_optional_settings():
+    assert run("A.tabFor('media', {})") == "media"
+    assert run("A.tabFor('dictation', {})") == "home"
+    assert run("A.tabFor('agents', {})") == "home"
+    assert run("A.tabFor('agents', {optAgents:true})") == "agents"
+
+
 # ---------------------------------------------------------------- settings
 
 def test_defaults_when_entry_absent_or_junk():

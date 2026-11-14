@@ -66,7 +66,7 @@ Omarchy's built-in `omarchy.bluetooth` / `omarchy.network`, `mohamedmansour.fina
 
 This umbrella repo is **public**: https://github.com/duketopceo/omarchy-plugins
 
-Each plugin is also published as its own installable repo (`manifest.json` at root, `omarchy plugin validate` clean):
+Published plugins have their own installable repositories. Others are available in this umbrella repository:
 
 | Plugin | Repo |
 |---|---|
@@ -80,11 +80,11 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
-| `io.github.duketopceo.notch` | https://github.com/duketopceo/omarchy-notch (not yet published) |
+| `io.github.duketopceo.notch` | [Source in this repository](plugins/io.github.duketopceo.notch) (standalone repo not yet published) |
 | `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
 | `io.github.duketopceo.hotkey-tally` | https://github.com/duketopceo/omarchy-hotkey-tally (not yet published) |
 
-Install any of them with:
+Install a published standalone plugin with:
 
 ```bash
 omarchy plugin add https://github.com/duketopceo/omarchy-fan

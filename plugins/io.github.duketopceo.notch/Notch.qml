@@ -276,6 +276,7 @@ Item {
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
+  readonly property var activeActivities: Activity.top(activities, 2)
 
   readonly property string idleView: Model.idleSlot(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
   readonly property string view: activity ? "activity" : (idleView || "date")
@@ -345,7 +346,17 @@ Item {
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
       readonly property real slotNeed: root.activity || root.idleView === "weather" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
       readonly property real dateNeed: dateMetrics.advanceWidth + 6
-      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
+      readonly property var secondActivity: root.activeActivities.length > 1 ? root.activeActivities[1] : null
+      readonly property bool splitActivities: !!secondActivity && (notched
+        ? dateNeed + sideMetrics.advanceWidth + secondMetrics.advanceWidth + 24 + root.eqSpace + root.earPad + (dotShown ? 12 : 0) <= earMax
+        : timeMetrics.advanceWidth + dateMetrics.advanceWidth + sideMetrics.advanceWidth + secondMetrics.advanceWidth + 42 + root.eqSpace <= root.virtualWidth)
+      function openActivity(activity) {
+        if (!activity || expanded) return
+        currentTab = Caps.needsSetup(root.settings) ? "settings" : Activity.tabFor(activity.id, root.settings)
+        pinned = true
+        xstate = "open"
+      }
+      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + (splitActivities ? secondMetrics.advanceWidth + 12 : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -412,6 +423,8 @@ Item {
           font.pixelSize: 13
           text: root.dateLead
         }
+        TextMetrics { id: secondMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: win.secondActivity ? Activity.label(win.secondActivity) : "" }
+        TextMetrics { id: timeMetrics; font.family: root.fontFamily; font.pixelSize: 13; text: root.timeText; font.weight: Font.DemiBold }
         x: Math.round((parent.width - width) / 2)
         y: 0
         color: root.islandColor
@@ -496,7 +509,16 @@ Item {
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
+          maxWidth: win.splitActivities ? sideMetrics.advanceWidth : win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
+          color: root.textColor
+          family: root.fontFamily
+        }
+        SlideText {
+          visible: win.notched && win.splitActivities
+          anchors.verticalCenter: parent.verticalCenter
+          x: win.slotX + root.eqSpace + sideMetrics.advanceWidth + 12
+          target: win.secondActivity ? Activity.label(win.secondActivity) : ""
+          maxWidth: secondMetrics.advanceWidth
           color: root.textColor
           family: root.fontFamily
         }
@@ -530,15 +552,22 @@ Item {
           color: root.network.idleDot === "on" ? "#6fbf73" : "#e0b050"
         }
 
-        // Click the right ear while dictation is showing to stop/toggle it.
+        // Activity targets open their corresponding panels.
         MouseArea {
-          visible: win.notched
-          enabled: dictation.active && !win.expanded
-          x: island.earLive + win.camW
-          width: island.earLive
+          visible: win.notched && !!root.activity && !win.expanded
+          x: win.slotX + root.eqSpace
+          width: win.splitActivities ? sideMetrics.advanceWidth : Math.max(0, island.width - x)
           height: parent.height
           cursorShape: Qt.PointingHandCursor
-          onClicked: dictation.toggle()
+          onClicked: win.openActivity(root.activity)
+        }
+        MouseArea {
+          visible: win.notched && win.splitActivities && !win.expanded
+          x: win.slotX + root.eqSpace + sideMetrics.advanceWidth + 12
+          width: secondMetrics.advanceWidth
+          height: parent.height
+          cursorShape: Qt.PointingHandCursor
+          onClicked: win.openActivity(win.secondActivity)
         }
 
         // Virtual notch: one centered line.
@@ -580,14 +609,25 @@ Item {
             family: root.fontFamily
           }
           SlideText {
+            id: virtualFirst
             visible: root.view !== "watchlist" && root.view !== "date"
             anchors.verticalCenter: parent.verticalCenter
             target: root.sideText
             iconKind: root.weather ? root.weather.kind : ""
             iconOn: root.showIcon
-            maxWidth: root.virtualWidth - 110
+            maxWidth: win.splitActivities ? sideMetrics.advanceWidth : root.virtualWidth - 110
             color: root.textColor
             family: root.fontFamily
+            MouseArea { anchors.fill: parent; enabled: !!root.activity && !win.expanded; cursorShape: Qt.PointingHandCursor; onClicked: win.openActivity(root.activity) }
+          }
+          SlideText {
+            visible: win.splitActivities
+            anchors.verticalCenter: parent.verticalCenter
+            target: win.secondActivity ? Activity.label(win.secondActivity) : ""
+            maxWidth: secondMetrics.advanceWidth
+            color: root.textColor
+            family: root.fontFamily
+            MouseArea { anchors.fill: parent; enabled: !win.expanded; cursorShape: Qt.PointingHandCursor; onClicked: win.openActivity(win.secondActivity) }
           }
         }
       }
@@ -613,7 +653,7 @@ Item {
     clip: false
 
     Component.onCompleted: shown = target
-    onTargetChanged: if (target !== shown) swap.restart()
+    onTargetChanged: if (target !== shown) { if (root.reduceMotion) { swap.stop(); shown = target; label.y = 0; label.opacity = 1 } else swap.restart() }
 
     PixelWeather {
       id: icon
@@ -645,7 +685,7 @@ Item {
     onOverflowChanged: if (overflow <= 0) label.x = 0
     SequentialAnimation {
       id: marquee
-      running: slide.overflow > 0 && slide.visible
+      running: slide.overflow > 0 && slide.visible && !root.reduceMotion
       loops: Animation.Infinite
       onRunningChanged: if (!running) label.x = 0
       PauseAnimation { duration: 1800 }
