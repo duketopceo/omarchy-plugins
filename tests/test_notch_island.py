@@ -47,6 +47,15 @@ def test_expanded_hosts_the_tabbed_dashboard():
     assert "Tabs.sizeFor" in text or "Tabs.maxHeight" in text
 
 
+def test_compact_is_island_pill_not_square_top_notch():
+    text = source()
+    assert 'WlrLayershell.namespace: "omarchy-notch-island"' in text
+    assert "cornerR" in text
+    assert "pillR" in text
+    # Retired: flush square-top notch silhouette.
+    assert "topLeftRadius: 0" not in text
+
+
 def test_externally_sourced_idle_text_stays_plain():
     text = source()
     assert "textFormat: Text.PlainText" in text

@@ -19,9 +19,10 @@ import "Dayflow.js" as Dayflow  // local: dayflow integration
 import "Theme.js" as Theme
 import "Capabilities.js" as Caps
 
-// Island (panel entry): compact ears + hover-morph into the full tabbed dashboard.
+// Island (panel entry): Dynamic Island pill (full capsule when collapsed) with
+// ear clock/activity, morphing into the tabbed dashboard on hover.
 // Leave collapses; click pins; Escape / unfocus / outside click clears.
-// This file is the only panel surface — there is no separate Notch.qml entry.
+// Sole panel surface — Notch.qml is gone (square-top notch silhouette retired).
 Item {
   id: root
 
@@ -498,7 +499,7 @@ Item {
       // Window stays tall while expanded or still animating; the mask below is what takes input.
       implicitHeight: expanded || island.height > baseHeight ? Tabs.maxHeight(Expand.PANEL_HEIGHT) + 16 : island.height
       color: "transparent"
-      WlrLayershell.namespace: "omarchy-notch"
+      WlrLayershell.namespace: "omarchy-notch-island"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: win.pinned && win.expanded ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None  // typing (search, add symbol) only after a click opens it; hover never takes focus
       exclusionMode: ExclusionMode.Ignore
@@ -517,6 +518,12 @@ Item {
         // Idle content (clock, date, slot) only draws while collapsed; otherwise it
         // would sit behind/through the open panel.
         readonly property bool idleShown: !(win.expanded || height > win.baseHeight + 1)
+        readonly property bool morphing: win.expanded || height > win.baseHeight + 1
+        // Collapsed = full capsule (Dynamic Island). Expanded = rounded card.
+        // Square-top "notch fill" silhouette is intentional retired.
+        readonly property int pillR: Math.max(1, Math.round(Math.min(height, width) / 2))
+        readonly property int openR: root.islandRadius
+        readonly property int cornerR: morphing ? openR : pillR
         readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         TextMetrics {
           id: sideMetrics
@@ -534,12 +541,12 @@ Item {
         x: Math.round((parent.width - width) / 2)
         y: 0
         color: Tk.pxl ? "transparent" : root.islandColor
-        topLeftRadius: 0
-        topRightRadius: 0
-        bottomLeftRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
-        bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
+        topLeftRadius: cornerR
+        topRightRadius: cornerR
+        bottomLeftRadius: cornerR
+        bottomRightRadius: cornerR
 
-        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: win.notched && island.earsOn ? root.islandColor : Tk.edge }
+        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: Tk.edge }
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
         // A click on the island itself (outside any tab content) pins it open.
