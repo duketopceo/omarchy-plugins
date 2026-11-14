@@ -8,9 +8,9 @@ Item {
 
   property date today: new Date()
   property int firstDay: 0   // 0 = Sunday, 1 = Monday
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
-  property color accentColor: Commons.Color.accent
+  property color textColor: Tk.text
+  property color dimColor: Tk.dim
+  property color accentColor: Tk.accent
   property string family: Commons.Style.font.family
 
   readonly property var rows: Expand.monthGrid(today.getFullYear(), today.getMonth(), firstDay)
@@ -66,7 +66,7 @@ Item {
           anchors.centerIn: parent
           width: Math.min(cal.cellW, cal.cellH) - 2
           height: width
-          radius: width / 2
+          radius: Tk.r(width / 2)
           visible: cell.isToday
           color: cal.accentColor
         }
@@ -74,7 +74,7 @@ Item {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: cell.modelData > 0 ? String(cell.modelData) : ""
-          color: cell.isToday ? Commons.Color.background : cal.textColor
+          color: cell.isToday ? Tk.bg : cal.textColor
           font.family: cal.family
           font.pixelSize: cal.fontPx
           font.weight: cell.isToday ? Font.Bold : Font.Normal

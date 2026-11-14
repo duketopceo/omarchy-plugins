@@ -16,16 +16,16 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string pluginId: notch && notch.pluginId ? notch.pluginId : "io.github.duketopceo.notch"
-  readonly property color good: "#6fbf73"
-  readonly property color warn: "#e0b050"
-  readonly property color bad: "#d9695f"
-  readonly property color card: Qt.rgba(1, 1, 1, 0.05)
-  readonly property color chip: Qt.rgba(1, 1, 1, 0.08)
-  readonly property color chipHover: Qt.rgba(1, 1, 1, 0.16)
+  readonly property color good: notch && notch.themeObj ? notch.themeObj.good : Tk.good
+  readonly property color warn: notch && notch.themeObj ? notch.themeObj.warn : Tk.warn
+  readonly property color bad: notch && notch.themeObj ? notch.themeObj.bad : Tk.bad
+  readonly property color card: notch && notch.themeObj && notch.themeObj.card ? notch.themeObj.card : Tk.tint(0.05)
+  readonly property color chip: notch && notch.themeObj && notch.themeObj.chip ? notch.themeObj.chip : Tk.tint(0.08)
+  readonly property color chipHover: notch && notch.themeObj && notch.themeObj.chipHover ? notch.themeObj.chipHover : Tk.tint(0.16)
 
   implicitWidth: 428
   implicitHeight: 164
@@ -69,8 +69,8 @@ Item {
     property color tone: tab.dimColor
     height: 16
     width: pillText.implicitWidth + 14
-    radius: 8
-    color: Qt.rgba(tone.r, tone.g, tone.b, 0.18)
+    radius: Tk.r(8)
+    color: Tk.alpha(tone, 0.18)
     Text {
       id: pillText
       textFormat: Text.PlainText
@@ -78,7 +78,7 @@ Item {
       text: pill.label
       color: pill.tone
       font.family: tab.family
-      font.pixelSize: 9
+      font.pixelSize: Tk.fs.caption
       font.weight: Font.DemiBold
     }
   }
@@ -93,9 +93,9 @@ Item {
     signal rightClicked()
     height: 18
     width: chipText.implicitWidth + 14
-    radius: 9
+    radius: Tk.r(9)
     opacity: enabledChip ? 1 : 0.4
-    color: selected ? Qt.rgba(0.44, 0.75, 0.45, 0.28) : (chipHit.containsMouse && enabledChip ? tab.chipHover : tab.chip)
+    color: selected ? Tk.alpha(Tk.good, 0.28) : (chipHit.containsMouse && enabledChip ? tab.chipHover : tab.chip)
     Text {
       id: chipText
       textFormat: Text.PlainText
@@ -103,7 +103,7 @@ Item {
       text: chipBox.label
       color: chipBox.labelColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
     MouseArea {
       id: chipHit
@@ -119,15 +119,15 @@ Item {
   component IconBadge: Rectangle {
     property string glyph: ""
     property color tone: tab.good
-    width: 20; height: 20; radius: 6
-    color: Qt.rgba(tone.r, tone.g, tone.b, 0.2)
+    width: 20; height: 20; radius: Tk.r(6)
+    color: Tk.alpha(tone, 0.2)
     Text {
       textFormat: Text.PlainText
       anchors.centerIn: parent
       text: parent.glyph
       color: parent.tone
       font.family: tab.family
-      font.pixelSize: 12
+      font.pixelSize: Tk.fs.body
     }
   }
 
@@ -138,7 +138,7 @@ Item {
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     width: Math.round(parent.width * 0.57)
-    radius: 8
+    radius: Tk.r(8)
     color: tab.card
 
     readonly property string pillLabel: !ops.tsLoaded ? "..." : ops.ts.needsLogin ? "Sign in" : !ops.ts.ok ? "Unavailable" : ops.tsBusy ? (ops.tsOn ? "Connecting" : "Stopping") : ops.tsOn ? "Connected" : "Disconnected"
@@ -163,7 +163,7 @@ Item {
           text: "Tailscale"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 12
+          font.pixelSize: Tk.fs.body
           font.weight: Font.DemiBold
         }
         Pill {
@@ -178,6 +178,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           on: ops.tsOn
           busy: ops.tsBusy
+          onColor: tab.good
           enabledSwitch: Network.tailscaleToggleCommand(ops.ts) !== null
           onToggled: ops.toggleTailscale()
         }
@@ -197,7 +198,7 @@ Item {
           id: selfIpBox
           height: parent.height
           width: selfIpText.implicitWidth + 14
-          radius: 6
+          radius: Tk.r(6)
           color: ipHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             id: selfIpText
@@ -206,7 +207,7 @@ Item {
             text: ops.ts.selfIp
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             font.weight: Font.DemiBold
           }
           MouseArea { id: ipHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.ts.selfIp, "Copied " + ops.ts.selfIp) }
@@ -214,7 +215,7 @@ Item {
         Rectangle {
           height: parent.height
           width: parent.width - selfIpBox.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: dnsHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             textFormat: Text.PlainText
@@ -227,7 +228,7 @@ Item {
             text: ops.ts.selfDns !== "" ? ops.ts.selfDns : ops.ts.selfName
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { id: dnsHit; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.ts.selfDns !== "" ? ops.ts.selfDns : ops.ts.selfName, "Copied name") }
         }
@@ -247,10 +248,10 @@ Item {
           id: filterBox
           height: parent.height
           width: parent.width - exitBtn.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: tab.chip
           border.width: filterInput.activeFocus ? 1 : 0
-          border.color: Qt.rgba(1, 1, 1, 0.3)
+          border.color: Tk.tint(0.3)
           TextInput {
             id: filterInput
             anchors.fill: parent
@@ -258,9 +259,9 @@ Item {
             anchors.rightMargin: 7
             verticalAlignment: TextInput.AlignVCenter
             color: tab.textColor
-            selectionColor: Qt.rgba(1, 1, 1, 0.3)
+            selectionColor: Tk.tint(0.3)
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             clip: true
             onTextChanged: tab.filter = text
             Keys.onEscapePressed: { text = ""; focus = false }
@@ -274,7 +275,7 @@ Item {
             text: "Filter " + ops.ts.peerCount + " peers"
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { anchors.fill: parent; cursorShape: Qt.IBeamCursor; onPressed: function(m) { filterInput.forceActiveFocus(); m.accepted = false } }
         }
@@ -282,10 +283,10 @@ Item {
           id: exitBtn
           height: parent.height
           width: 92
-          radius: 6
+          radius: Tk.r(6)
           color: exitHit.containsMouse ? tab.chipHover : tab.chip
           border.width: ops.exitName !== "" ? 1 : 0
-          border.color: Qt.rgba(0.44, 0.75, 0.45, 0.6)
+          border.color: Tk.alpha(Tk.good, 0.6)
           Text {
             textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
@@ -297,7 +298,7 @@ Item {
             text: "Exit: " + (ops.exitName !== "" ? ops.exitName : "none") + (ops.exitFeasible ? "  ▾" : "")
             color: ops.exitName !== "" ? tab.good : tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: exitHit
@@ -335,8 +336,8 @@ Item {
               readonly property string status: Network.peerStatus(modelData, ops.now)
               Rectangle {
                 anchors.fill: parent
-                radius: 5
-                color: peerHit.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                radius: Tk.r(5)
+                color: peerHit.containsMouse ? Tk.tint(0.1) : "transparent"
               }
               Text {
                 id: osGlyph
@@ -349,7 +350,7 @@ Item {
                 text: Network.osIcon(peer.modelData.os).glyph
                 color: peer.modelData.online ? tab.textColor : tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 11
+                font.pixelSize: Tk.fs.bodySmall
               }
               Text {
                 textFormat: Text.PlainText
@@ -362,7 +363,7 @@ Item {
                 text: peer.modelData.name + (peer.modelData.exitNode ? "  (exit)" : "")
                 color: peer.modelData.online ? tab.textColor : tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               Text {
                 id: peerIp
@@ -373,15 +374,15 @@ Item {
                 text: peer.modelData.online ? peer.modelData.ip : peer.status
                 color: tab.dimColor
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
               }
               Rectangle {
                 id: dotMark
-                width: 6; height: 6; radius: 3
+                width: 6; height: 6; radius: Tk.r(3)
                 anchors.right: parent.right
                 anchors.rightMargin: 5
                 anchors.verticalCenter: parent.verticalCenter
-                color: peer.modelData.online ? tab.good : "#555a60"
+                color: peer.modelData.online ? tab.good : tab.dimColor
               }
               MouseArea {
                 id: peerHit
@@ -405,7 +406,7 @@ Item {
         text: !ops.tsLoaded ? "" : ops.ts.running ? (tab.filter !== "" ? "No match" : "No peers") : (ops.ts.needsLogin ? "Sign in with tailscale up" : "Tailscale is off")
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 10
+        font.pixelSize: Tk.fs.caption
       }
     }
 
@@ -418,10 +419,10 @@ Item {
       y: tsInner.y + filterRow.y + filterRow.height + 2
       width: 150
       height: Math.min(exitCol.height + 8, tsCard.height - y - 4)
-      radius: 8
-      color: Qt.rgba(0.1, 0.1, 0.12, 0.97)
-      border.width: 1
-      border.color: Qt.rgba(1, 1, 1, 0.14)
+      radius: Tk.r(8)
+      color: Tk.surface(0.1, 0.1, 0.12, 0.97)
+      border.width: Tk.bw(1)
+      border.color: Tk.tint(0.14)
       NotchScroll {
         id: exitScroll
         anchors.fill: parent
@@ -440,7 +441,7 @@ Item {
               width: exitCol.width
               height: 20
               readonly property bool current: modelData.ip === "" ? ops.exitName === "" : ops.exitName === modelData.name
-              Rectangle { anchors.fill: parent; radius: 5; color: optHit.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent" }
+              Rectangle { anchors.fill: parent; radius: Tk.r(5); color: optHit.containsMouse ? Tk.tint(0.12) : "transparent" }
               Text {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
@@ -452,7 +453,7 @@ Item {
                 text: (opt.current ? "✓ " : "") + opt.modelData.name
                 color: opt.current ? tab.good : tab.textColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               MouseArea {
                 id: optHit
@@ -476,7 +477,7 @@ Item {
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    radius: 8
+    radius: Tk.r(8)
     color: tab.card
 
     readonly property bool connected: ops.nord.state === "connected"
@@ -506,6 +507,7 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           on: ops.nordOn
           busy: ops.nordBusy
+          onColor: tab.good
           enabledSwitch: ops.nord.ok
           onToggled: ops.toggleNord()
         }
@@ -529,7 +531,7 @@ Item {
             : "Not connected"
           color: nordCard.connected ? tab.textColor : tab.dimColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.weight: nordCard.connected ? Font.DemiBold : Font.Normal
         }
         Text {
@@ -540,7 +542,7 @@ Item {
           text: "Pick a country, or Connect for the fastest server"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Text {
           textFormat: Text.PlainText
@@ -550,7 +552,7 @@ Item {
           text: ops.nord.hostname !== "" ? ops.nord.hostname : ops.nord.server
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Item {
           visible: nordCard.connected
@@ -564,7 +566,7 @@ Item {
             text: tab.toast === "Copied IP" ? "copied" : ops.nord.ip
             color: tab.toast === "Copied IP" ? tab.good : tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           Text {
             textFormat: Text.PlainText
@@ -576,7 +578,7 @@ Item {
             text: ops.nord.uptime !== "" ? "up " + ops.nord.uptime : ""
             color: tab.dimColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea { anchors.fill: nordIpText; cursorShape: Qt.PointingHandCursor; onClicked: tab.copy(ops.nord.ip, "Copied IP") }
         }
@@ -620,7 +622,7 @@ Item {
           id: dropBtn
           height: parent.height
           width: parent.width - actBtn.width - parent.spacing
-          radius: 6
+          radius: Tk.r(6)
           color: dropHit.containsMouse ? tab.chipHover : tab.chip
           Text {
             textFormat: Text.PlainText
@@ -633,7 +635,7 @@ Item {
             text: "Country  ▾"
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: dropHit
@@ -648,17 +650,17 @@ Item {
           id: actBtn
           height: parent.height
           width: 66
-          radius: 6
+          radius: Tk.r(6)
           opacity: ops.nord.ok && !ops.nordBusy ? 1 : 0.4
-          color: nordCard.connected ? (actHit.containsMouse ? Qt.rgba(0.85, 0.41, 0.37, 0.45) : Qt.rgba(0.85, 0.41, 0.37, 0.28))
-                                    : (actHit.containsMouse ? Qt.rgba(0.44, 0.75, 0.45, 0.45) : Qt.rgba(0.44, 0.75, 0.45, 0.28))
+          color: nordCard.connected ? (actHit.containsMouse ? Tk.alpha(Tk.bad, 0.45) : Tk.alpha(Tk.bad, 0.28))
+                                    : (actHit.containsMouse ? Tk.alpha(Tk.good, 0.45) : Tk.alpha(Tk.good, 0.28))
           Text {
             textFormat: Text.PlainText
             anchors.centerIn: parent
             text: nordCard.connected ? "Disconnect" : "Connect"
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
           }
           MouseArea {
             id: actHit
@@ -681,10 +683,10 @@ Item {
       width: nordInner.width
       height: Math.min(nordCard.height - 36, 120)
       y: nordInner.y + dropRow.y - height - 2
-      radius: 8
-      color: Qt.rgba(0.1, 0.1, 0.12, 0.97)
-      border.width: 1
-      border.color: Qt.rgba(1, 1, 1, 0.14)
+      radius: Tk.r(8)
+      color: Tk.surface(0.1, 0.1, 0.12, 0.97)
+      border.width: Tk.bw(1)
+      border.color: Tk.tint(0.14)
       NotchScroll {
         id: countryScroll
         anchors.fill: parent
@@ -702,7 +704,7 @@ Item {
               required property var modelData
               width: countryCol.width
               height: 20
-              Rectangle { anchors.fill: parent; radius: 5; color: ctryHit.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent" }
+              Rectangle { anchors.fill: parent; radius: Tk.r(5); color: ctryHit.containsMouse ? Tk.tint(0.12) : "transparent" }
               Text {
                 textFormat: Text.PlainText
                 anchors.verticalCenter: parent.verticalCenter
@@ -714,7 +716,7 @@ Item {
                 text: (nordCard.currentCountryId === ctry.modelData.id && nordCard.connected ? "✓ " : "") + ctry.modelData.label
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 10
+                font.pixelSize: Tk.fs.caption
               }
               MouseArea {
                 id: ctryHit
@@ -738,13 +740,13 @@ Item {
     anchors.bottomMargin: 8
     height: 20
     width: toastText.implicitWidth + 20
-    radius: 10
-    color: Qt.rgba(0.05, 0.05, 0.07, 0.94)
-    border.width: 1
-    border.color: Qt.rgba(0.44, 0.75, 0.45, 0.5)
+    radius: Tk.r(10)
+    color: Tk.surface(0.05, 0.05, 0.07, 0.94)
+    border.width: Tk.bw(1)
+    border.color: Tk.alpha(Tk.good, 0.5)
     opacity: tab.toast !== "" ? 1 : 0
     visible: opacity > 0
-    Behavior on opacity { NumberAnimation { duration: 140 } }
+    Behavior on opacity { NumberAnimation { duration: Tk.ms(140) } }
     Text {
       id: toastText
       textFormat: Text.PlainText
@@ -752,7 +754,7 @@ Item {
       text: tab.toast
       color: tab.good
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 }

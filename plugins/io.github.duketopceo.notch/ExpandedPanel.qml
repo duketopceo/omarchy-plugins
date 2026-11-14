@@ -4,6 +4,7 @@ import Quickshell.Io
 import qs.Commons as Commons
 import "Tabs.js" as Tabs
 import "Motion.js" as Motion
+import "Theme.js" as Theme
 
 // The island's hover-expanded content. Fills the island; the top
 // `headerHeight` px (the camera / idle row) stay clear. Below it sit a tab
@@ -19,17 +20,22 @@ Item {
   property int headerHeight: 32
   property var notch: null             // root Notch.qml item, handed to every tab
   property var weather: null           // Model.parseWeather output
-  property color islandColor: "black"
-  property color textColor: Commons.Color.foreground
-  property color dimColor: Commons.Color.muted
-  property string family: Commons.Style.font.family
+  property color islandColor: notch ? notch.islandColor : Tk.black
+  property color textColor: notch ? notch.textColor : Tk.text
+  property color dimColor: notch ? notch.dimColor : Tk.dim
+  property string family: notch ? notch.fontFamily : Commons.Style.font.family
+  readonly property var themeObj: notch && notch.themeObj ? notch.themeObj : Theme.resolve("swift")
   property date now: new Date()
 
   property string currentTab: Tabs.DEFAULT_TAB   // owned by the window (it sizes the panel); bound by the Loader
   signal tabSelected(string id)
-  readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null)
+  readonly property var tabs: Tabs.visibleTabs(notch ? notch.settings : null, undefined, notch ? notch.capabilities : null)
   readonly property var tab: Tabs.select(currentTab, tabs)
   readonly property string pluginDir: notch ? notch.pluginDir : ""
+
+  // Keyboard: Ctrl+Tab / Ctrl+Shift+Tab cycle the visible tabs (hidden ones are skipped).
+  Shortcut { sequence: "Ctrl+Tab"; enabled: panel.active; onActivated: panel.tabSelected(Tabs.cycle(panel.tabs, panel.tab.id, 1)) }
+  Shortcut { sequence: "Ctrl+Shift+Tab"; enabled: panel.active; onActivated: panel.tabSelected(Tabs.cycle(panel.tabs, panel.tab.id, -1)) }
 
   // tab id -> true/false once its source file has been probed.
   property var sourceExists: ({})
@@ -40,8 +46,9 @@ Item {
     anchors.fill: parent
     color: panel.islandColor
     opacity: Math.min(1, panel.progress * 1.6)
-    bottomLeftRadius: 24
-    bottomRightRadius: 24
+    visible: !Tk.pxl
+    bottomLeftRadius: panel.themeObj.islandRadius
+    bottomRightRadius: panel.themeObj.islandRadius
   }
 
   // One probe per tab: does its QML file exist yet?
@@ -82,67 +89,95 @@ Item {
     transform: Translate { y: panel.reduce ? 0 : (1 - body.fade) * Motion.CONTENT_SLIDE }
 
     // ---------------------------------------------------------- tab strip
-    // Equal-width chips with glyph + short label when they all fit; otherwise
-    // the selected chip shows its label and the rest share what is left as
-    // glyph-only chips. Widths come from measured text, so nothing truncates.
-    SpringValue { id: indX; target: strip.chipX(strip.selIndex); instant: panel.reduce; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
-    SpringValue { id: indW; target: strip.chipW(strip.selIndex); instant: panel.reduce; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
+    // Glyph chips; the selected tab and the two most-opened ones also show
+    // their label (all of them when everything fits). Chip geometry comes from
+    // Tabs.stripLayout using measured label widths, so nothing truncates.
+    SpringValue { id: indX; target: strip.lay.xs.length > strip.selIndex ? strip.lay.xs[strip.selIndex] : 0; instant: panel.reduce; stepped: Tk.pxl; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
+    SpringValue { id: indW; target: strip.lay.widths.length > strip.selIndex ? strip.lay.widths[strip.selIndex] : 0; instant: panel.reduce; stepped: Tk.pxl; duration: Motion.STRIP.duration; bounce: Motion.STRIP.bounce }
     Rectangle {
-      x: strip.x + indX.value; y: strip.y; width: indW.value; height: strip.height; radius: height / 2
-      color: Qt.rgba(1, 1, 1, 0.16)
+      x: strip.x + indX.value; y: strip.y; width: indW.value; height: strip.height; radius: Tk.r(height / 2)
+      color: Tk.tint(0.16)
     }
 
-    Row {
+    // Tiny theme switch: flips swift <-> pxl instantly and persists it.
+    Rectangle {
+      id: themeToggle
+      anchors.top: parent.top
+      anchors.right: parent.right
+      width: 26; height: 26
+      radius: Tk.r(13)
+      color: tgHit.containsMouse ? Tk.tint(0.16) : Tk.tint(0.08)
+      border.width: Tk.pxl ? Tk.bw(1) : 0
+      border.color: Tk.edge
+      Text {
+        anchors.centerIn: parent
+        textFormat: Text.PlainText
+        text: Tk.pxl ? "\u25A3" : "\u25EF"
+        color: Tk.pxl ? Tk.accent : panel.dimColor
+        font.pixelSize: 14
+      }
+      MouseArea {
+        id: tgHit
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: if (panel.notch) panel.notch.toggleTheme()
+      }
+    }
+
+    Item {
       id: strip
       anchors.top: parent.top
       anchors.left: parent.left
-      anchors.right: parent.right
+      anchors.right: themeToggle.left
+      anchors.rightMargin: 6
       height: 26
-      spacing: 4
 
-      readonly property int count: Math.max(1, panel.tabs.length)
+      readonly property int gap: 4
       readonly property int glyphW: 12
       readonly property int padX: 10
-      readonly property int equalW: Math.floor((width - (count - 1) * spacing) / count)
-      readonly property bool labelsFit: equalW >= glyphW + 4 + longest.advanceWidth + padX
-      readonly property int selW: glyphW + 4 + current.advanceWidth + padX
-      readonly property int otherW: count > 1 ? Math.max(glyphW + 10, Math.floor((width - selW - (count - 1) * spacing) / (count - 1))) : width
+      readonly property var ids: panel.tabs.map(function (t) { return t.id })
+      readonly property int selIndex: { for (var i = 0; i < panel.tabs.length; i++) if (panel.tabs[i].id === panel.tab.id) return i; return 0 }
+      readonly property var usage: panel.notch && panel.notch.settings ? panel.notch.settings.tabUsage : null
+      readonly property var lay: Tabs.stripLayout(ids, Tabs.labelIds(panel.tabs, panel.tab.id, usage), labelW, width, gap, glyphW, padX)
 
-      TextMetrics {
-        id: longest
-        font.family: panel.family
-        font.pixelSize: Commons.Style.font.caption
-        text: {
-          var best = ""
-          for (var i = 0; i < panel.tabs.length; i++) {
-            var t = panel.tabs[i].short || panel.tabs[i].title
-            if (t.length > best.length) best = t
+      // Measured label widths by tab id (updated as fonts load).
+      property var labelW: ({})
+      function setW(id, w) {
+        if (labelW[id] === w) return
+        var copy = {}
+        for (var k in labelW) copy[k] = labelW[k]
+        copy[id] = w
+        labelW = copy
+      }
+      Repeater {
+        model: Tabs.TABS
+        Item {
+          required property var modelData
+          TextMetrics {
+            font.family: Tk.label
+            font.pixelSize: Tk.fs.caption
+            text: modelData.short || modelData.title
+            onAdvanceWidthChanged: strip.setW(modelData.id, advanceWidth)
+            Component.onCompleted: strip.setW(modelData.id, advanceWidth)
           }
-          return best
         }
       }
-      TextMetrics {
-        id: current
-        font.family: panel.family
-        font.pixelSize: Commons.Style.font.caption
-        text: panel.tab ? (panel.tab.short || panel.tab.title) : ""
-      }
 
-      // Selected-chip indicator: slides between chips on a spring.
-      readonly property int selIndex: { for (var i = 0; i < panel.tabs.length; i++) if (panel.tabs[i].id === panel.tab.id) return i; return 0 }
-      function chipX(i) { return labelsFit ? i * (equalW + spacing) : (i < selIndex ? i * (otherW + spacing) : (i === selIndex ? selIndex * (otherW + spacing) : selIndex * (otherW + spacing) + selW + spacing + (i - selIndex - 1) * (otherW + spacing))) }
-      function chipW(i) { return labelsFit ? equalW : (i === selIndex ? selW : otherW) }
       Repeater {
         model: panel.tabs
         Rectangle {
           id: chip
           required property var modelData
+          required property int index
           readonly property bool selected: chip.modelData.id === panel.tab.id
-          readonly property bool showLabel: strip.labelsFit || selected
-          width: strip.labelsFit ? strip.equalW : (selected ? strip.selW : strip.otherW)
+          readonly property bool showLabel: strip.lay.labeled[chip.modelData.id] === true
+          x: index < strip.lay.xs.length ? strip.lay.xs[index] : 0
+          width: index < strip.lay.widths.length ? strip.lay.widths[index] : 0
           height: strip.height
-          radius: height / 2
-          color: !selected && hit.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+          radius: Tk.r(height / 2)
+          color: !selected && hit.containsMouse ? Tk.tint(0.08) : "transparent"
+
           Row {
             anchors.centerIn: parent
             spacing: 4
@@ -151,7 +186,7 @@ Item {
               text: chip.modelData.glyph
               color: chip.selected ? panel.textColor : panel.dimColor
               font.family: panel.family
-              font.pixelSize: Commons.Style.font.bodySmall
+              font.pixelSize: Tk.fs.bodySmall
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
@@ -159,8 +194,8 @@ Item {
               textFormat: Text.PlainText
               text: chip.modelData.short || chip.modelData.title
               color: chip.selected ? panel.textColor : panel.dimColor
-              font.family: panel.family
-              font.pixelSize: Commons.Style.font.caption
+              font.family: Tk.label
+              font.pixelSize: Tk.fs.caption
               anchors.verticalCenter: parent.verticalCenter
             }
           }
@@ -169,7 +204,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: panel.tabSelected(chip.modelData.id)
+            onPressed: panel.tabSelected(chip.modelData.id)
           }
         }
       }
@@ -234,7 +269,7 @@ Item {
         text: panel.resolved.state === "missing" ? panel.resolved.message : Tabs.failed(panel.tab).message
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
   }

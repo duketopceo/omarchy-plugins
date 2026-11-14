@@ -1,29 +1,41 @@
 #!/usr/bin/python3
-"""Remove the bar widgets the notch now covers from shell.json `bar.layout`.
+"""Slim shell.json `bar.layout` down to the widgets the notch does not cover.
 
-  notch-slim-bar              remove them (backs up shell.json first)
+  notch-slim-bar              move/remove them (backs up shell.json first)
   notch-slim-bar --dry-run    show what would change, write nothing
-  notch-slim-bar --undo       put the removed entries back where they were
+  notch-slim-bar --undo       put the moved/removed entries back as they were
   notch-slim-bar --config P   use another shell.json (tests)
 
-Removed (the notch replaces each): omarchy.tailscale, the nordvpn, snapdex
-and wordink plugin widgets, mohamedmansour.finance (quotes), omarchy.elsewhen
-(world clock, dropped) and omarchy.active-window (app name on Home).
+Removed because the notch replaces each: omarchy.tailscale, the nordvpn,
+snapdex and wordink plugin widgets, mohamedmansour.finance (quotes),
+omarchy.elsewhen (world clock, dropped), omarchy.active-window (app name on
+Home), lukedaduke.lidguard (bar widget absorbed by the notch), and the tray
+hosts io.github.tyrichards.tray + omarchy.tray (the Plugins hub lists their
+contents). io.github.ncr.omaphones goes too: its Bluetooth controls are
+covered by the audio entry the notch keeps.
+
+Moved: omarchy.system-update left -> right, so the right side is seven
+entries (update, network, audio, power, blip, bluetooth, AI usage percent).
+
 Never touched: omarchy.indicators, omarchy.microphone, nixfred.blip and
 io.github.duketopceo.wisp (its panel is only reachable from its bar widget).
 
-Before the first removal the file is copied to `<config>.bak-notch-v3`. What
-was removed (section, position, full entry) is saved beside it in
-`<config>.notch-v3-removed.json`, which --undo reads, so undo restores just
-those entries and keeps any other edits made since. Exit 0 on success or
-nothing to do, 1 on error.
+Before the first change the file is copied to `<config>.bak-notch-v4` (with a
+date suffix if that name is taken). What was moved or removed (section,
+position, full entry) is saved beside it in `<config>.notch-v4-removed.json`,
+which --undo reads, so undo restores just those entries and keeps any other
+edits made since. Exit 0 on success or nothing to do, 1 on error.
 """
 import argparse
 import json
 import os
 import shutil
 import sys
+import time
 
+TAG = "notch-v4"
+
+# Entries to delete: the notch (or a kept widget) shows the same thing.
 REMOVE = (
     "omarchy.tailscale",
     "io.github.duketopceo.nordvpn",
@@ -32,8 +44,16 @@ REMOVE = (
     "mohamedmansour.finance",
     "omarchy.elsewhen",
     "omarchy.active-window",
+    "lukedaduke.lidguard",
+    "io.github.tyrichards.tray",
+    "io.github.ncr.omaphones",
+    "omarchy.tray",
 )
-KEEP = ("omarchy.indicators", "omarchy.microphone", "nixfred.blip", "io.github.duketopceo.wisp")
+# (id, from section, to section, index in the destination; None = append).
+# system-update goes first so the right side reads update -> ... -> power.
+MOVE = (("omarchy.system-update", "left", "right", 0),)
+KEEP = ("omarchy.indicators", "omarchy.microphone", "nixfred.blip",
+        "io.github.duketopceo.wisp", "omarchy.system-update")
 DEFAULT_CONFIG = os.path.join(os.path.expanduser("~"), ".config", "omarchy", "shell.json")
 
 
@@ -52,7 +72,7 @@ def load(path):
 
 
 def save(path, data, newline):
-    tmp = path + ".tmp-notch-v3"
+    tmp = path + ".tmp-" + TAG
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(json.dumps(data, indent=2, ensure_ascii=False) + ("\n" if newline else ""))
     os.replace(tmp, path)
@@ -61,6 +81,16 @@ def save(path, data, newline):
 def layout_of(data):
     layout = data.get("bar", {}).get("layout") if isinstance(data, dict) else None
     return layout if isinstance(layout, dict) else {}
+
+
+def backup_name(path):
+    """`<config>.bak-notch-v4`, or with the config's date suffix if that is taken
+    (an older backup must never be overwritten)."""
+    base = f"{path}.bak-{TAG}"
+    if not os.path.exists(base):
+        return base
+    stamp = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(path)))
+    return f"{base}-{stamp}"
 
 
 def plan_removal(data):
@@ -75,18 +105,44 @@ def plan_removal(data):
     return found
 
 
-def apply_removal(data, found):
-    drop = {(f["section"], f["index"]) for f in found}
+def plan_moves(data):
+    """-> [{section, index, entry, to, toIndex}] for the MOVE entries present."""
     layout = layout_of(data)
+    found = []
+    for wid, frm, to, to_index in MOVE:
+        entries = layout.get(frm)
+        if not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if entry_id(entry) == wid:
+                found.append({"section": frm, "index": index, "entry": entry,
+                              "to": to, "toIndex": to_index})
+                break
+    return found
+
+
+def apply_changes(data, removed, moved):
+    layout = layout_of(data)
+    drop = {(f["section"], f["index"]) for f in removed} | {(m["section"], m["index"]) for m in moved}
     for section, entries in list(layout.items()):
         if isinstance(entries, list):
             layout[section] = [e for i, e in enumerate(entries) if (section, i) not in drop]
+    for m in moved:
+        target = layout.setdefault(m["to"], [])
+        at = m["toIndex"]
+        target.insert(len(target) if at is None else min(at, len(target)), m["entry"])
 
 
-def restore(data, removed):
-    """Re-insert saved entries at their original positions (ascending index so
-    earlier inserts do not shift later ones). Skips ids already present."""
+def restore(data, removed, moved):
+    """Undo apply_changes: pull each moved entry back out of its destination
+    section, then re-insert it (and every removed entry) at its original
+    position — ascending index so earlier inserts do not shift later ones.
+    Skips removed ids that are already present."""
     layout = layout_of(data)
+    for m in moved:
+        dest = layout.get(m["to"])
+        if isinstance(dest, list):
+            layout[m["to"]] = [e for e in dest if entry_id(e) != entry_id(m["entry"])]
     present = {entry_id(e) for entries in layout.values() if isinstance(entries, list) for e in entries}
     put = []
     for item in sorted(removed, key=lambda r: (r["section"], r["index"])):
@@ -94,7 +150,13 @@ def restore(data, removed):
             continue
         entries = layout.setdefault(item["section"], [])
         entries.insert(min(item["index"], len(entries)), item["entry"])
+        present.add(entry_id(item["entry"]))
         put.append(entry_id(item["entry"]))
+    for m in sorted(moved, key=lambda r: (r["section"], r["index"])):
+        entries = layout.setdefault(m["section"], [])
+        entries.insert(min(m["index"], len(entries)), m["entry"])
+        present.add(entry_id(m["entry"]))
+        put.append(f'{entry_id(m["entry"])} -> {m["section"]}')
     return put
 
 
@@ -105,8 +167,7 @@ def main(argv):
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     args = ap.parse_args(argv)
     path = args.config
-    backup = path + ".bak-notch-v3"
-    sidecar = path + ".notch-v3-removed.json"
+    sidecar = f"{path}.{TAG}-removed.json"
 
     try:
         data, newline = load(path)
@@ -117,13 +178,15 @@ def main(argv):
     if args.undo:
         try:
             with open(sidecar, encoding="utf-8") as f:
-                removed = json.load(f)
+                record = json.load(f)
         except (OSError, ValueError):
             print(f"notch-slim-bar: no record of removed widgets ({sidecar}); "
-                  f"to go back wholesale: cp {backup} {path}", file=sys.stderr)
+                  f"to go back wholesale: cp {path}.bak-{TAG} {path}", file=sys.stderr)
             return 1
+        removed = record.get("removed", []) if isinstance(record, dict) else record
+        moved = record.get("moved", []) if isinstance(record, dict) else []
         before = json.dumps(data, sort_keys=True)
-        put = restore(data, removed)
+        put = restore(data, removed, moved)
         print("restored: " + (", ".join(put) if put else "nothing (all already present)"))
         if args.dry_run:
             return 0
@@ -132,29 +195,35 @@ def main(argv):
         os.remove(sidecar)
         return 0
 
-    found = plan_removal(data)
-    if not found:
-        print("nothing to remove: the notch-covered widgets are already off the bar")
+    removed = plan_removal(data)
+    moved = plan_moves(data)
+    if not removed and not moved:
+        print("nothing to do: the notch-covered widgets are already off the bar")
         return 0
-    for f in found:
+    for m in moved:
+        print(f"move   {entry_id(m['entry'])}  ({m['section']} -> {m['to']}[{m['toIndex']}])")
+    for f in removed:
         print(f"remove {entry_id(f['entry'])}  ({f['section']}[{f['index']}])")
     if args.dry_run:
         print("dry run: nothing written")
         return 0
-    if not os.path.exists(backup):
-        shutil.copy2(path, backup)
-        print(f"backup: {backup}")
+    backup = backup_name(path)
+    shutil.copy2(path, backup)
+    print(f"backup: {backup}")
     # Merge with an earlier record so repeated runs keep every removed entry.
     try:
         with open(sidecar, encoding="utf-8") as f:
             earlier = json.load(f)
     except (OSError, ValueError):
-        earlier = []
-    apply_removal(data, found)
+        earlier = {}
+    if not isinstance(earlier, dict):
+        earlier = {"removed": earlier, "moved": []}
+    apply_changes(data, removed, moved)
     save(path, data, newline)
     with open(sidecar, "w", encoding="utf-8") as f:
-        json.dump(earlier + found, f, indent=2, ensure_ascii=False)
-    print(f"removed {len(found)} widget(s); undo with: {os.path.abspath(__file__)} --undo")
+        json.dump({"removed": earlier.get("removed", []) + removed,
+                   "moved": earlier.get("moved", []) + moved}, f, indent=2, ensure_ascii=False)
+    print(f"changed {len(moved) + len(removed)} entries; undo with: {os.path.abspath(__file__)} --undo")
     return 0
 
 

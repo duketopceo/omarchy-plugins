@@ -14,8 +14,8 @@ Item {
   id: tab
 
   property var notch: null
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string home: Quickshell.env("HOME")
 
@@ -52,11 +52,12 @@ Item {
   }
 
   readonly property color tone: {
-    if (kind === "charging") return "#6fbf73"
-    if (kind === "full") return "#6fbf73"
-    if (kind === "hold") return "#6aa9e0"
-    if (percent >= 0 && percent <= 15) return Commons.Color.urgent
-    if (percent >= 0 && percent <= 30) return "#e0b050"
+    var t = notch && notch.themeObj ? notch.themeObj : null
+    if (kind === "charging") return t ? t.good : Tk.good
+    if (kind === "full") return t ? t.good : Tk.good
+    if (kind === "hold") return t ? t.hold : Tk.hold
+    if (percent >= 0 && percent <= 15) return notch && notch.urgentColor ? notch.urgentColor : Tk.urgent
+    if (percent >= 0 && percent <= 30) return t ? t.warn : Tk.warn
     return textColor
   }
 
@@ -168,10 +169,10 @@ Item {
         id: body
         width: 90
         height: 46
-        radius: 10
-        color: Qt.rgba(1, 1, 1, 0.06)
-        border.width: 2
-        border.color: Qt.rgba(tab.tone.r, tab.tone.g, tab.tone.b, 0.85)
+        radius: Tk.r(10)
+        color: Tk.tint(0.06)
+        border.width: Tk.bw(2)
+        border.color: Tk.alpha(tab.tone, 0.85)
 
         Rectangle {
           id: fill
@@ -179,10 +180,10 @@ Item {
           y: 4
           height: parent.height - 8
           width: Math.max(0, (parent.width - 8) * Math.max(0, Math.min(100, tab.percent)) / 100)
-          radius: 6
+          radius: Tk.r(6)
           color: tab.tone
           opacity: 0.9
-          Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+          Behavior on width { NumberAnimation { duration: Tk.ms(400); easing.type: Easing.OutCubic } }
           // Soft pulse while charging.
           SequentialAnimation on opacity {
             running: tab.kind === "charging" && tab.visible
@@ -198,8 +199,8 @@ Item {
           y: 2
           width: 2
           height: body.height - 4
-          radius: 1
-          color: Qt.rgba(1, 1, 1, 0.55)
+          radius: Tk.r(1)
+          color: Tk.tint(0.55)
         }
       }
       Rectangle {
@@ -207,8 +208,8 @@ Item {
         anchors.verticalCenter: body.verticalCenter
         width: 5
         height: 18
-        radius: 2
-        color: Qt.rgba(tab.tone.r, tab.tone.g, tab.tone.b, 0.85)
+        radius: Tk.r(2)
+        color: Tk.alpha(tab.tone, 0.85)
       }
     }
 
@@ -235,7 +236,7 @@ Item {
       text: Power.stateLabel(tab.kind)
       color: tab.tone
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
       font.weight: Font.Medium
     }
     Text {
@@ -249,7 +250,7 @@ Item {
       text: Power.timeText(tab.kind, tab.timeSecs)
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 
@@ -270,8 +271,8 @@ Item {
       anchors.right: parent.right
       anchors.top: parent.top
       height: 38
-      radius: 8
-      color: Qt.rgba(1, 1, 1, 0.06)
+      radius: Tk.r(8)
+      color: Tk.tint(0.06)
 
       Row {
         id: arrows
@@ -294,12 +295,12 @@ Item {
             // "in" flows toward the battery (right), "out" away from it (left).
             readonly property int slot: tab.flow.flow === "out" ? 2 - index : index
             text: tab.flow.flow === "out" ? "‹" : "›"
-            color: tab.flow.flow === "out" ? "#e0b050" : "#6fbf73"
+            color: tab.flow.flow === "out" ? (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.warn : Tk.warn) : (tab.notch && tab.notch.themeObj ? tab.notch.themeObj.good : Tk.good)
             opacity: arrows.moving ? (arrows.phase === slot ? 1.0 : 0.25) : 0.2
             font.family: tab.family
             font.pixelSize: 22
             font.weight: Font.Bold
-            Behavior on opacity { NumberAnimation { duration: 180 } }
+            Behavior on opacity { NumberAnimation { duration: Tk.ms(180) } }
           }
         }
       }
@@ -325,7 +326,7 @@ Item {
           text: tab.flow.flow === "in" ? "from adapter" : tab.flow.flow === "out" ? "system draw" : (tab.ac ? "adapter idle" : "idle")
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
         Text {
           textFormat: Text.PlainText
@@ -334,7 +335,7 @@ Item {
           text: Math.round(tab.adapterW) + " W adapter"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 10
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -378,7 +379,7 @@ Item {
           text: "Charge" + (Power.fmtSpan(tab.history.spanSeconds) !== "" ? " · " + Power.fmtSpan(tab.history.spanSeconds) : "")
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         SparkChart {
           anchors.top: capCap.bottom
@@ -396,7 +397,7 @@ Item {
           text: "collecting"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
       }
       Item {
@@ -408,7 +409,7 @@ Item {
           text: "Watts (+in / −out)"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         SparkChart {
           anchors.top: wCap.bottom
@@ -417,7 +418,7 @@ Item {
           anchors.right: parent.right
           anchors.bottom: parent.bottom
           values: tab.history.watts
-          tone: "#e0b050"
+          tone: tab.notch && tab.notch.themeObj ? tab.notch.themeObj.warn : Tk.warn
         }
         Text {
           textFormat: Text.PlainText
@@ -426,7 +427,7 @@ Item {
           text: "collecting"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -452,17 +453,17 @@ Item {
         readonly property bool active: modelData === (tab.pendingProfile !== "" ? tab.pendingProfile : tab.activeProfile)
         width: profileRow.cell
         height: profileRow.height
-        radius: 8
-        color: active ? Qt.rgba(tab.tone.r, tab.tone.g, tab.tone.b, 0.22) : (hit.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.06))
+        radius: Tk.r(8)
+        color: active ? Tk.alpha(tab.tone, 0.22) : (hit.containsMouse ? Tk.tint(0.12) : Tk.tint(0.06))
         border.width: active ? 1 : 0
-        border.color: Qt.rgba(tab.tone.r, tab.tone.g, tab.tone.b, 0.7)
+        border.color: Tk.alpha(tab.tone, 0.7)
         Text {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: Power.profileTitle(pill.modelData)
           color: pill.active ? tab.textColor : tab.dimColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.weight: pill.active ? Font.DemiBold : Font.Normal
         }
         MouseArea {
@@ -481,8 +482,8 @@ Item {
     property string label: ""
     property string value: ""
     height: 34
-    radius: 8
-    color: Qt.rgba(1, 1, 1, 0.06)
+    radius: Tk.r(8)
+    color: Tk.tint(0.06)
     Column {
       anchors.centerIn: parent
       width: parent.width - 8
@@ -505,7 +506,7 @@ Item {
         text: label
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 9
+        font.pixelSize: Tk.fs.caption
       }
     }
   }

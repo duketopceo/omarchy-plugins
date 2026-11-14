@@ -2,12 +2,14 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.notch",
   "name": "Notch",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "duketopceo",
   "license": "MIT",
   "homepage": "https://github.com/duketopceo/omarchy-plugins",
-  "description": "A Mac-style notch island at the top center of every screen: clock, date, and live activity controls, with the original dashboard available on demand.",
-  "kinds": ["panel"],
+  "description": "A Mac-style notch island with live activities, dashboard on demand, timer/HUD/charging ears, clipboard, Dayflow, and pxl theme.",
+  "kinds": [
+    "panel"
+  ],
   "keepLoaded": true,
   "entryPoints": {
     "panel": "Island.qml"

@@ -15,6 +15,8 @@ import "Plugins.js" as Plugins
 import "Agents.js" as Agents
 import "Screenshots.js" as Screenshots
 import "Motion.js" as Motion
+import "Dayflow.js" as Dayflow  // local: dayflow integration
+import "Theme.js" as Theme
 import "Capabilities.js" as Caps
 
 // Notch island: one small layer-shell window per screen at top center.
@@ -58,6 +60,25 @@ Item {
   property var pending: ({})
   readonly property var settings: Settings.resolve(Settings.pluginEntry(shellConfig, pluginId), pending)
 
+  // Theme (Theme.js): Swift follows the live Omarchy palette, Pxl pins its
+  // own retro tokens. Recomputes on load and whenever the Settings tab
+  // changes `theme` (settings is reactive via shellConfig/pending).
+  readonly property var themeObj: Theme.resolve(settings.theme)
+  readonly property string themeId: themeObj.id
+  Binding { target: Tk; property: "id"; value: root.themeId }
+  Binding { target: Tk; property: "reduce"; value: root.reduceMotion }
+
+  // Tab usage picks which strip chips keep their label. Counted in memory and
+  // written to shell.json a few seconds after the last open (not per click).
+  property var tabUsageLive: null
+  function noteTabUse(id) {
+    tabUsageLive = Tabs.bumpUsage(tabUsageLive || settings.tabUsage, id)
+    usageSave.restart()
+  }
+  Timer { id: usageSave; interval: 4000; onTriggered: if (root.tabUsageLive) root.setSetting("tabUsage", root.tabUsageLive) }
+
+  function toggleTheme() { setSetting("theme", themeId === "pxl" ? "swift" : "pxl") }
+
   function setSetting(key, value) {
     var copy = {}
     for (var k in pending) copy[k] = pending[k]
@@ -73,6 +94,59 @@ Item {
   // hides the Wisp dot when neither the plugin nor its runtime state is there.
   function openWisp() { openPluginChecked("io.github.duketopceo.wisp", [Quickshell.env("HOME") + "/.local/bin/wisp-trigger"]) }
 
+
+  // Tray-section plugins have no live bar widget (the notch slims the bar and
+  // drops the tray hosts), so the shell's summon and their IPC target are
+  // gone, and a third-party plugin cannot reach the tray's widget registry.
+  // The notch therefore hosts one invisible instance of each tray widget
+  // itself, loaded straight from the plugin's own barWidget entry point with
+  // bar, moduleName and settings injected as the bar does. The instance owns
+  // the plugin's IPC target; its panel opens through its own toggle().
+  property var hostedItems: ({})
+  function openHosted(id) {
+    var item = hostedItems[id]
+    if (!item || typeof item.toggle !== "function") return false
+    item.toggle()
+    return true
+  }
+  Repeater {
+    model: Plugins.trayIds(root.shellConfig).concat(["lukedaduke.lidguard"]).filter(function(i) { return i !== "io.github.twiking.omacontrol" })  // omacontrol keeps its own live IPC target
+    delegate: Item {
+      id: hostRow
+      required property var modelData
+      readonly property string widgetId: String(modelData)
+      readonly property string pluginDir: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + widgetId
+      readonly property string entryFile: {
+        try { return String(JSON.parse(manifestFile.text()).entryPoints.barWidget || "") } catch (e) { return "" }
+      }
+      width: 1; height: 1; opacity: 0
+      FileView { id: manifestFile; path: hostRow.pluginDir + "/manifest.json" }
+      function entrySettings() {
+        var list = root.shellConfig && root.shellConfig.bar && root.shellConfig.bar.layout ? root.shellConfig.bar.layout.tray : null
+        for (var i = 0; list && i < list.length; i++) if (list[i] && list[i].id === widgetId) return list[i]
+        return ({})
+      }
+      function inject() {
+        var t = loader.item
+        if (!t) return
+        if ("bar" in t) t.bar = root.shell ? root.shell.bar : null
+        if ("moduleName" in t) t.moduleName = widgetId
+        if ("settings" in t) t.settings = hostRow.entrySettings()
+        var copy = {}
+        for (var k in root.hostedItems) copy[k] = root.hostedItems[k]
+        copy[widgetId] = t
+        root.hostedItems = copy
+      }
+      Loader {
+        id: loader
+        active: hostRow.entryFile !== ""
+        source: active ? "file://" + hostRow.pluginDir + "/" + hostRow.entryFile : ""
+        onLoaded: { hostRow.inject(); Qt.callLater(hostRow.inject) }
+        onStatusChanged: if (status === Loader.Error) console.warn("notch-host: load failed", hostRow.widgetId)
+      }
+    }
+  }
+
   // Open a plugin's panel. Tries the shell's summon, then the plugin's own IPC
   // target, then a plugin-specific fallback (see Plugins.openChain).
   property var openSteps: []
@@ -84,6 +158,7 @@ Item {
   function openPluginChecked(id, fallback) {
     if (opener.running) return
     openingId = String(id)
+    if (openHosted(String(id))) return
     openSteps = Plugins.openChain(String(id), fallback)
     openIndex = 0
     runOpenStep()
@@ -104,10 +179,11 @@ Item {
   }
 
   readonly property int earWidth: 96       // content room either side of the camera
+  readonly property int earOuter: 12         // gap between ear content and the island's outer edge
   readonly property int earMargin: 12     // px kept clear of the nearest bar widget
   readonly property int earCap: 280        // widest an ear may grow
-  readonly property int earPad: 6          // gap between ear text and the camera edge
-  // Camera width override from Settings (0 = auto-detect from model / panel / cutout).
+  readonly property int earPad: 8          // gap between ear text and the camera edge
+  // Camera width override from Settings (0 = auto-detect from the device model).
   readonly property int cameraOverride: settings.cameraWidth > 0 ? settings.cameraWidth : 0
   readonly property int virtualWidth: 300  // island width on screens without a cutout
 
@@ -132,10 +208,19 @@ Item {
   readonly property int clockSeconds: settings.clockSeconds
   readonly property int slideSeconds: settings.slideSeconds
 
-  readonly property color islandColor: "black"
-  readonly property color textColor: Commons.Color.foreground
-  readonly property color dimColor: Commons.Color.muted
-  readonly property string fontFamily: Commons.Style.font.family
+  readonly property color islandColor: themeObj.island
+  readonly property color textColor: Tk.text
+  readonly property color dimColor: Tk.dim
+  readonly property color faintColor: Tk.faint
+  readonly property color accentColor: Tk.accent
+  readonly property color urgentColor: Tk.urgent
+  readonly property color goodColor: themeObj.good
+  readonly property color warnColor: themeObj.warn
+  readonly property color badColor: themeObj.bad
+  readonly property string fontFamily: Tk.family
+  readonly property int islandRadius: themeObj.islandRadius
+  readonly property int cardRadius: themeObj.cardRadius
+  readonly property int pillRadius: themeObj.pillRadius
   readonly property int barHeight: Commons.Style.bar && Commons.Style.bar.sizeHorizontal > 0 ? Commons.Style.bar.sizeHorizontal : 32
 
 
@@ -222,12 +307,28 @@ Item {
   readonly property var player: media.active ? media.player : null
   readonly property string mediaText: media.active ? media.text : ""
   readonly property bool mediaShown: activity !== null && activity !== undefined && activity.id === "media"
-  readonly property int eqSpace: mediaShown ? 14 : 0   // room for the equalizer glyph
+  readonly property bool chargingShown: activity !== null && activity !== undefined && activity.id === "charging"
+  readonly property bool hudShown: activity !== null && activity !== undefined && activity.id === "hud"
+  readonly property int eqSpace: hudShown ? 44 : (mediaShown || chargingShown ? 14 : 0)   // room for the equalizer / charging bolt / HUD meter
 
   // WordInk dictation (U4): follows `wordink logs -f`; takes over the side text.
   WordinkActivity { id: dictation }
   readonly property var dictationActivity: dictation
   readonly property bool wordinkOn: settings.optWordink !== false
+
+  // Charging (R3): plugging in shows percent and time to full for a few seconds.
+  ChargingActivity { id: charging; enabled: root.settings.chargingAlert === true; reduceMotion: root.reduceMotion }
+
+  // Quick actions (R8): the Home row and its Settings editor share this.
+  ActionsState { id: actionsSt; actions: root.settings.quickActions; enabled: root.settings.quickActionsOn === true }
+  readonly property var actionsState: actionsSt
+
+  // Volume / brightness HUD (R6): only when Settings picks Notch as the popup owner (default Omarchy).
+  HudActivity { id: hud; enabled: root.settings.hudOwner === "notch" }
+
+  // Timer / pomodoro (R4): ear shows time left in the idle rotation, a flash when it ends.
+  TimerActivity { id: timerAct; enabled: root.settings.timer === true }
+  readonly property var timerState: timerAct
 
   // Tailscale + NordVPN (v3): idle status dot, Home dots, Network tab.
   NetworkState { id: networkState }
@@ -235,6 +336,11 @@ Item {
 
   // Snapdex (v3): flashes the caption of a newly captioned screenshot.
   ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
+
+  // Dayflow (local customization): work-journal state for the idle slot, Home
+  // tile and Dayflow tab; a paused capture shows as a low-priority activity.
+  DayflowState { id: dayflowState; enabled: root.settings.dayflow }
+  readonly property var dayflow: dayflowState
 
   // AI usage, shared by Home (and anything else): refreshed at most every 5 min
   // and only when a visible view asks for it.
@@ -270,19 +376,24 @@ Item {
   readonly property var activities: [
     { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
     { id: "media", active: media.active, priority: 50, text: media.text, glyph: media.glyph },
+    { id: "hud", active: hud.active, priority: hud.priority, text: hud.text },
+    { id: "charging", active: charging.active, priority: charging.priority, text: charging.text },
+    { id: "timer", active: timerAct.active, priority: timerAct.priority, text: timerAct.text },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
     { id: "messages", active: root.settings.optMessages === true && messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
-    { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph }
+    { id: "screenshots", active: root.settings.snapdex && shots.active, priority: shots.priority, text: shots.text, glyph: shots.glyph },
+    { id: "dayflow", active: dayflowState.active, priority: dayflowState.priority, text: dayflowState.text, glyph: dayflowState.glyph }
     // activities:end
   ]
   readonly property var activity: Activity.pick(activities)
 
-  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, (weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
+  readonly property string idleView: Model.idleSlot(now.getTime() / 1000, Dayflow.idleViews((weather && settings.showWeather ? ["weather"] : []).concat(quotes.length && settings.showStocks ? ["watchlist"] : []), settings.dayflow, dayflowState.status, dayflowState.today).concat(messagesAct.unread > 0 ? ["messages"] : []).concat(timerAct.inSlot ? ["timer"] : []), slideSeconds)  // the ONE rotating idle slot ("" = date only); time and date never cycle
   readonly property string view: activity ? "activity" : (idleView || "date")
   readonly property bool slotShown: activity !== null && activity !== undefined || idleView !== ""
-  readonly property string dateLead: dateText + (slotShown ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
+  readonly property string dateLead: dateText + (slotShown && (sideText !== "" || mediaShown || view === "watchlist") ? " \u00B7" : "")   // "Wed 4 Nov \u00B7" then the slot
   readonly property string weatherText: weather ? weather.temperature + weather.unit : ""
-  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : "")
+  readonly property string messagesText: messagesAct.unread === 1 ? "1 iMessage" : messagesAct.unread + " iMessages"
+  readonly property string sideText: activity ? Activity.label(activity) : (idleView === "weather" ? weatherText : idleView === "dayflow" ? dayflowState.slot : idleView === "messages" ? messagesText : idleView === "timer" ? timerAct.slot : "")
   readonly property bool showIcon: view === "weather" && weather !== null
 
   // ------------------------------------------------------------ windows
@@ -292,7 +403,7 @@ Item {
   // clears the grab and collapses it. Nothing covers the screen.
   property var openScreens: ({})
   signal collapseRequested()
-  signal openTabRequested(string id)
+  signal openTabRequested(string id, string screenName)
   readonly property bool reduceMotion: Commons.Style.reduceMotion || (settings && settings.reduceMotion === true)
   function primaryScreenName() {
     var list = Quickshell.screens
@@ -302,8 +413,11 @@ Item {
   // `qs ipc call notch openTab <id>` pins the island open on a tab (used for screenshots).
   IpcHandler {
     target: "notch"
-    function openTab(id: string): void { root.openTabRequested(id) }
+    function openTab(id: string): void { root.openTabRequested(id, "") }
+    function openTabOn(id: string, screenName: string): void { root.openTabRequested(id, screenName) }
     function close(): void { root.collapseRequested() }
+    function openPlugin(id: string): void { root.openPlugin(id) }
+    function toggleTheme(): void { root.toggleTheme() }
   }
   function setOpen(name, open) {
     if (!!openScreens[name] === open) return
@@ -328,24 +442,24 @@ Item {
       }) : 0
       readonly property bool notched: cut > 0
       readonly property int camW: Model.cameraWidthFor(root.deviceCompatible, monitor ? monitor.width : 0, modelData.width, root.cameraOverride, cut) || Model.SIZES.cameraWidth
-      readonly property int earW: Model.earWidthFor(modelData.width)
+      readonly property int earW: Model.earWidthFor(modelData.width) + (Tk.pxl ? 16 : 0)  // pixel fonts run wider
 
       // --- U5 hover expand (state machine in Expand.js, UI in ExpandedPanel.qml) ---
       property string xstate: "collapsed"
       readonly property bool expanded: Expand.isExpanded(xstate)
       readonly property int baseWidth: notched ? camW + 2 * earTarget : root.virtualWidth
-      readonly property int baseHeight: notched ? Math.min(cut, root.barHeight) : root.barHeight  // match the bar height exactly
+      readonly property int baseHeight: notched ? cut : root.barHeight  // exactly the cutout height
       property string currentTab: "home"   // the expanded panel's tab; sizes the panel
       readonly property var panelSz: Expand.panelSize(modelData.width, Tabs.sizeFor(currentTab))
       readonly property int minPanelHeight: Expand.panelSize(modelData.width).height
       // Ears: the base width, grown (right ear text, island stays centered on
       // the camera) up to the live room on the narrower bar side minus margin.
       readonly property int earMax: notched ? Model.maxEarWidth(root.barWidgets, modelData.width, camW, earW, root.earMargin, root.earCap) : earW
-      readonly property real slotX: island.earLive + camW + root.earPad + dateMetrics.advanceWidth + 6
+      readonly property real slotX: island.earLive + camW + root.earPad
       readonly property bool dotShown: root.network.idleDot !== "" && !dictation.active
-      readonly property real slotNeed: root.activity || root.idleView === "weather" ? sideMetrics.advanceWidth + (root.showIcon ? 18 : 0) : (root.idleView === "watchlist" ? 84 : 0)
-      readonly property real dateNeed: dateMetrics.advanceWidth + 6
-      readonly property real sideNeed: dateNeed + (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + 8 + (dotShown ? 12 : 0)
+      readonly property real slotNeed: root.activity || root.idleView === "weather" || root.idleView === "dayflow" || root.idleView === "messages" || root.idleView === "timer" ? sideMetrics.advanceWidth + (root.showIcon ? 24 : 0) : (root.idleView === "watchlist" ? 84 : 0)
+      readonly property real leftNeed: timeMetrics.advanceWidth + root.earPad + root.earOuter
+      readonly property real sideNeed: Math.max(leftNeed, (root.slotShown ? slotNeed + root.eqSpace : 0) + root.earPad + root.earOuter + (dotShown ? 14 : 0) + 6)
       readonly property int earTarget: notched ? Model.earWidthFit(sideNeed, earW, earMax) : earW
       // Clicking the island pins it open (hover-leave no longer collapses it);
       // a click anywhere outside (focus grab below) or Esc collapses it.
@@ -366,8 +480,9 @@ Item {
       Connections {
         target: root
         function onCollapseRequested() { win.collapseNow() }
-        function onOpenTabRequested(id) {
-          if (modelData.name !== (Quickshell.screens.length ? root.primaryScreenName() : "")) return
+        function onOpenTabRequested(id, screenName) {
+          var want = screenName !== "" ? screenName : (Quickshell.screens.length ? root.primaryScreenName() : "")
+          if (modelData.name !== want) return
           win.currentTab = id
           win.pinned = true
           if (win.xstate !== "open") win.xstate = "open"
@@ -396,9 +511,13 @@ Item {
         // Reduce motion snaps the shape and lets the content fade instead.
         width: wSpring.value
         height: hSpring.value
-        SpringValue { id: wSpring; target: win.expanded ? win.panelSz.width : win.baseWidth; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
-        SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
+        SpringValue { id: wSpring; target: win.expanded ? win.panelSz.width : win.baseWidth; instant: root.reduceMotion; stepped: Tk.pxl; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
+        SpringValue { id: hSpring; target: win.expanded ? win.panelSz.height : win.baseHeight; instant: root.reduceMotion; stepped: Tk.pxl; duration: win.expanded ? Motion.OPEN.duration : Motion.CLOSE.duration; bounce: win.expanded ? Motion.OPEN.bounce : Motion.CLOSE.bounce }
         // Half the island either side of the camera: where the ear text sits.
+        readonly property bool earsOn: win.notched && (!Tk.pxl || !(win.expanded || height > win.baseHeight + 1))
+        // Idle content (clock, date, slot) only draws while collapsed; otherwise it
+        // would sit behind/through the open panel.
+        readonly property bool idleShown: !(win.expanded || height > win.baseHeight + 1)
         readonly property real earLive: Math.max(0, (width - win.camW) / 2)
         TextMetrics {
           id: sideMetrics
@@ -407,19 +526,21 @@ Item {
           text: root.sideText
         }
         TextMetrics {
-          id: dateMetrics
-          font.family: root.fontFamily
+          id: timeMetrics
+          font.family: Tk.label
           font.pixelSize: 13
-          text: root.dateLead
+          font.weight: Font.DemiBold
+          text: root.timeText + " \u00B7 " + root.dateText
         }
         x: Math.round((parent.width - width) / 2)
         y: 0
-        color: root.islandColor
+        color: Tk.pxl ? "transparent" : root.islandColor
         topLeftRadius: 0
         topRightRadius: 0
-        bottomLeftRadius: Math.min(24, Math.round(height * 0.45))
-        bottomRightRadius: Math.min(24, Math.round(height * 0.45))
+        bottomLeftRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
+        bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
 
+        PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: win.notched && island.earsOn ? root.islandColor : Tk.edge }
         // U5: hover opens the panel; keyboard focus stays None (see window above).
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
         // A click on the island itself (outside any tab content) pins it open.
@@ -440,7 +561,7 @@ Item {
           sourceComponent: ExpandedPanel {
             active: win.expanded
             currentTab: win.currentTab
-            onTabSelected: function (id) { win.currentTab = id }
+            onTabSelected: function (id) { win.currentTab = id; root.noteTabUse(id) }
             progress: Math.max(0, Math.min(1, (island.height - win.baseHeight) / (win.minPanelHeight - win.baseHeight)))
             headerHeight: win.baseHeight
             notch: root
@@ -453,59 +574,65 @@ Item {
           }
         }
 
-        // Notched: time in the left ear; right ear = date, then the ONE rotating slot.
+        // Notched: time + date in the left ear; right ear = the ONE rotating slot.
         Text {
-          visible: win.notched
+          visible: island.earsOn
           anchors.verticalCenter: parent.verticalCenter
-          width: Math.min(implicitWidth, island.earLive - root.earPad - 2)
+          width: Math.min(implicitWidth, island.earLive - root.earPad - root.earOuter)
           elide: Text.ElideRight
-          x: island.earLive - width - root.earPad   // right-aligned against the camera edge
-          text: root.timeText
+          x: Math.round(root.earOuter + (island.earLive - root.earOuter - root.earPad - width) / 2)   // centered in the left ear
+          text: root.timeText + " \u00B7 " + root.dateText
           color: root.textColor
-          font.family: root.fontFamily
+          font.family: Tk.label
           font.pixelSize: 13
           textFormat: Text.PlainText
           font.weight: Font.DemiBold
         }
-        // Date: fixed in the right ear next to the camera; never cycles.
-        Text {
-          visible: win.notched
-          anchors.verticalCenter: parent.verticalCenter
-          x: island.earLive + win.camW + root.earPad
-          text: root.dateLead
-          color: root.dimColor
-          font.family: root.fontFamily
-          font.pixelSize: 13
-          textFormat: Text.PlainText
-        }
         // watchlist hook: the slide replaces the side text while view === "watchlist".
         WatchlistSlide {
-          visible: win.notched && root.view === "watchlist"
+          visible: island.earsOn && root.view === "watchlist"
           anchors.verticalCenter: parent.verticalCenter
           x: win.slotX   // after the date
           quotes: root.quotes
           index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
           notched: true
-          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW))
+          upColor: root.goodColor
+          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW)) - (netDot.visible ? 14 : 0)
           family: root.fontFamily
         }
         SlideText {
-          visible: win.notched && root.view !== "watchlist" && root.view !== "date"
+          visible: island.earsOn && root.view !== "watchlist" && root.view !== "date"
           anchors.verticalCenter: parent.verticalCenter
           x: win.slotX + root.eqSpace
           target: root.sideText
           iconKind: root.weather ? root.weather.kind : ""
           iconOn: root.showIcon
-          maxWidth: win.earTarget - root.earPad - 8 - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
+          maxWidth: win.earTarget - root.earPad - root.earOuter - (win.slotX - (island.earLive + win.camW)) - root.eqSpace - (netDot.visible ? 12 : 0)
           color: root.textColor
           family: root.fontFamily
         }
 
         // N3: animated equalizer beside the title while media plays.
         EqGlyph {
-          visible: win.notched && root.mediaShown
+          visible: island.earsOn && root.mediaShown
           playing: media.active
           color: root.textColor
+          anchors.verticalCenter: parent.verticalCenter
+          x: win.slotX
+        }
+
+        ChargeBolt {
+          visible: island.earsOn && root.chargingShown
+          shown: visible
+          pulse: charging.motion === "pulse"
+          anchors.verticalCenter: parent.verticalCenter
+          x: win.slotX
+        }
+
+        HudMeter {
+          visible: island.earsOn && root.hudShown
+          level: hud.level
+          muted: hud.muted
           anchors.verticalCenter: parent.verticalCenter
           x: win.slotX
         }
@@ -515,24 +642,24 @@ Item {
           activity: dictation
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
-          anchors.rightMargin: Math.round(parent.height * 0.45)
+          anchors.rightMargin: root.earOuter
         }
 
         // Network dot (v3): green while Tailscale or NordVPN is up, amber while
         // one connects; hidden otherwise and while a dictation dot shows.
         Rectangle {
           id: netDot
-          visible: win.notched && root.network.idleDot !== "" && !dictation.active
-          width: 5; height: 5; radius: 3
+          visible: island.earsOn && root.network.idleDot !== "" && !dictation.active
+          width: 5; height: 5; radius: Tk.r(3)
           anchors.verticalCenter: parent.verticalCenter
           anchors.right: parent.right
-          anchors.rightMargin: Math.round(parent.height * 0.45)
-          color: root.network.idleDot === "on" ? "#6fbf73" : "#e0b050"
+          anchors.rightMargin: root.earOuter
+          color: root.network.idleDot === "on" ? root.goodColor : root.warnColor
         }
 
         // Click the right ear while dictation is showing to stop/toggle it.
         MouseArea {
-          visible: win.notched
+          visible: island.earsOn
           enabled: dictation.active && !win.expanded
           x: island.earLive + win.camW
           width: island.earLive
@@ -541,32 +668,43 @@ Item {
           onClicked: dictation.toggle()
         }
 
-        // Virtual notch: one centered line.
+        // Virtual notch: time + date left, the ONE rotating slot right.
+        Text {
+          visible: !win.notched && island.idleShown
+          anchors.verticalCenter: parent.verticalCenter
+          x: root.earOuter
+          width: Math.min(implicitWidth, parent.width - root.earOuter - root.earPad - rightSlot.implicitWidth - 6)
+          elide: Text.ElideRight
+          text: root.timeText + " \u00B7 " + root.dateText
+          color: root.textColor
+          font.family: root.fontFamily
+          font.pixelSize: 13
+          textFormat: Text.PlainText
+          font.weight: Font.DemiBold
+        }
         Row {
-          visible: !win.notched
-          anchors.centerIn: parent
-          spacing: 10
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.timeText
-            color: root.textColor
-            font.family: root.fontFamily
-            font.pixelSize: 13
-            textFormat: Text.PlainText
-            font.weight: Font.DemiBold
-          }
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.dateLead
-            color: root.dimColor
-            font.family: root.fontFamily
-            font.pixelSize: 13
-            textFormat: Text.PlainText
-          }
+          id: rightSlot
+          visible: !win.notched && island.idleShown
+          anchors.verticalCenter: parent.verticalCenter
+          x: parent.width - root.earOuter - implicitWidth
+          spacing: 6
+          layoutDirection: Qt.RightToLeft
           EqGlyph {
             visible: root.mediaShown
             playing: media.active
             color: root.textColor
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          ChargeBolt {
+            visible: root.chargingShown
+            shown: visible
+            pulse: charging.motion === "pulse"
+            anchors.verticalCenter: parent.verticalCenter
+          }
+          HudMeter {
+            visible: root.hudShown
+            level: hud.level
+            muted: hud.muted
             anchors.verticalCenter: parent.verticalCenter
           }
           // watchlist hook (virtual notch).
@@ -576,8 +714,9 @@ Item {
             quotes: root.quotes
             index: Math.floor(root.now.getTime() / 1000 / (root.clockSeconds + 2 * root.slideSeconds))
             notched: false
-            maxWidth: root.virtualWidth - 110
+            maxWidth: root.virtualWidth - 160
             family: root.fontFamily
+            upColor: root.goodColor
           }
           SlideText {
             visible: root.view !== "watchlist" && root.view !== "date"
@@ -585,7 +724,7 @@ Item {
             target: root.sideText
             iconKind: root.weather ? root.weather.kind : ""
             iconOn: root.showIcon
-            maxWidth: root.virtualWidth - 110
+            maxWidth: root.virtualWidth - 160
             color: root.textColor
             family: root.fontFamily
           }

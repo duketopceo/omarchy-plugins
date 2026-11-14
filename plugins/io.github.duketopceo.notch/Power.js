@@ -359,6 +359,121 @@ function sysfsArgs() {
   return args
 }
 
+// ---------------------------------------------------------------- charging activity
+
+// How long the ear shows the charging line after the cable goes in, and the
+// notch activity priority (above media, below dictation).
+var CHARGING_MS = 6000
+var CHARGING_PRIORITY = 60
+
+// One short shell run: the system battery from sysfs (the first `Battery` that
+// is not a peripheral, so macsmc-battery on Apple silicon, BAT0 elsewhere) as
+// key=value lines, plus whether any mains supply is online; if sysfs has no
+// battery, `upower -i` on the first battery instead (marker line `src=upower`).
+var BATTERY_SCRIPT = [
+  'S=/sys/class/power_supply; found=0',
+  'for d in $S/*; do',
+  '  [ "$(cat $d/type 2>/dev/null)" = Battery ] || continue',
+  '  [ "$(cat $d/scope 2>/dev/null)" = Device ] && continue',
+  '  for k in status capacity energy_now energy_full power_now time_to_full_now charge_control_end_threshold; do',
+  '    [ -r $d/$k ] && echo "$k=$(cat $d/$k 2>/dev/null)"',
+  '  done; found=1; break',
+  'done',
+  'for d in $S/*; do [ "$(cat $d/type 2>/dev/null)" = Mains ] && echo "ac_online=$(cat $d/online 2>/dev/null)"; done',
+  'if [ $found = 0 ] && command -v upower >/dev/null 2>&1; then',
+  '  echo src=upower; upower -i "$(upower -e | grep -m1 -i battery)" 2>/dev/null',
+  'fi'
+].join("\n")
+
+function batteryProbeArgs() { return ["/bin/sh", "-c", BATTERY_SCRIPT] }
+
+// "1.5 hours" / "20.0 minutes" / "45 seconds" -> seconds.
+function upowerDuration(v) {
+  var m = /^([\d.]+)\s*(hour|minute|second|day)s?$/i.exec(String(v || "").trim())
+  if (!m) return null
+  var n = Number(m[1])
+  var unit = m[2].toLowerCase()
+  return Math.round(n * (unit === "day" ? 86400 : unit === "hour" ? 3600 : unit === "minute" ? 60 : 1))
+}
+
+// Probe output -> { percent, state, ttfSeconds } or null (no battery found).
+// State is Power.chargeState's vocabulary: charging | discharging | hold | full.
+// Time to full: the kernel's time_to_full_now when it reports one, else
+// (target - energy_now) / power_now, the target being the charge limit when set.
+function parseBatteryProbe(raw) {
+  var kv = {}
+  var upower = false
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (line === "src=upower") { upower = true; continue }
+    var eq = line.indexOf("=")
+    if (!upower && eq > 0) { kv[line.substring(0, eq)] = line.substring(eq + 1).trim(); continue }
+    var c = line.indexOf(":")
+    if (upower && c > 0) kv[line.substring(0, c).trim()] = line.substring(c + 1).trim()
+  }
+  var percent = upower ? toNum(String(kv.percentage || "").replace("%", "")) : toNum(kv.capacity)
+  if (percent === null) return null
+  var status = upower ? kv.state : kv.status
+  var ac = kv.ac_online === undefined ? null : kv.ac_online === "1"
+  var limit = toNum(kv.charge_control_end_threshold)
+  var state = chargeState(status, percent, ac, limit)
+  var ttf = null
+  if (upower) {
+    ttf = upowerDuration(kv["time to full"])
+  } else {
+    var direct = toNum(kv.time_to_full_now)
+    if (direct !== null && direct > 0) ttf = direct
+    else {
+      var now = toNum(kv.energy_now)
+      var full = toNum(kv.energy_full)
+      var w = toNum(kv.power_now)
+      if (now !== null && full !== null && w !== null && w > 0) {
+        var target = full * (limit !== null && limit > 0 && limit < 100 ? limit / 100 : 1)
+        if (target > now) ttf = Math.round((target - now) / w * 3600)
+      }
+    }
+  }
+  return { percent: Math.round(percent), state: state, ttfSeconds: state === "charging" ? ttf : null }
+}
+
+// The ear line for a reading: "62% · 1h 12m to full", "80% · at limit", "100% · full".
+function chargingText(r) {
+  if (!r || num(r.percent) === null) return ""
+  var p = Math.round(r.percent) + "%"
+  if (r.state === "charging") {
+    var t = fmtTime(r.ttfSeconds)
+    return t === DASH ? p + " · charging" : p + " · " + t + " to full"
+  }
+  if (r.state === "hold") return p + " · at limit"
+  if (r.state === "full") return p + " · full"
+  return ""
+}
+
+function chargingInitial() { return { plugged: null, text: "", until: 0 } }
+
+// Fold one battery reading into the model. The first reading is the baseline
+// (a notch started on AC does not announce it); going from battery to AC shows
+// the line for CHARGING_MS; unplugging, or no reading, clears it.
+function chargingStep(model, reading, now) {
+  var m = model || chargingInitial()
+  if (!reading) return m
+  var plugged = reading.state !== "discharging"
+  if (m.plugged === null) return { plugged: plugged, text: "", until: 0 }
+  if (!plugged) return m.plugged || m.text !== "" ? { plugged: false, text: "", until: 0 } : m
+  if (!m.plugged) return { plugged: true, text: chargingText(reading), until: now + CHARGING_MS }
+  if (m.until > now) {
+    var t = chargingText(reading)
+    if (t !== m.text) return { plugged: true, text: t, until: m.until }
+  }
+  return m
+}
+
+function chargingActive(model, clock) { return !!model && model.text !== "" && model.until > clock }
+
+// The bolt beside the line pulses unless motion is reduced.
+function chargingMotion(reduce) { return reduce ? "static" : "pulse" }
+
 if (typeof module !== "undefined") {
   module.exports = {
     DASH: DASH, parseStatus: parseStatus, parseDuration: parseDuration, fmtTime: fmtTime,
@@ -369,6 +484,8 @@ if (typeof module !== "undefined") {
     addSample: addSample, signedWatts: signedWatts, fmtSpan: fmtSpan, parseProfiles: parseProfiles,
     orderedProfiles: orderedProfiles, profileTitle: profileTitle, profileIcon: profileIcon,
     profileSetArgs: profileSetArgs, SYSFS_BATTERY: SYSFS_BATTERY, SYSFS_AC: SYSFS_AC,
-    SYSFS_FILES: SYSFS_FILES, sysfsArgs: sysfsArgs
+    SYSFS_FILES: SYSFS_FILES, sysfsArgs: sysfsArgs,
+    CHARGING_MS: CHARGING_MS, CHARGING_PRIORITY: CHARGING_PRIORITY, batteryProbeArgs: batteryProbeArgs, parseBatteryProbe: parseBatteryProbe,
+    chargingText: chargingText, chargingInitial: chargingInitial, chargingStep: chargingStep, chargingActive: chargingActive, chargingMotion: chargingMotion
   }
 }

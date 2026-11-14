@@ -86,6 +86,8 @@ function emptyProbe() {
     wisp: false,
     finance: false,
     fan: false,
+    clipboard: false,
+    hud: false,
     plugins: false,
     tailscale: false,
     nordvpn: false,
@@ -110,7 +112,7 @@ function parseProbe(text) {
   out.appleSilicon = d.appleSilicon === true
   out.macos = d.macos === true
   out.omarchyHost = d.omarchyHost === true
-  ;["screenshots", "agents", "messages", "wordink", "wisp", "finance", "fan", "plugins", "tailscale", "nordvpn"].forEach(function (k) {
+  ;["screenshots", "agents", "messages", "wordink", "wisp", "finance", "fan", "clipboard", "hud", "plugins", "tailscale", "nordvpn"].forEach(function (k) {
     out[k] = d[k] === true
   })
   if (isObject(d.gpu)) {

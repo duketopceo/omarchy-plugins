@@ -14,12 +14,29 @@ QtObject {
   property bool instant: false
   property real epsilon: 0.25
   property real velocity: 0
+  // Pxl: snap to the target in a few whole-pixel frames instead of springing.
+  property bool stepped: false
+  property int frames: 3
+  property int frameMs: 45
+  property real from: 0
+  property int frame: 0
 
   onTargetChanged: {
     if (instant) { value = target; velocity = 0; return }
+    if (stepped) { from = value; frame = 0; anim.running = false; stepTimer.restart(); return }
     anim.running = true
   }
   onInstantChanged: if (instant) { value = target; velocity = 0; anim.running = false }
+
+  property Timer stepTimer: Timer {
+    interval: sv.frameMs
+    repeat: true
+    onTriggered: {
+      sv.frame += 1
+      if (sv.frame >= sv.frames) { sv.value = Math.round(sv.target); stop(); return }
+      sv.value = Math.round(sv.from + (sv.target - sv.from) * sv.frame / sv.frames)
+    }
+  }
 
   property FrameAnimation anim: FrameAnimation {
     running: false
