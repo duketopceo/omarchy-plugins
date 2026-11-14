@@ -114,6 +114,31 @@ def test_label_prefixes_glyph():
     assert run("A.label(null)") == ""
 
 
+def test_two_activities_ordered_with_stable_ties_and_filtered():
+    assert run("A.top([{id:'a',active:true,priority:5,text:'a'},{id:'b',active:true,priority:9,text:'b'},{id:'c',active:true,priority:5,text:'c'},{id:'d',active:true,priority:99,text:''}],2).map(x=>x.id)") == ["b", "a"]
+    assert run("A.top([],2)") == []
+
+
+def test_activity_tabs_respect_optional_settings():
+    assert run("A.tabFor('media', {})") == "media"
+    assert run("A.tabFor('dictation', {})") == "home"
+    assert run("A.tabFor('agents', {})") == "home"
+    assert run("A.tabFor('agents', {optAgents:true})") == "agents"
+
+
+def test_split_requires_both_labels_to_fit_and_a_second_activity():
+    assert run("A.splitFits(150, 60, 40, 50, true)") is True
+    assert run("A.splitFits(149, 60, 40, 50, true)") is False
+    assert run("A.splitFits(999, 60, 40, 50, false)") is False
+    assert run("A.splitFits(0, 0, 0, 0, true)") is False
+
+
+def test_split_geometry_keeps_gap_between_primary_and_capsule():
+    assert run("A.splitGeometry(300, 210, 8)") == {"primaryWidth": 202, "capsuleX": 210, "capsuleWidth": 90}
+    assert run("A.splitGeometry(300, 4, 8)") is None
+    assert run("A.splitGeometry(300, 300, 8)") is None
+
+
 # ---------------------------------------------------------------- settings
 
 def test_defaults_when_entry_absent_or_junk():
