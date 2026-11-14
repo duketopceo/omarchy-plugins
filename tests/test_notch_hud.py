@@ -114,7 +114,7 @@ def test_hud_outranks_dictation_and_is_one_activity():
 
 
 def test_qml_runs_only_when_notch_owns_the_popup():
-    qml = (NOTCH / "Notch.qml").read_text()
+    qml = (NOTCH / "Island.qml").read_text()
     assert 'HudActivity { id: hud; enabled: root.settings.hudOwner === "notch" }' in qml
     act = (NOTCH / "HudActivity.qml").read_text()
     assert "pactl" in act and "running: ha.enabled" in act

@@ -55,7 +55,8 @@ def test_optional_tabs_off_by_default_and_setup_keys_exist():
 def test_shipped_tab_files_exist():
     for t in run("T.TABS"):
         assert (NOTCH / t["source"]).is_file(), t["source"]
-    assert (NOTCH / "Notch.qml").is_file()
+    assert (NOTCH / "Island.qml").is_file()
+    assert not (NOTCH / "Notch.qml").exists()
     assert (NOTCH / "bin" / "notch-data").is_file()
 
 

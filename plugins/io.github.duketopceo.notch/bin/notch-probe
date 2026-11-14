@@ -2,7 +2,7 @@
 """Probe optional notch capabilities on this Omarchy host.
 
 Prints one JSON object on stdout. No network, no secrets, no writes.
-Paths are existence checks only. Used by Notch.qml for first-run setup.
+Paths are existence checks only. Used by Island.qml for first-run setup.
 """
 from __future__ import annotations
 

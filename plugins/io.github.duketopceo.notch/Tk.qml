@@ -3,7 +3,7 @@ import QtQuick
 import qs.Commons as Commons
 import "Theme.js" as Theme
 
-// Shared theme state. Notch.qml binds `id` to the live setting; every view
+// Shared theme state. Island.qml binds `id` to the live setting; every view
 // reads colours, radii, fonts and motion from here. Swift returns exactly the
 // values the views used to hardcode; Pxl returns a fixed 16-colour palette,
 // square corners, 2px borders, stepped motion.
