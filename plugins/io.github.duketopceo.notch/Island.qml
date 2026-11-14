@@ -551,6 +551,7 @@ Item {
 
           ChargeBolt {
             visible: win.chargingShown
+            shown: win.chargingShown
             anchors.verticalCenter: parent.verticalCenter
             x: island.earLive + win.camW + 6
             pulse: charging.motion === "pulse"
@@ -559,7 +560,6 @@ Item {
             visible: win.hudShown
             anchors.verticalCenter: parent.verticalCenter
             x: island.earLive + win.camW + 6
-            kind: hud.kind
             level: hud.level
             muted: hud.muted
           }
