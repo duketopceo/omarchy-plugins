@@ -46,18 +46,17 @@ Item {
   property var pending: ({})
   readonly property var settings: Settings.resolve(Settings.pluginEntry(shellConfig, pluginId), pending)
 
-  readonly property color islandColor: "black"
-  // Surface colours, named once. These keep the prototype's values (KTD3);
-  // Notch.qml's textColor/dimColor come from Commons.Color, so switching to
-  // those is a visual change and stays a separate decision.
-  readonly property color brightText: "#f8f8f8"
-  readonly property color titleText: "#ffffff"
-  readonly property color altText: "#fafafa"
-  readonly property color labelText: "#f2f2f2"
-  readonly property color dimText: "#a4a4a4"
-  readonly property color mutedText: "#8f8f8f"
-  readonly property color pillColor: "#2a2a2a"
-  readonly property color trackColor: "#393939"
+  readonly property color islandColor: Commons.Color.background
+  // Theme through Commons.Color (KTD7). Named aliases keep call sites readable;
+  // ink stays high-contrast on the dark island surface.
+  readonly property color brightText: Commons.Color.foreground
+  readonly property color titleText: Commons.Color.foreground
+  readonly property color altText: Commons.Color.foreground
+  readonly property color labelText: Commons.Color.foreground
+  readonly property color dimText: Commons.Color.muted
+  readonly property color mutedText: Commons.Color.muted
+  readonly property color pillColor: Commons.Color.menu.background
+  readonly property color trackColor: Commons.Color.menu.border
   readonly property string fontFamily: Commons.Style.font.family
   readonly property bool reduceMotion: Commons.Style.reduceMotion || (settings && settings.reduceMotion === true)
 

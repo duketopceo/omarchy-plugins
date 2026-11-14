@@ -6,8 +6,11 @@ topic: notch-island
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-plan-bootstrap
 execution: code
-status: planned
+status: shipped
+superseded_by: docs/plans/2026-11-14-feat-notch-finalize-plan.md
 ---
+
+> **U1–U5 shipped** on `main` / island tip. U6 (catalog/homepage mirror) continues under [`docs/plans/2026-11-14-feat-notch-finalize-plan.md`](2026-11-14-feat-notch-finalize-plan.md) Phase A.
 
 # Notch island plugin - Plan
 

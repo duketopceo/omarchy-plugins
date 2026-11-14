@@ -5,7 +5,11 @@ type: feat
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-plan-bootstrap
 execution: code
+status: superseded
+superseded_by: docs/plans/2026-11-14-feat-notch-finalize-plan.md
 ---
+
+> **Superseded** by [`docs/plans/2026-11-14-feat-notch-finalize-plan.md`](2026-11-14-feat-notch-finalize-plan.md). Island U1–U3 landed on `feature/island-activity-merge`; remaining ship work (rebase, URLs, Commons.Color, DoD, merge) and wave2/dayflow follow-ons live in the finalize plan.
 
 # Merge Notch activity integrations into the native Island - Plan
 

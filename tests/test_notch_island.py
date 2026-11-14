@@ -30,12 +30,12 @@ def test_manifest_keeps_the_installed_id_and_points_at_the_island():
     assert (NOTCH / manifest["entryPoints"]["panel"]).is_file()
 
 
-def test_the_old_panel_is_retired():
-    # The island owns every tab now; the dashboard implementation lives in git
-    # history (commit b9029d2 and earlier), not in the shipped plugin.
+def test_the_dashboard_panel_remains_reachable():
+    # Island is the manifest entry; Notch.qml + ExpandedPanel.qml stay shipped
+    # so the expanded-view dashboard Loader (R6 / KTD8) can open them.
     assert (NOTCH / "Notch.qml").exists()
     assert (NOTCH / "ExpandedPanel.qml").exists()
-    # Its per-tab content is still shipped, and the island hosts it.
+    # Per-tab content is still shipped; the island hosts the dashboard on demand.
     for tab in ("HomeTab.qml", "MediaTab.qml", "NetworkTab.qml", "SettingsTab.qml"):
         assert (NOTCH / tab).is_file(), tab
 

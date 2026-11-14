@@ -23,7 +23,7 @@ From this umbrella repo:
 # then enable io.github.duketopceo.notch in Omarchy plugin settings / shell.json
 ```
 
-Or, once the mirror exists: `omarchy plugin add https://github.com/duketopceo/omarchy-notch`.
+Or from the monorepo remote: `omarchy plugin add https://github.com/duketopceo/omarchy-plugins` (plugin id `io.github.duketopceo.notch`).
 
 No other duketopceo plugins are required. Optional host tools (when present): `tailscale`, `nordvpn`, MPRIS players, `wordink`, Blip (`nixfred.blip`), herdr, snapdex, lukedaduke.fan.
 
@@ -153,7 +153,17 @@ Ties go to the earlier entry; entries with empty text are skipped. The dashboard
 
 ## Status
 
-v0.1 plus the native Island surface. The island is the primary presentation; the dashboard is reachable and unchanged. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. Plans: `docs/plans/2026-11-04-0215-feat-notch-island-plan.md` and `docs/plans/2026-11-13-feat-island-activity-merge-plan.md`. The standalone prototype stays at `prototypes/island-v02/` (`qs -p prototypes/island-v02/shell.qml`).
+v0.2.0 — native Island is the primary presentation; the dashboard stays reachable via ☰. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. Canonical plan: `docs/plans/2026-11-14-feat-notch-finalize-plan.md`. The standalone prototype stays at `prototypes/island-v02/` (`qs -p prototypes/island-v02/shell.qml`).
+
+### Verified (omarchy-max / Asahi, 2026-11-14)
+
+Definition of done for the Island ship (internal screen):
+
+- [x] Compact island shows clock; live activity text appears when a collector is active
+- [x] Expanded controls bind to the selected activity id (not rank)
+- [x] Escape collapses the expanded island
+- [x] Dashboard remains reachable from the expanded ☰ control (`Notch.qml` Loader)
+- [x] Manifest `entryPoints.panel` is `Island.qml`; homepage points at `duketopceo/omarchy-plugins`
 
 ## NOTICE
 

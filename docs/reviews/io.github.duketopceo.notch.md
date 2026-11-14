@@ -1,19 +1,19 @@
 # Review: io.github.duketopceo.notch
 
-Not yet reviewed (v0.1). Criteria stay pending until the first review.
+Island surface v0.2.0 (2026-11-14). Assessed against `docs/SCORECARD.md` for the Asahi path; x86_64 manual pass still open (CI covers ubuntu-latest + arm runners for pytest).
 
 ```scorecard
 {
   "plugin": "io.github.duketopceo.notch",
   "criteria": {
-    "no_open_hm_findings": "pending",
-    "plaintext_external_text": "pending",
-    "exec_discipline": "pending",
-    "envelope": "pending",
-    "fixture_tests": "pending",
-    "visibility_gating": "pending",
-    "stale_backoff": "pending",
-    "readme_claims": "pending"
+    "no_open_hm_findings": "pass",
+    "plaintext_external_text": "pass",
+    "exec_discipline": "pass",
+    "envelope": "pass",
+    "fixture_tests": "pass",
+    "visibility_gating": "pass",
+    "stale_backoff": "pass",
+    "readme_claims": "pass"
   },
   "manual": {
     "spawn_measurement": {
@@ -21,12 +21,12 @@ Not yet reviewed (v0.1). Criteria stay pending until the first review.
       "date": null
     },
     "asahi_pass": {
-      "date": null
+      "date": "2026-11-14"
     },
     "x86_64_pass": {
       "date": null
     }
   },
-  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+  "notes": "2026-11-14: Island entry + Commons.Color theme; fixture tests in tests/test_notch_*.py and test_island_activity.py; plaintext covered by island tests; README install URL corrected to omarchy-plugins. x86_64 interactive pass deferred (no local x86 host)."
 }
 ```
