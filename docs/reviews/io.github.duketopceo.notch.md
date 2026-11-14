@@ -1,6 +1,6 @@
 # Review: io.github.duketopceo.notch
 
-Not yet reviewed (v0.1). Criteria stay pending until the first review.
+Island surface v0.2.0 (2026-11-14). Asahi live DoD recorded. Contract-backed scorecard criteria stay `pending` until estate strict findings (DeadlineProcess / VisibilityGate / timer-budget) are cleared — `check-scorecard.py` rejects a claimed pass while the contract checker still reports errors.
 
 ```scorecard
 {
@@ -10,10 +10,10 @@ Not yet reviewed (v0.1). Criteria stay pending until the first review.
     "plaintext_external_text": "pending",
     "exec_discipline": "pending",
     "envelope": "pending",
-    "fixture_tests": "pending",
+    "fixture_tests": "pass",
     "visibility_gating": "pending",
     "stale_backoff": "pending",
-    "readme_claims": "pending"
+    "readme_claims": "pass"
   },
   "manual": {
     "spawn_measurement": {
@@ -21,12 +21,12 @@ Not yet reviewed (v0.1). Criteria stay pending until the first review.
       "date": null
     },
     "asahi_pass": {
-      "date": null
+      "date": "2026-11-14"
     },
     "x86_64_pass": {
       "date": null
     }
   },
-  "notes": "Initial state 2026-10-03: not yet assessed against docs/SCORECARD.md."
+  "notes": "2026-11-14: Island entry + Commons.Color; fixture tests pass; README install URL → omarchy-plugins; Asahi DoD in plugin README. plaintext/exec stay pending under strict estate scan (~60 findings, mostly pre-existing collectors)."
 }
 ```

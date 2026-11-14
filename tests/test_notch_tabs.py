@@ -51,8 +51,12 @@ def test_optional_tabs_off_by_default_and_setup_keys_exist():
 
 def test_shipped_tab_files_exist():
     for t in run("T.TABS"):
+        # An empty source means the island renders that tab inline.
+        if t["source"] == "":
+            continue
         assert (NOTCH / t["source"]).is_file(), t["source"]
-    assert (NOTCH / "Notch.qml").is_file()
+    assert (NOTCH / "Notch.qml").is_file(), "the dashboard remains reachable from the Island"
+    assert (NOTCH / "ExpandedPanel.qml").is_file()
     assert (NOTCH / "bin" / "notch-data").is_file()
 
 

@@ -49,4 +49,14 @@ Scope {
     onFileChanged: reload()
     onLoaded: sa.ingest(text())
   }
+
+  // Open the processed-shots folder from the Island's expanded view. Opens
+  // nothing when the library is absent (KTD4), rather than revealing a
+  // destination that is not there.
+  function openLibrary() {
+    var home = Quickshell.env("HOME")
+    var dir = Screenshots.libraryDir(home, sa.libraryOk)
+    if (dir === "") return
+    Quickshell.execDetached(["/usr/bin/xdg-open", dir])
+  }
 }

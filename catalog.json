@@ -106,11 +106,11 @@
     {
       "id": "io.github.duketopceo.notch",
       "path": "plugins/io.github.duketopceo.notch",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "kinds": [
         "panel"
       ],
-      "repo": "https://github.com/duketopceo/omarchy-notch"
+      "repo": "https://github.com/duketopceo/omarchy-plugins"
     },
     {
       "id": "io.github.duketopceo.wordink",

@@ -80,7 +80,7 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
-| `io.github.duketopceo.notch` | https://github.com/duketopceo/omarchy-notch (not yet published) |
+| `io.github.duketopceo.notch` | https://github.com/duketopceo/omarchy-plugins (plugin path) |
 | `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
 | `io.github.duketopceo.hotkey-tally` | https://github.com/duketopceo/omarchy-hotkey-tally (not yet published) |
 
