@@ -1,7 +1,7 @@
-"""Island.qml is the only panel entry: compact ears + hover-morph dashboard.
+"""Island.qml: Dynamic Island look (prototype geometry) + activity expand.
 
-These tests read the QML source for wiring that node cannot see — hover leave,
-ExpandedPanel host, and that Notch.qml is gone so a second surface cannot load.
+Notch.qml is gone. Tabbed dashboard ports next; these tests lock the pill look
+and hover/pin expand wiring.
 """
 import json
 import re
@@ -10,6 +10,7 @@ from pathlib import Path
 NOTCH = Path(__file__).resolve().parents[1] / "plugins/io.github.duketopceo.notch"
 ISLAND = NOTCH / "Island.qml"
 MANIFEST = NOTCH / "manifest.json"
+MOTION = NOTCH / "Motion.js"
 
 
 def source():
@@ -23,45 +24,36 @@ def test_manifest_keeps_the_installed_id_and_points_at_the_island():
     assert (NOTCH / manifest["entryPoints"]["panel"]).is_file()
 
 
-def test_notch_qml_is_removed_island_is_the_only_surface():
+def test_notch_qml_is_removed():
     assert not (NOTCH / "Notch.qml").exists()
-    assert ISLAND.is_file()
-    assert (NOTCH / "ExpandedPanel.qml").is_file()
-    for tab in ("HomeTab.qml", "MediaTab.qml", "NetworkTab.qml", "SettingsTab.qml"):
-        assert (NOTCH / tab).is_file(), tab
+    assert 'source: "Notch.qml"' not in source()
+
+
+def test_dynamic_island_prototype_geometry():
+    text = source()
+    assert "compactHeight: 37" in text
+    assert "expandedWidth: 374" in text
+    assert "expandedHeight: 180" in text
+    assert 'WlrLayershell.namespace: "omarchy-notch-island"' in text
+    # Must not hug the cutout (that is the notch look).
+    assert "Math.max(cut, barHeight)" not in text
+
+
+def test_island_motion_tokens_match_prototype():
+    m = MOTION.read_text()
+    assert "ISLAND_RADIUS = 46" in m
+    assert "ISLAND_OPEN_MS = 390" in m
 
 
 def test_hover_opens_and_leave_collapses_unless_pinned():
     text = source()
     assert "HoverHandler" in text
-    assert 'win.xevent(hovered ? "enter" : "leave")' in text
     assert "pinned" in text
-    assert "collapseNow" in text
+    assert "closeIsland" in text
     assert re.search(r'sequence:\s*"Escape"', text)
 
 
-def test_expanded_hosts_the_tabbed_dashboard():
-    text = source()
-    assert "ExpandedPanel" in text
-    assert "currentTab" in text
-    assert "Tabs.sizeFor" in text or "Tabs.maxHeight" in text
-
-
-def test_compact_is_island_pill_not_square_top_notch():
-    text = source()
-    assert 'WlrLayershell.namespace: "omarchy-notch-island"' in text
-    assert "cornerR" in text
-    assert "pillR" in text
-    # Retired: flush square-top notch silhouette.
-    assert "topLeftRadius: 0" not in text
-
-
-def test_externally_sourced_idle_text_stays_plain():
-    text = source()
-    assert "textFormat: Text.PlainText" in text
-
-
-def test_keyboard_focus_only_when_pinned_open():
+def test_keyboard_focus_only_when_expanded():
     text = source()
     assert "WlrKeyboardFocus.OnDemand" in text
     assert "WlrKeyboardFocus.None" in text

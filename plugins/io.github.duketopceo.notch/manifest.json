@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.notch",
   "name": "Notch",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "author": "duketopceo",
   "license": "MIT",
   "homepage": "https://github.com/duketopceo/omarchy-plugins",
-  "description": "Island pill (capsule ears) morphs into the tabbed dashboard on hover; Notch.qml removed.",
+  "description": "Dynamic Island look (37px pill); activity expand. Notch cutout-fill retired; tab dashboard ports next.",
   "kinds": [
     "panel"
   ],
