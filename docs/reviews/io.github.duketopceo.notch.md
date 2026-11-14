@@ -1,18 +1,18 @@
 # Review: io.github.duketopceo.notch
 
-Island surface v0.2.0 (2026-11-14). Assessed against `docs/SCORECARD.md` for the Asahi path; x86_64 manual pass still open (CI covers ubuntu-latest + arm runners for pytest).
+Island surface v0.2.0 (2026-11-14). Asahi live DoD recorded. Contract-backed scorecard criteria stay `pending` until estate strict findings (DeadlineProcess / VisibilityGate / timer-budget) are cleared — `check-scorecard.py` rejects a claimed pass while the contract checker still reports errors.
 
 ```scorecard
 {
   "plugin": "io.github.duketopceo.notch",
   "criteria": {
-    "no_open_hm_findings": "pass",
-    "plaintext_external_text": "pass",
-    "exec_discipline": "pass",
-    "envelope": "pass",
+    "no_open_hm_findings": "pending",
+    "plaintext_external_text": "pending",
+    "exec_discipline": "pending",
+    "envelope": "pending",
     "fixture_tests": "pass",
-    "visibility_gating": "pass",
-    "stale_backoff": "pass",
+    "visibility_gating": "pending",
+    "stale_backoff": "pending",
     "readme_claims": "pass"
   },
   "manual": {
@@ -27,6 +27,6 @@ Island surface v0.2.0 (2026-11-14). Assessed against `docs/SCORECARD.md` for the
       "date": null
     }
   },
-  "notes": "2026-11-14: Island entry + Commons.Color theme; fixture tests in tests/test_notch_*.py and test_island_activity.py; plaintext covered by island tests; README install URL corrected to omarchy-plugins. x86_64 interactive pass deferred (no local x86 host)."
+  "notes": "2026-11-14: Island entry + Commons.Color; fixture tests pass; README install URL → omarchy-plugins; Asahi DoD in plugin README. plaintext/exec stay pending under strict estate scan (~60 findings, mostly pre-existing collectors)."
 }
 ```
