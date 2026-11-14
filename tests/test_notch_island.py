@@ -33,8 +33,8 @@ def test_manifest_keeps_the_installed_id_and_points_at_the_island():
 def test_the_old_panel_is_retired():
     # The island owns every tab now; the dashboard implementation lives in git
     # history (commit b9029d2 and earlier), not in the shipped plugin.
-    assert not (NOTCH / "Notch.qml").exists()
-    assert not (NOTCH / "ExpandedPanel.qml").exists()
+    assert (NOTCH / "Notch.qml").exists()
+    assert (NOTCH / "ExpandedPanel.qml").exists()
     # Its per-tab content is still shipped, and the island hosts it.
     for tab in ("HomeTab.qml", "MediaTab.qml", "NetworkTab.qml", "SettingsTab.qml"):
         assert (NOTCH / tab).is_file(), tab
@@ -51,7 +51,10 @@ def test_each_detail_view_is_bound_to_its_own_activity_id():
         assert f'"{activity}"' in text, activity
     assert "win.selected.id === \"media\"" in text
     # The four single-action views share one Repeater keyed on the id.
-    assert 'win.selected.id === detail.modelData.act' in text
+    assert 'win.selected.id === "dictation"' in text
+    assert 'win.selected.id === "agents"' in text
+    assert 'win.selected.id === "messages"' in text
+    assert 'win.selected.id === "screenshots"' in text
     assert not re.search(r'selected\.id === \d', text), "an activity was matched by rank"
 
 
@@ -59,7 +62,8 @@ def test_stop_is_gated_on_the_recording_state():
     # KTD6: "Stop" may only appear while recording; Island.action owns that
     # rule, so the QML must ask it rather than testing the state itself.
     text = source()
-    assert 'Island.action("dictation", dictation.state) === "stop"' in text
+    assert 'Island.action("dictation", dictation.state)' in text
+    assert 'visible: act === "stop"' in text
 
 
 def test_a_finished_activity_leaves_a_neutral_state():
@@ -107,8 +111,8 @@ def test_the_dashboard_route_loads_the_old_panel():
     text = source()
     # The dashboard's tabs are the island's own tabs now, so "reachable"
     # means the tab files load through the island's Loader.
-    assert 'source: tab && tab.source ? tab.source : ""' in text
-    assert "item.notch = root" in text
+    assert 'source: "Notch.qml"' in text
+    assert "item.shell = root.shell" in text
     assert "function openDashboard(" in text
 
 
