@@ -14,7 +14,7 @@ Item {
   property int maxWidth: 88
   property string family: ""
 
-  // Up color follows the notch theme (Notch.qml passes root.goodColor);
+  // Up color follows the notch theme (Island.qml passes root.goodColor);
   // the default keeps this slide usable standalone.
   property color upColor: Tk.good
 

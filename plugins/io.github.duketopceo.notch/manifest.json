@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.notch",
   "name": "Notch",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "author": "duketopceo",
   "license": "MIT",
   "homepage": "https://github.com/duketopceo/omarchy-plugins",
-  "description": "A Mac-style notch island with live activities, dashboard on demand, timer/HUD/charging ears, clipboard, Dayflow, and pxl theme.",
+  "description": "Island-only notch: compact ears morph into the full tabbed dashboard on hover (leave closes; click pins).",
   "kinds": [
     "panel"
   ],

@@ -3,7 +3,7 @@
 //
 // Swift is the polished default: its text/dim/accent/urgent, card and font
 // tokens are "" meaning "follow the live Omarchy theme" (Commons.Color /
-// Commons.Style.font.family, resolved by Notch.qml). Only the tokens that
+// Commons.Style.font.family, resolved by Island.qml). Only the tokens that
 // were already hardcoded in the island (black island, green/amber status,
 // blue info, bubble colors, radii) are pinned here, so Swift looks exactly
 // as it did before themes existed.

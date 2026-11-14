@@ -62,7 +62,7 @@ The right ear grows for a long activity text (track title). Max ear width = base
 
 ## Tabs
 
-The expanded panel has a tab strip and a content area. Tabs are listed in `Tabs.js` as `{ id, title, glyph, source }`. The content is a `Loader` on `source` (a QML file next to `Notch.qml`) and the loaded item gets a `notch` property: the root `Notch.qml` item (declare `property var notch: null` in your tab). A tab whose file is missing shows "<Title> is coming soon", never an error.
+The expanded panel has a tab strip and a content area. Tabs are listed in `Tabs.js` as `{ id, title, glyph, source }`. The content is a `Loader` on `source` (a QML file next to `Island.qml`) and the loaded item gets a `notch` property: the root `Island.qml` item (declare `property var notch: null` in your tab). A tab whose file is missing shows "<Title> is coming soon", never an error.
 
 Tabs:
 
@@ -106,7 +106,7 @@ With `dayflow` on: a **Dayflow** tab (recording state + pause/resume, today's ti
 
 ## Activity contract
 
-The side text (right ear, or the virtual notch line) shows the highest-priority active activity, else the idle cycle. `Notch.qml` keeps one list:
+The side text (right ear, or the virtual notch line) shows the highest-priority active activity, else the idle cycle. `Island.qml` keeps one list:
 
 ```qml
 readonly property var activities: [
@@ -116,7 +116,7 @@ readonly property var activities: [
 ]
 ```
 
-Each entry is `{ id, active (bool), priority (int, higher wins), text (string), glyph? }`. Ties go to the earlier entry; entries with empty text are skipped. To add an `XActivity` (a `Scope` exposing `active` and `text`, like `WordinkActivity`), instantiate it in `Notch.qml` and add one line above the `activities:end` marker. Logic is in `Activity.js`.
+Each entry is `{ id, active (bool), priority (int, higher wins), text (string), glyph? }`. Ties go to the earlier entry; entries with empty text are skipped. To add an `XActivity` (a `Scope` exposing `active` and `text`, like `WordinkActivity`), instantiate it in `Island.qml` and add one line above the `activities:end` marker. Logic is in `Activity.js`.
 
 ## Slimming the bar
 
