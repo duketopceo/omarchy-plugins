@@ -2,7 +2,7 @@
 
 A Mac-style notch island at the top center of every screen, for Omarchy 4.5.
 
-**Self-contained:** install this plugin alone on a clean Omarchy box and you get a usable island — clock and date, up to two live activities in the compact state, and an expanded view with controls for whichever activity is showing. The dashboard from v0.1 (Home, Media, Network, Power, System, Stocks, Plugins, Settings) is still built and still reachable from the expanded view's ☰ control. First click opens **Settings** until you finish optional setup: `bin/notch-probe` detects screenshots / agents / messages / WordInk / Wisp / finance / fan (and GPU/NPU labels) and offers Enable for each. Nothing hard-depends on Luke's private shell config or on other duketopceo plugins.
+**Self-contained:** install this plugin alone on a clean Omarchy box and you get a usable island — clock/date, weather, hover expand with built-in tabs (Home, Media, Network, Power, System, Stocks, Plugins, Settings). First click opens **Settings** until you finish optional setup: `bin/notch-probe` detects screenshots / agents / messages / WordInk / Wisp / finance / fan (and GPU/NPU labels) and offers Enable for each. Nothing hard-depends on Luke’s private shell config or on other duketopceo plugins.
 
 ## Platform (honest)
 
@@ -23,7 +23,7 @@ From this umbrella repo:
 # then enable io.github.duketopceo.notch in Omarchy plugin settings / shell.json
 ```
 
-Or from the monorepo remote: `omarchy plugin add https://github.com/duketopceo/omarchy-plugins` (plugin id `io.github.duketopceo.notch`).
+Or from the monorepo: `omarchy plugin add https://github.com/duketopceo/omarchy-plugins` (plugin id `io.github.duketopceo.notch`).
 
 No other duketopceo plugins are required. Optional host tools (when present): `tailscale`, `nordvpn`, MPRIS players, `wordink`, Blip (`nixfred.blip`), herdr, snapdex, lukedaduke.fan.
 
@@ -43,52 +43,26 @@ No other duketopceo plugins are required. Optional host tools (when present): `t
 
 Built-in (always on): Home, Media, Network, Power, System, Stocks, Plugins, Settings. GPU/NPU on System are **labels from probe** (Asahi AGX / NVIDIA / AMD / Intel / none; ANE when present) — utilization is not claimed where the kernel does not expose it.
 
-- On panels with a camera cutout (Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, activity text in the right.
+- On panels with a camera cutout (Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, date in the right ear.
 - On other screens it is a virtual notch with the same content on one line.
-- The ear text hugs the camera (6 px gap: left ear right-aligned, right ear left-aligned).
-- Idle: clock on the left, date on the right. When an activity is live it replaces the date, and a second activity joins it when the island is wide enough to hold both (`IslandActivity.canSplit`).
+- The ear text hugs the camera (6 px gap: left ear right-aligned, right ear left-aligned) and the island is exactly the cutout height.
+- Idle: clock and date, with the current weather sliding in every half minute. While music plays, the track title takes the right ear.
 
 Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weather settings, fetched at most every 15 minutes by `bin/notch-data` into `~/.cache/omarchy/notch.json`. Stock quotes use Yahoo's public endpoints for the Omarchy finance watchlist (or this plugin's `stocks.watchlist` setting).
 
-## Island: compact and expanded
+## Hover expand
 
-`Island.qml` is the panel entry point. It has two states.
+Hover the island for about 150 ms and it springs down into a panel with a tab strip. Leaving collapses it after about 300 ms. Click the island to pin it open; while expanded, a click anywhere outside (a transparent full-screen catcher on layer Top, present only while expanded, no keyboard focus) or Esc (when the panel has focus) collapses it. Logic lives in `Expand.js`, UI in `ExpandedPanel.qml`.
 
-- **Compact** (37 px tall): clock on the left of the camera, the top-ranked activity on the right, and a second activity beside it when the width allows. Click it to expand.
-- **Expanded** (374 x 180): controls for the activity that is showing, plus ☰ to open the dashboard and × to close. Escape also collapses it.
-
-Expanding grants keyboard focus on demand; hovering never does, so the island cannot steal keys from what you are typing in. Reduced motion (Omarchy's setting, or the plugin's `reduceMotion`) snaps the shape instead of springing it.
-
-Selection is pure logic in `IslandActivity.js`, tested with node in `tests/test_island_activity.py`:
-
-- `visible(activities)` sorts by priority, keeping list order for ties, and drops inactive or empty-text entries.
-- `selected(activities, id)` returns null when that id is no longer active. The expanded view then shows "Nothing active" rather than another activity's controls.
-- `action(id, state)` returns `stop` for dictation only while it is recording. The expanded view asks this function rather than testing the state itself.
-- `canSplit(available, fixed, first, second)` decides whether two segments fit.
-
-Each control is bound to its own activity id, so a change in ranking can never move a destructive control onto a different activity. All activity text renders as plain text: message and screenshot captions come from outside the app.
-
-Expanded actions, and when they appear:
-
-| Activity | Control | Shown when |
-| --- | --- | --- |
-| Dictation | Stop | `wordink` reports `recording` |
-| Media | ⏮ ▶/Ⅱ ⏭ | an MPRIS player exists |
-| Agents | Herdr | `optAgents` and herdr is present |
-| Messages | Blip | `optMessages` and Blip is present |
-| Screenshots | Library | `snapdex` and the library folder exists |
-
-IPC: `qs ipc call notch open` focuses the island, `close` dismisses it, `dashboard` opens the old panel. `openTab` and `close` from v0.1 still work on the root item.
+Panel size is per tab: a tab entry in `Tabs.js` may carry `size: { w, h }` (logical px); without it the panel is 460x240. Home is 720x380, Stocks 640x360 (clamped to the screen width minus 16, always centered). The island animates the size change when you switch tabs. The tab strip shows glyph + short label (`short` in `Tabs.js`) on equal-width chips when they all fit, else only the selected chip carries its label.
 
 ## Ears
 
 The right ear grows for a long activity text (track title). Max ear width = base ear + the narrower side's free bar room (the same `room` as `bin/notch-layout-check`: `Model.sideRoom`) minus a 12 px margin, capped at 280; the island stays centered on the camera. Text still too long for that scrolls slowly (marquee) instead of eliding. `notch-layout-check` prints the current limit per scenario.
 
-## Dashboard (the old panel)
+## Tabs
 
-The v0.1 dashboard still exists in source: `Notch.qml`, `ExpandedPanel.qml`, `Tabs.js`, and the per-tab QML files. It is reachable from the island's expanded view with ☰, which goes through `Plugins.openChain` rather than assuming a separate bar widget is enabled. To go back to the dashboard as the primary surface, point `manifest.json` `entryPoints.panel` at `Notch.qml`; nothing else needs to change.
-
-The dashboard has a tab strip and a content area. Tabs are listed in `Tabs.js` as `{ id, title, glyph, source }`. The content is a `Loader` on `source` (a QML file next to `Notch.qml`) and the loaded item gets a `notch` property: the root `Notch.qml` item (declare `property var notch: null` in your tab). A tab whose file is missing shows "<Title> is coming soon", never an error.
+The expanded panel has a tab strip and a content area. Tabs are listed in `Tabs.js` as `{ id, title, glyph, source }`. The content is a `Loader` on `source` (a QML file next to `Notch.qml`) and the loaded item gets a `notch` property: the root `Notch.qml` item (declare `property var notch: null` in your tab). A tab whose file is missing shows "<Title> is coming soon", never an error.
 
 Tabs:
 
@@ -121,17 +95,18 @@ Stored in this plugin's entry of `shell.json` `plugins[]` through `shell.mutateS
 | `cameraWidth` | 0 | 0 = auto, else logical px |
 | `hoverDelay` | 150 | ms before hover expands |
 | `snapdex` | false | Screenshots tab (offer when snapdex detected) |
-| `optAgents` / `optMessages` | false | Agents / Messages tabs |
+| `optAgents` / `optMessages` | true (local) | Agents / Messages tabs (upstream default false) |
 | `optWordink` / `optWisp` / `optFan` | true | Home Dict / Wisp / System fan modes when backends exist |
 | `setupDone` | false | First-run setup strip dismissed |
+| `dayflow` | false | Dayflow tab, Home tile, idle slot and paused indicator (local customization, needs the `dayflow` CLI) |
+
+## Dayflow (local customization, branch `local/notch-dayflow`, not upstream)
+
+With `dayflow` on: a **Dayflow** tab (recording state + pause/resume, today's timeline strip coloured by category with the current block outlined, focus share, top apps, current block title, agent sessions by tool, briefing workstreams, forecast), a Home tile (focus %, current block; click opens the tab), an idle-cycle slot while recording (`● Coding · 45m`: category and streak only, never block titles, which can name people) and a "Dayflow paused" activity at priority 20 while capture is paused. `DayflowState.qml` polls `dayflow status --json` every 10 s and `dayflow today --json` every 60 s only while the setting is on; `agents --no-recaps`, `briefing` and `forecast` run niced, one at a time, only while the tab is visible, at most every 10 / 30 / 60 min. Logic in `Dayflow.js`, tests in `tests/test_notch_dayflow.py`.
 
 ## Activity contract
 
-Both surfaces read the same five collectors with the same contract: each entry is `{ id, active (bool), priority (int, higher wins), text (string), glyph? }`. `IslandActivity.visible` orders them for the island; `Activity.pick` does the equivalent single-slot pick for the dashboard's side text.
-
-The collectors are `MediaActivity`, `WordinkActivity`, `AgentsActivity`, `MessagesActivity` and `ScreenshotsActivity`, each a `Scope` exposing `active`, `priority` and `text`. To add an `XActivity`, instantiate it in both `Island.qml` and `Notch.qml` and add one line to each `activities` array (marker `activities:end`).
-
-The dashboard's list in `Notch.qml`:
+The side text (right ear, or the virtual notch line) shows the highest-priority active activity, else the idle cycle. `Notch.qml` keeps one list:
 
 ```qml
 readonly property var activities: [
@@ -141,11 +116,11 @@ readonly property var activities: [
 ]
 ```
 
-Ties go to the earlier entry; entries with empty text are skipped. The dashboard's picker is `Activity.js`.
+Each entry is `{ id, active (bool), priority (int, higher wins), text (string), glyph? }`. Ties go to the earlier entry; entries with empty text are skipped. To add an `XActivity` (a `Scope` exposing `active` and `text`, like `WordinkActivity`), instantiate it in `Notch.qml` and add one line above the `activities:end` marker. Logic is in `Activity.js`.
 
 ## Slimming the bar
 
-`bin/notch-slim-bar` removes the bar widgets the notch covers (Tailscale, NordVPN, snapdex, WordInk, finance, world clock, active window) from `shell.json` `bar.layout`. `--dry-run` shows the change, `--undo` puts the entries back. It backs up to `shell.json.bak-notch-v3` first and keeps `omarchy.indicators`, `omarchy.microphone`, Blip and Wisp. Optional helper for hosts that already had those widgets; not required for a fresh install. Tests: `tests/test_notch_slim_bar.py`.
+`bin/notch-slim-bar` slims `shell.json` `bar.layout` to what the notch does not cover and leaves the right side at seven entries (`omarchy.system-update`, network, audio, power, Blip, Bluetooth, AI usage percent). It moves `omarchy.system-update` from left to right, and removes the widgets the notch absorbed: Tailscale, NordVPN, snapdex, WordInk, finance, world clock, active window, `lukedaduke.lidguard`, and the two tray hosts (`io.github.tyrichards.tray`, `omarchy.tray`) whose contents the Plugins hub lists. `io.github.ncr.omaphones` goes too — its Bluetooth controls are covered by the audio entry. `--dry-run` shows the change, `--undo` puts the entries back exactly where they were. It backs up to `shell.json.bak-notch-v4` (date-suffixed if that name is taken) and keeps `omarchy.indicators`, `omarchy.microphone`, Blip and Wisp. Tests: `tests/test_notch_slim_bar.py`.
 
 ## Checking the bar layout
 
@@ -153,17 +128,7 @@ Ties go to the earlier entry; entries with empty text are skipped. The dashboard
 
 ## Status
 
-v0.2.0 — native Island is the primary presentation; the dashboard stays reachable via ☰. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. Canonical plan: `docs/plans/2026-11-14-feat-notch-finalize-plan.md`. The standalone prototype stays at `prototypes/island-v02/` (`qs -p prototypes/island-v02/shell.qml`).
-
-### Verified (omarchy-max / Asahi, 2026-11-14)
-
-Definition of done for the Island ship (internal screen):
-
-- [x] Compact island shows clock; live activity text appears when a collector is active
-- [x] Expanded controls bind to the selected activity id (not rank)
-- [x] Escape collapses the expanded island
-- [x] Dashboard remains reachable from the expanded ☰ control (`Notch.qml` Loader)
-- [x] Manifest `entryPoints.panel` is `Island.qml`; homepage points at `duketopceo/omarchy-plugins`
+v0.1 with capability probe + first-run optional setup. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. See plan `docs/plans/2026-11-04-0215-feat-notch-island-plan.md`.
 
 ## NOTICE
 

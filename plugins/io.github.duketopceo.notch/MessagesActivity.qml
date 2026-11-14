@@ -15,7 +15,6 @@ import "Messages.js" as Messages
 // Message text is held in memory for the flash and never written anywhere.
 Scope {
   id: msgs
-  property bool enabled: true   // Settings > Messages (optMessages)
 
   // ---- activity contract
   readonly property bool active: Messages.isActive(model, clock)
@@ -41,15 +40,6 @@ Scope {
   property var bridge: null          // parsed `status`, null when Blip is not running
   property var threadList: null
   property var pending: []           // allowlisted arrivals waiting for a name lookup
-
-  onEnabledChanged: {
-    if (enabled) return
-    model = Messages.initial()
-    snapshot = null
-    bridge = null
-    threadList = null
-    pending = []
-  }
 
   // ---- actions (user-initiated only)
   function openBlip() { Quickshell.execDetached(qsBase.concat(["open"])) }
@@ -97,7 +87,7 @@ Scope {
   Timer { id: flash; onTriggered: msgs.clock = Date.now() }
 
   FileView {
-    path: msgs.enabled ? msgs.home + "/.local/state/blip/state.json" : ""
+    path: msgs.home + "/.local/state/blip/state.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
@@ -105,7 +95,7 @@ Scope {
   }
 
   FileView {
-    path: msgs.enabled ? msgs.home + "/.config/blip/allowlist.json" : ""
+    path: msgs.home + "/.config/blip/allowlist.json"
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
@@ -136,7 +126,7 @@ Scope {
 
   Timer {
     interval: 10000
-    running: msgs.enabled
+    running: true
     repeat: true
     triggeredOnStart: true
     onTriggered: {

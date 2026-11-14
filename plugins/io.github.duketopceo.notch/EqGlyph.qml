@@ -4,7 +4,7 @@ import QtQuick
 Row {
   id: eq
   property bool playing: false
-  property color color: "white"
+  property color color: Tk.white
   spacing: 2
   height: 10
   Repeater {
@@ -13,7 +13,7 @@ Row {
       id: bar
       required property int modelData
       width: 2
-      radius: 1
+      radius: Tk.r(1)
       color: eq.color
       anchors.bottom: parent.bottom
       height: eq.playing ? 3 : 2

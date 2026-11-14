@@ -12,7 +12,7 @@ Item {
   id: tab
 
   property var notch: null
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property string home: Quickshell.env("HOME")
@@ -73,9 +73,9 @@ Item {
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
       text: tab.busy ? tab.busyLabel : (tab.snap.ok ? Screenshots.pendingText(tab.snap.pending) : "Snapdex unavailable")
-      color: tab.snap.pending > 0 && !tab.busy ? Commons.Color.accent : tab.dimColor
+      color: tab.snap.pending > 0 && !tab.busy ? Tk.accent : tab.dimColor
       font.family: tab.family
-      font.pixelSize: Commons.Style.font.body
+      font.pixelSize: Tk.fs.body
       font.weight: Font.DemiBold
     }
 
@@ -88,9 +88,9 @@ Item {
         id: folderBtn
         width: folderLabel.implicitWidth + 20
         height: 24
-        radius: 12
+        radius: Tk.r(12)
         opacity: tab.folder !== "" ? 1 : 0.4
-        color: folderHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+        color: folderHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
         Text {
           id: folderLabel
           textFormat: Text.PlainText
@@ -98,7 +98,7 @@ Item {
           text: "Open folder"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         MouseArea {
           id: folderHit
@@ -114,9 +114,9 @@ Item {
         id: processBtn
         width: processLabel.implicitWidth + 20
         height: 24
-        radius: 12
+        radius: Tk.r(12)
         opacity: tab.snap.ok && !tab.busy ? 1 : 0.4
-        color: processHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+        color: processHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
         Text {
           id: processLabel
           textFormat: Text.PlainText
@@ -124,7 +124,7 @@ Item {
           text: "Process now"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         MouseArea {
           id: processHit
@@ -145,12 +145,13 @@ Item {
           text: "Auto"
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
         PillSwitch {
           anchors.verticalCenter: parent.verticalCenter
           on: tab.snap.autoOn
           busy: tab.busy
+          onColor: tab.notch && tab.notch.goodColor ? tab.notch.goodColor : Tk.good
           enabledSwitch: tab.snap.ok && tab.snap.autoKnown
           onToggled: tab.control(Screenshots.autoArgs(!tab.snap.autoOn), tab.snap.autoOn ? "Turning auto off" : "Turning auto on")
         }
@@ -169,7 +170,7 @@ Item {
     text: "Library " + Screenshots.shortPath(tab.dirs.library, tab.home) + (tab.dirs.separate ? "   Inbox " + Screenshots.shortPath(tab.dirs.inbox, tab.home) + " (" + tab.snap.pending + " pending)" : "  (renamed in place)")
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.caption
+    font.pixelSize: Tk.fs.caption
   }
 
   // ------------------------------------------------------------ thumbnails
@@ -199,8 +200,8 @@ Item {
           id: thumb
           width: parent.width
           height: cell.height - 20
-          radius: 8
-          color: Qt.rgba(1, 1, 1, 0.08)
+          radius: Tk.r(8)
+          color: Tk.tint(0.08)
           clip: true
           Image {
             anchors.fill: parent
@@ -210,7 +211,7 @@ Item {
             asynchronous: true
             cache: false
           }
-          Rectangle { anchors.fill: parent; radius: 8; color: Qt.rgba(1, 1, 1, hit.containsMouse ? 0.12 : 0) }
+          Rectangle { anchors.fill: parent; radius: Tk.r(8); color: Tk.tint(hit.containsMouse ? 0.12 : 0) }
           MouseArea {
             id: hit
             anchors.fill: parent
@@ -228,7 +229,7 @@ Item {
           text: cell.modelData.caption
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: Commons.Style.font.caption
+          font.pixelSize: Tk.fs.caption
         }
       }
     }
@@ -241,6 +242,6 @@ Item {
     text: tab.snap.ok ? "No captioned screenshots yet" : ""
     color: tab.dimColor
     font.family: tab.family
-    font.pixelSize: Commons.Style.font.bodySmall
+    font.pixelSize: Tk.fs.bodySmall
   }
 }

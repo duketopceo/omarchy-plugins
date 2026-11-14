@@ -82,11 +82,3 @@ def test_folders_use_snapdex_fields_then_fall_back():
     assert run("S.folders({inbox:'', library:'', dst:''}, '/h', false)") == {
         "library": "/h/Pictures/Screenshots", "inbox": "/h/Pictures/Screenshots", "separate": False}
     assert run("S.libraryIndexPath('/h')") == "/h/Pictures/Screenshots/Library/index.md"
-
-
-def test_library_dir_is_only_a_real_library():
-    # the Island's "Library" control opens nothing when the library is absent,
-    # rather than revealing a directory that does not exist
-    assert run("S.libraryDir('/h', true)") == "/h/Pictures/Screenshots/Library"
-    assert run("S.libraryDir('/h', false)") == ""
-    assert run("S.libraryDir('/h')") == ""

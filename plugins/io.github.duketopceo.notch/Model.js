@@ -168,7 +168,9 @@ function sideRoom(widgets, island, screenWidth) {
 // below the base ear. With no widget geometry yet the base ear is kept.
 function maxEarWidth(widgets, screenWidth, cameraWidth, baseEar, margin, cap) {
   var base = Number(baseEar)
-  if (!Array.isArray(widgets) || widgets.length === 0) return base
+  // No bar geometry (the shell didn't report it): still let the ear grow a
+  // bounded amount so the rotating slot (stocks, weather) stays inside the island.
+  if (!Array.isArray(widgets) || widgets.length === 0) return Math.max(base, Math.min(base + 72, cap > 0 ? Number(cap) : base + 72))
   var width = Number(cameraWidth) + 2 * base
   var island = { x: Math.round((Number(screenWidth) - width) / 2), width: width }
   var r = sideRoom(widgets, island, screenWidth)

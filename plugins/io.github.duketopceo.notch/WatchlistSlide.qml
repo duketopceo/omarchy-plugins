@@ -14,15 +14,19 @@ Item {
   property int maxWidth: 88
   property string family: ""
 
+  // Up color follows the notch theme (Notch.qml passes root.goodColor);
+  // the default keeps this slide usable standalone.
+  property color upColor: Tk.good
+
   readonly property int perSlide: Watchlist.perSlide(notched, 2)
   readonly property var shown: Watchlist.slide(quotes, index, perSlide)
   readonly property int slides: Watchlist.slideCount(quotes.length, perSlide)
 
-  // The theme has no gain color, so up uses a fixed green; down is the
-  // theme's urgent color; flat is muted.
+  // Up uses the theme's good color (upColor); down is the theme's urgent
+  // color; flat is muted.
   function tint(pct) {
     var d = Watchlist.direction(pct)
-    return d === "up" ? "#6fbf73" : (d === "down" ? Commons.Color.urgent : Commons.Color.muted)
+    return d === "up" ? upColor : (d === "down" ? Tk.urgent : Tk.dim)
   }
 
   implicitWidth: Math.min(maxWidth, row.implicitWidth)
@@ -44,37 +48,37 @@ Item {
         width: implicitWidth
         height: implicitHeight
 
-        // Ear: two short lines.
-        Column {
+        // Ear: the ticker tall on the left, price over change on the right.
+        Row {
           id: notchedCol
           visible: slide.notched
-          width: parent.width
-          Row {
-            spacing: 5
+          spacing: 5
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: entry.modelData.symbol
+            textFormat: Text.PlainText
+            color: Tk.text
+            font.family: slide.family
+            font.pixelSize: Tk.pxl ? 14 : 15
+            font.weight: Font.DemiBold
+          }
+          Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Tk.pxl ? -1 : 0
             Text {
-              text: entry.modelData.symbol
+              text: Watchlist.formatPrice(entry.modelData.price)
               textFormat: Text.PlainText
-              color: Commons.Color.foreground
+              color: Tk.dim
               font.family: slide.family
-              font.pixelSize: 11
-              font.weight: Font.DemiBold
+              font.pixelSize: Tk.pxl ? 9 : 10
             }
             Text {
               text: Watchlist.formatChange(entry.modelData.changePercent)
               textFormat: Text.PlainText
               color: slide.tint(entry.modelData.changePercent)
               font.family: slide.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.pxl ? 9 : 10
             }
-          }
-          Text {
-            width: parent.width
-            text: Watchlist.formatPrice(entry.modelData.price)
-            textFormat: Text.PlainText
-            color: Commons.Color.muted
-            font.family: slide.family
-            font.pixelSize: 11
-            elide: Text.ElideRight
           }
         }
 
@@ -86,7 +90,7 @@ Item {
           Text {
             text: entry.modelData.symbol
             textFormat: Text.PlainText
-            color: Commons.Color.foreground
+            color: Tk.text
             font.family: slide.family
             font.pixelSize: 11
             font.weight: Font.DemiBold
@@ -94,7 +98,7 @@ Item {
           Text {
             text: Watchlist.formatPrice(entry.modelData.price)
             textFormat: Text.PlainText
-            color: Commons.Color.muted
+            color: Tk.dim
             font.family: slide.family
             font.pixelSize: 11
           }

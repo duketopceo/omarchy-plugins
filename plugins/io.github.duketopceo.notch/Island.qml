@@ -133,7 +133,7 @@ Item {
   }
 
   // ------------------------------------------------------------ collectors
-  // The same five entries Notch.qml builds, in the same shape: each activity is
+  // Core five plus wave2 ear activities (timer / charging / HUD). Same contract:
   // { id, active, priority, text, glyph? } (KTD2: no parallel collectors).
   MediaActivity { id: media }
   WordinkActivity { id: dictation }
@@ -141,9 +141,26 @@ Item {
   MessagesActivity { id: messagesAct; enabled: root.settings.optMessages === true }
   AgentsActivity { id: agents; enabled: root.settings.optAgents === true }
   ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
+  ChargingActivity {
+    id: charging
+    enabled: root.settings.chargingAlert === true
+    reduceMotion: root.reduceMotion
+  }
+  HudActivity { id: hud; enabled: root.settings.hudOwner === "notch" }
+  TimerActivity { id: timerAct; enabled: root.settings.timer === true }
+  ActionsState {
+    id: actionsSt
+    actions: root.settings.quickActions
+    enabled: root.settings.quickActionsOn === true
+  }
+  // Dashboard tabs (TimerTab / Home) reach the shared timer via this alias.
+  readonly property var timerState: timerAct
 
   readonly property var activities: [
+    { id: "hud", active: hud.active, priority: hud.priority, text: hud.text },
     { id: "dictation", active: wordinkOn && dictation.active, priority: 90, text: dictation.text },
+    { id: "charging", active: charging.active, priority: charging.priority, text: charging.text },
+    { id: "timer", active: timerAct.active, priority: timerAct.priority, text: timerAct.text },
     { id: "media", active: media.active, priority: media.priority, text: media.text, glyph: media.glyph },
     { id: "agents", active: agents.active, priority: agents.priority, text: agents.text, glyph: agents.glyph },
     { id: "messages", active: root.settings.optMessages === true && messagesAct.active, priority: messagesAct.priority, text: messagesAct.text, glyph: messagesAct.glyph },
@@ -313,13 +330,18 @@ Item {
       // What the right ear must show: the top activity, else the idle slot.
       readonly property string idleSlot: Model.idleSlot(root.now.getTime() / 1000,
         (root.weather && settings.showWeather ? ["weather"] : [])
-          .concat(root.quotes.length && settings.showStocks ? ["watchlist"] : []),
+          .concat(root.quotes.length && settings.showStocks ? ["watchlist"] : [])
+          .concat(timerAct.inSlot ? ["timer"] : []),
         settings.slideSeconds)
       readonly property var segments: ranked.slice(0, 2)
+      readonly property bool chargingShown: segments.length > 0 && segments[0].id === "charging"
+      readonly property bool hudShown: segments.length > 0 && segments[0].id === "hud"
+      readonly property int eqSpace: hudShown ? 44 : (chargingShown ? 14 : 0)
       readonly property real sideNeed: {
-        if (segments.length > 0) return mSide + 8
+        if (segments.length > 0) return mSide + 8 + eqSpace
         if (idleSlot === "weather") return mWeather + 8
         if (idleSlot === "watchlist") return mDate + 96
+        if (idleSlot === "timer") return mDate + 72
         return mDate
       }
       readonly property int earTarget: Model.earWidthFit(sideNeed, earBase, earMax)
@@ -519,6 +541,7 @@ Item {
               }
               if (win.idleSlot === "weather") return root.dateText + "  \u00b7 " + root.weatherText
               if (win.idleSlot === "watchlist") return root.dateText + "  \u00b7 " + watch.slideText
+              if (win.idleSlot === "timer") return root.dateText + "  \u00b7 " + timerAct.slot
               return root.dateText
             }
             textFormat: Text.PlainText
@@ -542,6 +565,21 @@ Item {
             notched: true
             maxWidth: Math.max(0, parent.width - x - 8)
             family: root.fontFamily
+          }
+
+          ChargeBolt {
+            visible: win.chargingShown
+            anchors.verticalCenter: parent.verticalCenter
+            x: island.earLive + win.camW + 6
+            pulse: charging.motion === "pulse"
+          }
+          HudMeter {
+            visible: win.hudShown
+            anchors.verticalCenter: parent.verticalCenter
+            x: island.earLive + win.camW + 6
+            kind: hud.kind
+            level: hud.level
+            muted: hud.muted
           }
 
           TapHandler {

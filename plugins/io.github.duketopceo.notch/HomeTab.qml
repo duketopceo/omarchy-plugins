@@ -8,6 +8,8 @@ import "Model.js" as Model
 import "Expand.js" as Expand
 import "Agents.js" as Agents
 import "Network.js" as Network
+import "Dayflow.js" as Dayflow  // local: dayflow tile
+import "Settings.js" as Settings
 
 // Home tab: a header row and three equal columns in the 688 x ~298 content
 // area of the 720 x 380 panel (same gutters as every other tab).
@@ -27,7 +29,7 @@ Item {
   readonly property bool active: visible
   readonly property var weather: notch ? notch.weather : null
   readonly property date now: notch ? notch.now : new Date()
-  readonly property color textColor: notch ? notch.textColor : "white"
+  readonly property color textColor: notch ? notch.textColor : Tk.white
   readonly property color dimColor: notch ? notch.dimColor : "gray"
   readonly property string family: notch ? notch.fontFamily : ""
   readonly property string home: Quickshell.env("HOME")
@@ -35,6 +37,8 @@ Item {
   readonly property var agentCounts: notch && notch.agentsActivity ? notch.agentsActivity.summary.counts : ({ working: 0, blocked: 0, done: 0, idle: 0 })
   readonly property int unread: notch && notch.messages ? notch.messages.unread : 0
   readonly property var topUsage: Agents.topUsage(notch ? notch.usage : null)
+  // Dayflow tile (local customization): only with Settings > Dayflow on.
+  readonly property var df: notch && notch.settings && notch.settings.dayflow === true ? notch.dayflow : null
   readonly property string appName: {
     var t = Hyprland.activeToplevel
     return t ? Agents.prettyApp(t.lastIpcObject ? t.lastIpcObject.class : "") : ""
@@ -82,7 +86,7 @@ Item {
   readonly property bool showWisp: wispOptIn && (wispPresent || wisp !== null)
 
   // Network dots share NetworkState's slow poll; no fast polling from Home.
-  function dotColor(kind) { return kind === "on" ? Commons.Color.accent : kind === "busy" ? Commons.Color.foreground : Commons.Color.muted }
+  function dotColor(kind) { return kind === "on" ? Tk.accent : kind === "busy" ? Tk.text : Tk.dim }
   function greeting() {
     var h = now.getHours()
     return h < 5 ? "Up late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"
@@ -105,15 +109,15 @@ Item {
   component Caption: Text {
     textFormat: Text.PlainText
     color: panel.dimColor
-    font.family: panel.family
-    font.pixelSize: Commons.Style.font.caption
+    font.family: Tk.label
+    font.pixelSize: Tk.fs.caption
     font.letterSpacing: 0.8
     font.capitalization: Font.AllUppercase
   }
 
   component Divider: Rectangle {
-    width: 1
-    color: Qt.rgba(1, 1, 1, 0.07)
+    width: Tk.bw(1)
+    color: Tk.tint(0.07)
   }
 
   component Stat: Column {
@@ -145,8 +149,8 @@ Item {
       id: dbRow
       spacing: 6
       anchors.verticalCenter: parent.verticalCenter
-      Rectangle { width: 8; height: 8; radius: 4; color: panel.dotColor(db.state); anchors.verticalCenter: parent.verticalCenter }
-      Text { textFormat: Text.PlainText; text: db.name; color: dbHit.containsMouse ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; anchors.verticalCenter: parent.verticalCenter }
+      Rectangle { width: 8; height: 8; radius: Tk.r(4); color: panel.dotColor(db.state); anchors.verticalCenter: parent.verticalCenter }
+      Text { textFormat: Text.PlainText; text: db.name; color: dbHit.containsMouse ? panel.textColor : panel.dimColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; anchors.verticalCenter: parent.verticalCenter }
     }
     MouseArea { id: dbHit; anchors.fill: parent; anchors.margins: -4; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: db.clicked() }
   }
@@ -156,8 +160,8 @@ Item {
     property string glyph: ""
     property int size: 28
     signal clicked()
-    width: size; height: size; radius: size / 2
-    color: rbHit.containsMouse ? Qt.rgba(1, 1, 1, 0.22) : Qt.rgba(1, 1, 1, 0.1)
+    width: size; height: size; radius: Tk.r(size / 2)
+    color: rbHit.containsMouse ? Tk.tint(0.22) : Tk.tint(0.1)
     opacity: panel.player ? 1 : 0.4
     Text {
       textFormat: Text.PlainText
@@ -185,7 +189,7 @@ Item {
         textFormat: Text.PlainText
         text: notch ? notch.timeText : Qt.formatTime(panel.now, "h:mm AP")
         color: panel.textColor
-        font.family: panel.family
+        font.family: Tk.label
         font.pixelSize: Commons.Style.font.displayLarge
         font.weight: Font.DemiBold
         font.features: ({ "tnum": 1 })
@@ -195,7 +199,7 @@ Item {
         text: Qt.formatDate(panel.now, "dddd, d MMMM")
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
 
@@ -219,9 +223,9 @@ Item {
         width: parent.width
         elide: Text.ElideRight
         text: panel.statusLine()
-        color: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.dimColor
+        color: panel.agentCounts.blocked > 0 ? Tk.urgent : panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
 
@@ -229,11 +233,11 @@ Item {
       x: 2 * (panel.colW + panel.gap)
       width: panel.colW
       anchors.verticalCenter: parent.verticalCenter
-      Stat { width: Math.floor(parent.width / 2); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
-      Stat { width: Math.floor(parent.width / 2); label: "Unread"; value: String(panel.unread); tint: panel.unread > 0 ? Commons.Color.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 2); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Tk.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 2); label: "Unread"; value: String(panel.unread); tint: panel.unread > 0 ? Tk.accent : panel.textColor }
     }
   }
-  Rectangle { y: panel.headerH + 5; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+  Rectangle { y: panel.headerH + 5; width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
 
   // ------------------------------------------------------------ col 1: now playing + weather
   Item {
@@ -248,8 +252,8 @@ Item {
       id: art
       anchors.top: npCap.bottom
       anchors.topMargin: 8
-      width: 80; height: 80; radius: 10
-      color: Qt.rgba(1, 1, 1, 0.08)
+      width: 80; height: 80; radius: Tk.r(10)
+      color: Tk.tint(0.08)
       clip: true
       Text {
         textFormat: Text.PlainText
@@ -283,7 +287,7 @@ Item {
         text: panel.player ? String(panel.player.trackTitle || panel.player.identity || "") : "Nothing playing"
         color: panel.player ? panel.textColor : panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.body
+        font.pixelSize: Tk.fs.body
         font.weight: Font.DemiBold
       }
       Text {
@@ -293,7 +297,7 @@ Item {
         text: panel.player ? String(panel.player.trackArtist || "") : " "
         color: panel.dimColor
         font.family: panel.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        font.pixelSize: Tk.fs.bodySmall
       }
     }
     Row {
@@ -312,7 +316,7 @@ Item {
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: 64
-      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+      Rectangle { width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
       PixelWeather {
         id: wIcon
         px: 3
@@ -331,10 +335,12 @@ Item {
         spacing: 0
         Text {
           textFormat: Text.PlainText
-          text: panel.weather ? panel.weather.temperature + panel.weather.unit : "No weather yet"
+          width: parent.width
+          wrapMode: Text.WordWrap
+          text: panel.weather ? panel.weather.temperature + panel.weather.unit : "Weather appears after the first refresh"
           color: panel.weather ? panel.textColor : panel.dimColor
           font.family: panel.family
-          font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Commons.Style.font.bodySmall
+          font.pixelSize: panel.weather ? Commons.Style.font.displayLarge : Tk.fs.bodySmall
           font.weight: Font.DemiBold
         }
         Text {
@@ -345,7 +351,7 @@ Item {
           text: panel.weather ? Expand.conditionText(panel.weather.kind) + (panel.weather.place ? "  \u00B7  " + panel.weather.place : "") : ""
           color: panel.dimColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
         }
       }
     }
@@ -366,8 +372,8 @@ Item {
       anchors.top: agCap.bottom
       anchors.topMargin: 6
       width: parent.width
-      Stat { width: Math.floor(parent.width / 3); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Commons.Color.accent : panel.textColor }
-      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? Commons.Color.urgent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 3); label: "Working"; value: String(panel.agentCounts.working); tint: panel.agentCounts.working > 0 ? Tk.accent : panel.textColor }
+      Stat { width: Math.floor(parent.width / 3); label: "Need you"; value: String(panel.agentCounts.blocked); tint: panel.agentCounts.blocked > 0 ? Tk.urgent : panel.textColor }
       Stat { width: Math.floor(parent.width / 3); label: "Done"; value: String(panel.agentCounts.done); tint: panel.textColor }
     }
 
@@ -384,30 +390,132 @@ Item {
           id: pctLabel
           textFormat: Text.PlainText
           text: panel.topUsage ? panel.topUsage.percent + "%" : ""
-          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : panel.textColor
+          color: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : panel.textColor
           font.family: panel.family
-          font.pixelSize: Commons.Style.font.bodySmall
+          font.pixelSize: Tk.fs.bodySmall
           font.features: ({ "tnum": 1 })
         }
       }
-      Rectangle {
-        width: parent.width; height: 6; radius: 3
-        color: Qt.rgba(1, 1, 1, 0.1)
-        Rectangle {
-          width: parent.width * Math.max(0, Math.min(1, (panel.topUsage ? panel.topUsage.percent : 0) / 100))
-          height: parent.height; radius: 3
-          color: panel.topUsage && panel.topUsage.percent >= 90 ? Commons.Color.urgent : Commons.Color.accent
-          Behavior on width { SpringAnimation { spring: 3; damping: 0.4; epsilon: 0.25 } }
+      SegBar {
+        width: parent.width
+        value: (panel.topUsage ? panel.topUsage.percent : 0) / 100
+        fill: panel.topUsage && panel.topUsage.percent >= 90 ? Tk.urgent : Tk.accent
+      }
+    }
+
+    // Quick actions (R8): pinned shortcuts as icon chips. The caption shows the
+    // hovered action's name, or why a disabled one cannot run.
+    Item {
+      id: qaBox
+      readonly property var st: panel.notch ? panel.notch.actionsState : null
+      readonly property var items: st && panel.notch.settings.quickActionsOn === true ? st.items : []
+      property string hoverId: ""
+      visible: items.length > 0
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: dfTile.visible ? dfTile.top : netBox.top
+      anchors.bottomMargin: 8
+      height: visible ? 52 : 0
+      Binding { target: qaBox.st; property: "watch"; value: panel.visible; when: qaBox.st !== null }
+      readonly property var hovered: { for (var i = 0; i < items.length; i++) if (items[i].id === hoverId) return items[i]; return null }
+      Caption {
+        id: qaCap
+        width: parent.width
+        elide: Text.ElideRight
+        text: qaBox.hovered ? (qaBox.hovered.enabled ? qaBox.hovered.label : qaBox.hovered.label + ": " + qaBox.hovered.reason) : "Quick actions"
+        color: qaBox.hovered && !qaBox.hovered.enabled ? Tk.urgent : panel.dimColor
+      }
+      Row {
+        anchors.top: qaCap.bottom
+        anchors.topMargin: 6
+        spacing: 8
+        Repeater {
+          model: qaBox.items
+          delegate: Rectangle {
+            id: chip
+            required property var modelData
+            readonly property bool lit: qaBox.st && qaBox.st.on[modelData.id] === true
+            width: 30; height: 30; radius: Tk.r(15)
+            opacity: modelData.enabled ? 1 : 0.35
+            color: lit ? Tk.alpha(Tk.accent, 0.3) : (chipHit.containsMouse && modelData.enabled ? Tk.tint(0.22) : Tk.tint(0.1))
+            border.width: Tk.pxl ? Tk.bw(1) : 0
+            border.color: Tk.edge
+            Text {
+              textFormat: Text.PlainText
+              anchors.centerIn: parent
+              text: Settings.ACTION_ICONS[modelData.icon] || "\u{F040A}"
+              color: chip.lit ? Tk.accent : panel.textColor
+              font.family: panel.family
+              font.pixelSize: Tk.fs.body
+            }
+            MouseArea {
+              id: chipHit
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: modelData.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              onContainsMouseChanged: if (containsMouse) qaBox.hoverId = modelData.id; else if (qaBox.hoverId === modelData.id) qaBox.hoverId = ""
+              onPressed: if (qaBox.st) qaBox.st.run(modelData.id)
+            }
+          }
         }
       }
     }
 
+    // Dayflow tile (local): focus share + current block; click opens the tab.
     Item {
+      id: dfTile
+      visible: panel.df !== null
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: netBox.top
+      anchors.bottomMargin: 8
+      height: 36
+      readonly property var st: panel.df ? panel.df.status : Dayflow.parseStatus("")
+      readonly property var td: panel.df ? panel.df.today : Dayflow.emptyToday()
+      Row {
+        id: dfHead
+        width: parent.width
+        Caption { text: "Dayflow"; width: parent.width - dfPct.implicitWidth }
+        Text {
+          id: dfPct
+          textFormat: Text.PlainText
+          text: dfTile.td.focusPct >= 0 ? dfTile.td.focusPct + "% focus" : ""
+          color: dfTile.td.focusPct >= 60 ? Tk.accent : panel.textColor
+          font.family: panel.family
+          font.pixelSize: Tk.fs.bodySmall
+          font.features: ({ "tnum": 1 })
+        }
+      }
+      Row {
+        anchors.top: dfHead.bottom
+        anchors.topMargin: 4
+        width: parent.width
+        spacing: 6
+        Rectangle {
+          width: 8; height: 8; radius: Tk.r(4)
+          anchors.verticalCenter: parent.verticalCenter
+          color: dfTile.st.paused ? Tk.urgent : dfTile.td.current ? Dayflow.categoryColor(dfTile.td.current.category) : panel.dimColor
+        }
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width - 14
+          elide: Text.ElideRight
+          text: dfTile.st.paused ? "Capture paused" : !dfTile.st.ok ? "Dayflow unavailable" : dfTile.td.current ? dfTile.td.current.title : "No current block"
+          color: dfTile.st.paused ? Tk.urgent : dfTile.td.current ? panel.textColor : panel.dimColor
+          font.family: panel.family
+          font.pixelSize: Tk.fs.bodySmall
+        }
+      }
+      MouseArea { anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (panel.notch) panel.notch.openTabRequested("dayflow", "") }
+    }
+
+    Item {
+      id: netBox
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.bottom: parent.bottom
       height: 64
-      Rectangle { width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.07) }
+      Rectangle { width: parent.width; height: Tk.bw(1); color: Tk.tint(0.07) }
       Caption { id: netCap; anchors.top: parent.top; anchors.topMargin: 10; text: "Network" }
       Flow {
         anchors.top: netCap.bottom
@@ -436,8 +544,8 @@ Item {
       width: parent.width
       today: panel.now
       cellH: 20
-      fontPx: Commons.Style.font.bodySmall
-      titlePx: Commons.Style.font.body
+      fontPx: Tk.fs.bodySmall
+      titlePx: Tk.fs.body
       family: panel.family
       textColor: panel.textColor
       dimColor: panel.dimColor
@@ -455,9 +563,9 @@ Item {
         Row {
           required property var modelData
           width: col3.width
-          Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.weight: Font.DemiBold }
-          Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
-          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Commons.Color.urgent; font.family: panel.family; font.pixelSize: Commons.Style.font.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 56; text: modelData.symbol; color: panel.textColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.weight: Font.DemiBold }
+          Text { textFormat: Text.PlainText; width: parent.width - 56 - 64; text: modelData.price.toFixed(2); color: panel.dimColor; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
+          Text { textFormat: Text.PlainText; width: 64; horizontalAlignment: Text.AlignRight; text: (modelData.changePercent >= 0 ? "+" : "") + modelData.changePercent.toFixed(2) + "%"; color: modelData.changePercent >= 0 ? panel.textColor : Tk.urgent; font.family: panel.family; font.pixelSize: Tk.fs.bodySmall; font.features: ({ "tnum": 1 }) }
         }
       }
     }

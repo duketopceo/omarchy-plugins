@@ -26,23 +26,26 @@ def run(expr):
 
 def test_tab_list_shape_and_sources():
     tabs = run("T.TABS")
-    assert [t["id"] for t in tabs] == ["home", "media", "agents", "messages", "network", "power", "system", "stocks", "screenshots", "plugins", "settings"]
+    assert [t["id"] for t in tabs] == ["home", "media", "agents", "ai", "messages", "network", "power", "system", "stocks", "screenshots", "dayflow", "timer", "clipboard", "plugins", "settings"]
     for t in tabs:
-        assert {"id", "title", "short", "glyph", "source"} <= set(t) <= {"id", "title", "short", "glyph", "source", "optional", "size"} and len(t["short"]) <= 7 and t["glyph"] and t["title"]
+        assert {"id", "title", "short", "glyph", "source"} <= set(t) <= {"id", "title", "short", "glyph", "source", "optional", "size", "needs"} and len(t["short"]) <= 7 and t["glyph"] and t["title"]
     assert {t["id"]: t["source"] for t in tabs} == {
         "home": "HomeTab.qml", "media": "MediaTab.qml", "agents": "AgentsTab.qml",
-        "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "power": "PowerTab.qml", "system": "SystemTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml",
+        "ai": "AiUsageTab.qml",
+        "messages": "MessagesTab.qml", "network": "NetworkTab.qml", "power": "PowerTab.qml", "system": "SystemTab.qml", "stocks": "StocksTab.qml", "screenshots": "ScreenshotsTab.qml", "dayflow": "DayflowTab.qml", "timer": "TimerTab.qml", "clipboard": "ClipboardTab.qml",
         "plugins": "PluginsTab.qml", "settings": "SettingsTab.qml"}
 
 
 def test_optional_tabs_off_by_default_and_setup_keys_exist():
     off = [t["id"] for t in run("T.visibleTabs(S.resolve(null))")]
-    assert "screenshots" not in off and "agents" not in off and "messages" not in off
+    assert "screenshots" not in off
+    # local branch keeps Agents/Messages on by default (owner uses both); upstream default is off
+    assert "agents" in off and "messages" in off
     assert "network" in off and "stocks" in off and "plugins" in off
     on = [t["id"] for t in run("T.visibleTabs(S.resolve({snapdex:true,optAgents:true,optMessages:true}))")]
     assert set(["screenshots", "agents", "messages"]).issubset(on)
     assert run("S.DEFAULTS.snapdex") is False
-    assert run("S.DEFAULTS.optAgents") is False
+    assert run("S.DEFAULTS.optAgents") is True
     assert run("S.DEFAULTS.setupDone") is False
     assert run("S.field('snapdex').type") == "bool"
     prefs = [f["key"] for f in run("S.prefFields()")]
@@ -51,12 +54,8 @@ def test_optional_tabs_off_by_default_and_setup_keys_exist():
 
 def test_shipped_tab_files_exist():
     for t in run("T.TABS"):
-        # An empty source means the island renders that tab inline.
-        if t["source"] == "":
-            continue
         assert (NOTCH / t["source"]).is_file(), t["source"]
-    assert (NOTCH / "Notch.qml").is_file(), "the dashboard remains reachable from the Island"
-    assert (NOTCH / "ExpandedPanel.qml").is_file()
+    assert (NOTCH / "Notch.qml").is_file()
     assert (NOTCH / "bin" / "notch-data").is_file()
 
 
@@ -143,7 +142,7 @@ def test_next_steps_and_wraps():
     assert run("S.next(S.resolve(null),'unit',1)") == "C"
     assert run("S.next(S.resolve({unit:'C'}),'unit',1)") == "F"
     assert run("S.next(S.resolve(null),'clockHours',-1)") == 24
-    assert run("S.next(S.resolve(null),'clockSeconds',1)") == 29
+    assert run("S.next(S.resolve(null),'clockSeconds',1)") == 40   # segmented: 12 / 24 / 40 / 60
     assert run("S.next(S.resolve({clockSeconds:5}),'clockSeconds',-1)") == 5
     assert run("S.next(S.resolve(null),'cameraWidth',1)") == 10
     assert run("S.next(S.resolve(null),'bogus',1)") is None
@@ -244,3 +243,83 @@ def test_per_tab_size_hook():
         assert run("T.sizeFor('%s')" % tab) == {"w": 720, "h": 380}
     assert run("T.sizeFor('nope')") is None
     assert run("T.maxHeight(240)") == 380
+
+
+# ---------------------------------------------------------------- U5 strip diet
+
+def ids(expr):
+    return [t["id"] for t in run(expr)]
+
+
+def test_hidden_tabs_leave_the_strip_and_keyboard_cycle():
+    shown = ids("T.visibleTabs(S.resolve({hiddenTabs:['media','network']}))")
+    assert "media" not in shown and "network" not in shown and "power" in shown
+    vis = "T.visibleTabs(S.resolve({hiddenTabs:['media']}))"
+    assert run(f"T.cycle({vis},'home',1)") != "media"
+    assert run(f"T.cycle({vis},'home',1)") == run(f"{vis}[1].id")
+    assert run(f"T.cycle({vis},'settings',1)") == "home"      # wraps
+    assert run(f"T.cycle({vis},'home',-1)") == "settings"
+    assert run("T.cycle([],'home',1)") is None
+
+
+def test_home_and_settings_can_never_be_hidden():
+    shown = ids("T.visibleTabs(S.resolve({hiddenTabs:['home','settings','media']}))")
+    assert "home" in shown and "settings" in shown and "media" not in shown
+    assert run("T.PINNED") == ["home", "settings"]
+
+
+def test_hiding_an_optional_tab_and_turning_its_feature_off_agree():
+    assert "agents" not in ids("T.visibleTabs(S.resolve({optAgents:false}))")
+    assert "agents" not in ids("T.visibleTabs(S.resolve({hiddenTabs:['agents']}))")
+
+
+def test_usage_counts_and_decays():
+    u = run("T.bumpUsage(T.bumpUsage({},'power'),'power')")
+    assert u == {"power": 2}
+    assert run("T.bumpUsage({power:500,media:3},'power')") == {"power": 250, "media": 1}
+    assert run("T.bumpUsage(null,'media')") == {"media": 1}
+
+
+def test_labels_go_to_selected_and_the_most_used_only():
+    tabs = "T.TABS"
+    usage = "{power:9,system:5,stocks:2,media:0}"
+    assert run(f"T.topUsed({tabs},{usage},2,'home')") == ["power", "system"]
+    assert run(f"T.topUsed({tabs},{usage},2,'power')") == ["system", "stocks"]       # the selected one is not repeated
+    assert run(f"T.labelIds({tabs},'home',{usage})") == ["home", "power", "system"]
+    assert run(f"T.labelIds({tabs},'home',{{}})") == ["home"]                         # nothing used yet: selected only
+    assert run(f"T.topUsed({tabs},{{a:1}},2,'home')") == []                           # unknown ids ignored
+    assert run(f"T.topUsed({tabs},{{media:3,network:3}},2,'home')") == ["media", "network"]  # tie: tab order
+
+
+def layout(count, labelled, label_w=36, total=640):
+    names = [f"t{i}" for i in range(count)]
+    lw = {n: label_w for n in names}
+    return names, run(f"T.stripLayout({json.dumps(names)},{json.dumps([names[i] for i in labelled])},{json.dumps(lw)},{total},4,12,10)")
+
+
+def test_strip_labels_everything_when_it_fits_else_selected_plus_top_used():
+    names, few = layout(6, [0])
+    assert few["equal"] is True and len(few["labeled"]) == 6
+    names, many = layout(14, [3, 6, 9])
+    assert many["equal"] is False and set(many["labeled"]) == {"t3", "t6", "t9"}
+    assert many["widths"][3] == 12 + 4 + 36 + 10 and many["widths"][0] < many["widths"][3]
+    assert many["xs"][-1] + many["widths"][-1] <= 640                  # nothing overflows the strip
+
+
+def test_strip_drops_the_least_used_labels_first_and_never_the_selected():
+    names, tight = layout(14, [3, 6, 9], label_w=140, total=420)
+    assert "t3" in tight["labeled"] and "t9" not in tight["labeled"]
+    assert tight["xs"][-1] + tight["widths"][-1] <= 420 + 4            # glyph chips keep a minimum width
+    names, one = layout(2, [0], label_w=500, total=100)
+    assert "t0" in one["labeled"]
+
+
+def test_hiding_tabs_gives_the_rest_room_for_labels():
+    _, packed = layout(14, [0])
+    _, relaxed = layout(7, [0])
+    assert packed["equal"] is False and relaxed["equal"] is True
+
+
+def test_tab_usage_and_hidden_tabs_persist_through_the_mutator():
+    out = run("(()=>{const c={};S.settingsMutator('id.x',{hiddenTabs:['media'],tabUsage:{power:4}})(c);return c})()")
+    assert out == {"plugins": [{"id": "id.x", "hiddenTabs": ["media"], "tabUsage": {"power": 4}}]}

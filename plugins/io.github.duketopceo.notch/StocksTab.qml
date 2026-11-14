@@ -16,8 +16,8 @@ Item {
 
   property var notch: null
 
-  readonly property color textColor: notch ? notch.textColor : Commons.Color.foreground
-  readonly property color dimColor: notch ? notch.dimColor : Commons.Color.muted
+  readonly property color textColor: notch ? notch.textColor : Tk.text
+  readonly property color dimColor: notch ? notch.dimColor : Tk.dim
   readonly property string family: notch ? notch.fontFamily : Commons.Style.font.family
   readonly property string pluginDir: notch ? notch.pluginDir : ""
   readonly property string pluginId: notch && notch.pluginId ? notch.pluginId : "io.github.duketopceo.notch"
@@ -42,7 +42,15 @@ Item {
   readonly property string selected: symbols.indexOf(pickedSymbol) >= 0 ? pickedSymbol : (symbols.length ? symbols[0] : "")
   readonly property var selSeries: Stocks.parseSeries(cache, selected, range)
   readonly property var selChange: Stocks.seriesChange(selSeries, range)
-  readonly property color selTone: selChange ? Stocks.toneColor(selChange.percent) : Stocks.COLORS.flat
+  // Up/down tones follow the notch theme (Stocks.js COLORS stays the
+  // standalone fallback); flat keeps the neutral grey.
+  readonly property color upTone: notch && notch.themeObj ? notch.themeObj.good : Stocks.COLORS.up
+  readonly property color downTone: notch && notch.themeObj ? notch.themeObj.bad : Stocks.COLORS.down
+  function toneFor(pct) {
+    var d = Stocks.direction(pct)
+    return d === "up" ? upTone : (d === "down" ? downTone : Stocks.COLORS.flat)
+  }
+  readonly property color selTone: selChange ? toneFor(selChange.percent) : Stocks.COLORS.flat
 
   function put(key, value) {
     var copy = {}
@@ -111,8 +119,8 @@ Item {
     signal clicked()
     implicitWidth: pillText.implicitWidth + pad * 2
     implicitHeight: 18
-    radius: 9
-    color: on ? Qt.rgba(1, 1, 1, 0.16) : (pillHit.containsMouse ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.04))
+    radius: Tk.r(9)
+    color: on ? Tk.tint(0.16) : (pillHit.containsMouse ? Tk.tint(0.09) : Tk.tint(0.04))
     Text {
       id: pillText
       anchors.centerIn: parent
@@ -120,7 +128,7 @@ Item {
       text: pill.label
       color: pill.on ? tab.textColor : tab.dimColor
       font.family: tab.family
-      font.pixelSize: 9
+      font.pixelSize: Tk.fs.caption
       font.weight: pill.on ? Font.DemiBold : Font.Normal
     }
     MouseArea {
@@ -158,7 +166,7 @@ Item {
       width: parent.width
       height: tab.rows * tab.pitch
       y: -tab.scrollY
-      Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+      Behavior on y { NumberAnimation { duration: Tk.ms(220); easing.type: Easing.OutCubic } }
 
       Repeater {
         model: tab.symbols
@@ -170,23 +178,23 @@ Item {
           readonly property var series: Stocks.parseSeries(tab.cache, sym, tab.range)
           readonly property var chg: Stocks.seriesChange(series, tab.range)
           readonly property var quote: tab.quoteFor(sym)
-          // Cards show TODAY's move (vs the previous close): the quote's
-          // changePercent, else the 1D series against its previous close. The
-          // selected range's change lives only in the chart header.
+          // Cards show the move over the range the chart is showing, so the
+          // percent always matches the graph. Today's move is only the fallback
+          // while that range's series has not loaded yet.
           readonly property var daySeries: tab.range === "1D" ? series : Stocks.parseSeries(tab.cache, sym, "1D")
           readonly property var dayChg: Stocks.seriesChange(daySeries, "1D")
           readonly property real price: quote && isFinite(Number(quote.price)) ? Number(quote.price) : (chg ? chg.last : NaN)
-          readonly property real pct: Stocks.todayPercent(quote, dayChg)
-          readonly property color tone: Stocks.toneColor(pct)
+          readonly property real pct: chg ? chg.percent : Stocks.todayPercent(quote, dayChg)
+          readonly property color tone: tab.toneFor(pct)
           readonly property bool isSel: sym === tab.selected
           x: (index % tab.cols) * (tab.cardW + tab.cardGap)
           y: Math.floor(index / tab.cols) * tab.pitch
           width: tab.cardW
           height: tab.cardH
-          radius: 8
-          color: isSel ? Qt.rgba(1, 1, 1, 0.09) : (cardHit.containsMouse ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.035))
-          border.width: 1
-          border.color: isSel ? Qt.rgba(tone.r, tone.g, tone.b, 0.55) : Qt.rgba(1, 1, 1, 0.05)
+          radius: Tk.r(8)
+          color: isSel ? Tk.tint(0.09) : (cardHit.containsMouse ? Tk.tint(0.06) : Tk.tint(0.035))
+          border.width: Tk.bw(1)
+          border.color: isSel ? Tk.alpha(tone, 0.55) : Tk.tint(0.05)
 
           Column {
             anchors.left: parent.left
@@ -198,7 +206,7 @@ Item {
               text: card.sym
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 10
+              font.pixelSize: Tk.fs.caption
               font.weight: Font.DemiBold
             }
             Row {
@@ -208,7 +216,7 @@ Item {
                 text: Stocks.formatPrice(card.price)
                 color: tab.textColor
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
                 font.features: ({ "tnum": 1 })
               }
               Text {
@@ -216,7 +224,7 @@ Item {
                 text: Stocks.formatChange(card.pct)
                 color: card.tone
                 font.family: tab.family
-                font.pixelSize: 9
+                font.pixelSize: Tk.fs.caption
                 font.features: ({ "tnum": 1 })
               }
             }
@@ -274,7 +282,7 @@ Item {
           text: tab.selected !== "" ? tab.selected : "No symbols"
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 12
+          font.pixelSize: Tk.fs.body
           font.weight: Font.DemiBold
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -284,7 +292,7 @@ Item {
           text: tab.selChange ? Stocks.formatPrice(tab.selChange.last) : ""
           color: tab.textColor
           font.family: tab.family
-          font.pixelSize: 11
+          font.pixelSize: Tk.fs.bodySmall
           font.features: ({ "tnum": 1 })
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -294,7 +302,7 @@ Item {
           text: tab.selChange ? Stocks.formatDelta(tab.selChange.value) + "  " + Stocks.formatChange(tab.selChange.percent) : ""
           color: tab.selTone
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
           font.features: ({ "tnum": 1 })
           anchors.verticalCenter: parent.verticalCenter
         }
@@ -353,7 +361,7 @@ Item {
       text: "Fetching " + tab.selected + " " + tab.range + "…"
       color: tab.dimColor
       font.family: tab.family
-      font.pixelSize: 10
+      font.pixelSize: Tk.fs.caption
     }
   }
 
@@ -363,10 +371,10 @@ Item {
     visible: tab.popoverOpen
     anchors.fill: parent
     z: 10
-    radius: 10
-    color: Qt.rgba(0.05, 0.05, 0.06, 0.985)
-    border.width: 1
-    border.color: Qt.rgba(1, 1, 1, 0.10)
+    radius: Tk.r(10)
+    color: Tk.surface(0.05, 0.05, 0.06, 0.985)
+    border.width: Tk.bw(1)
+    border.color: Tk.tint(0.10)
 
     MouseArea { anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.AllButtons; onWheel: function (w) { w.accepted = true } }
 
@@ -383,7 +391,7 @@ Item {
         text: "Watchlist"
         color: tab.dimColor
         font.family: tab.family
-        font.pixelSize: 9
+        font.pixelSize: Tk.fs.caption
       }
       Flow {
         width: parent.width
@@ -397,8 +405,8 @@ Item {
             implicitHeight: 18
             width: implicitWidth
             height: implicitHeight
-            radius: 9
-            color: Qt.rgba(1, 1, 1, 0.07)
+            radius: Tk.r(9)
+            color: Tk.tint(0.07)
             Text {
               id: symText
               anchors.left: parent.left
@@ -408,7 +416,7 @@ Item {
               text: sym.modelData
               color: tab.textColor
               font.family: tab.family
-              font.pixelSize: 9
+              font.pixelSize: Tk.fs.caption
             }
             Text {
               anchors.right: parent.right
@@ -418,7 +426,7 @@ Item {
               text: "×"
               color: rm.containsMouse ? Stocks.COLORS.down : tab.dimColor
               font.family: tab.family
-              font.pixelSize: 11
+              font.pixelSize: Tk.fs.bodySmall
               MouseArea {
                 id: rm
                 anchors.fill: parent
@@ -434,10 +442,10 @@ Item {
       Row {
         spacing: 4
         Rectangle {
-          width: 84; height: 20; radius: 10
-          color: Qt.rgba(1, 1, 1, 0.07)
+          width: 84; height: 20; radius: Tk.r(10)
+          color: Tk.tint(0.07)
           border.width: addInput.activeFocus ? 1 : 0
-          border.color: Qt.rgba(1, 1, 1, 0.3)
+          border.color: Tk.tint(0.3)
           TextInput {
             id: addInput
             anchors.fill: parent
@@ -446,7 +454,7 @@ Item {
             verticalAlignment: TextInput.AlignVCenter
             color: tab.textColor
             font.family: tab.family
-            font.pixelSize: 10
+            font.pixelSize: Tk.fs.caption
             maximumLength: 12
             clip: true
             onAccepted: { tab.put("stocks.watchlist", Stocks.addSymbol(tab.symbols, text)); text = "" }
@@ -457,7 +465,7 @@ Item {
               text: "add symbol"
               color: tab.dimColor
               font.family: tab.family
-              font.pixelSize: 9
+              font.pixelSize: Tk.fs.caption
             }
             MouseArea { anchors.fill: parent; onPressed: function (m) { addInput.forceActiveFocus(); m.accepted = false } }
           }
@@ -501,7 +509,7 @@ Item {
           text: r2.label
           color: tab.dimColor
           font.family: tab.family
-          font.pixelSize: 9
+          font.pixelSize: Tk.fs.caption
         }
         Row {
           id: slot
@@ -557,7 +565,7 @@ Item {
       text: "✕"
       color: closeHit.containsMouse ? tab.textColor : tab.dimColor
       font.family: tab.family
-      font.pixelSize: 11
+      font.pixelSize: Tk.fs.bodySmall
       MouseArea {
         id: closeHit
         anchors.fill: parent

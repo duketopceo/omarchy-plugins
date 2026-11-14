@@ -7,8 +7,8 @@ Rectangle {
   id: dot
   property var activity: null
   readonly property string kind: activity ? activity.state : "idle"
-  width: 6; height: 6; radius: 3
-  color: kind === "error" ? Commons.Color.urgent : Commons.Color.accent
+  width: 6; height: 6; radius: Tk.r(3)
+  color: kind === "error" ? Tk.urgent : Tk.accent
   visible: kind === "recording" || kind === "error"
   SequentialAnimation on opacity {
     running: dot.kind === "recording"
