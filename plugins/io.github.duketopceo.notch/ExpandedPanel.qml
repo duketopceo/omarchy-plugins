@@ -9,7 +9,7 @@ import "Theme.js" as Theme
 // The island's hover-expanded content. Fills the island; the top
 // `headerHeight` px (the camera / idle row) stay clear. Below it sit a tab
 // strip and a content area. Each tab is a QML file named in Tabs.js, loaded
-// with a Loader; the loaded item gets `notch` set to the root Notch.qml item.
+// with a Loader; the loaded item gets `notch` set to the root Island.qml item.
 // A tab whose file does not exist yet shows a quiet "coming soon" line.
 // Opaque cover fades in with `progress` so the idle row gives way to it.
 Item {
@@ -18,7 +18,7 @@ Item {
   property bool active: false          // island is open
   property real progress: 0            // 0 collapsed .. 1 expanded
   property int headerHeight: 32
-  property var notch: null             // root Notch.qml item, handed to every tab
+  property var notch: null             // root Island.qml item, handed to every tab
   property var weather: null           // Model.parseWeather output
   property color islandColor: notch ? notch.islandColor : Tk.black
   property color textColor: notch ? notch.textColor : Tk.text

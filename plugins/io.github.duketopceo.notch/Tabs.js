@@ -3,8 +3,8 @@
 //
 // Contract: each tab is { id, title, short, glyph, source }; `short` is the
 // label for the tab strip (<= 7 chars, so seven or more tabs fit). `source` is a QML file
-// next to Notch.qml; the panel loads it with a Loader and sets the loaded
-// item's `notch` property to the root Notch.qml item. A source that does not
+// next to Island.qml; the panel loads it with a Loader and sets the loaded
+// item's `notch` property to the root Island.qml item. A source that does not
 // exist yet (a sibling branch has not landed) shows a quiet "coming soon"
 // line instead of an error.
 

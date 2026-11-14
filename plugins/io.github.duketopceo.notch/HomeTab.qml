@@ -20,7 +20,7 @@ import "Settings.js" as Settings
 // Type sizes come from the theme scale (Commons.Style.font); colours from
 // Commons.Color (accent = live, urgent = needs attention / down).
 // Everything is read from the root Notch item (`notch`) or small local files;
-// the AI usage fetch is shared and rate-limited in Notch.qml.
+// the AI usage fetch is shared and rate-limited in Island.qml.
 Item {
   id: panel
 

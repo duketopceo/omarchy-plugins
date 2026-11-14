@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import qs.Commons as Commons
 import "Expand.js" as Expand
 import "Model.js" as Model
+import "IslandGeom.js" as Geom
 import "Watchlist.js" as Watchlist
 import "Settings.js" as Settings
 import "Activity.js" as Activity
@@ -13,13 +14,10 @@ import "Media.js" as Media
 import "Motion.js" as Motion
 import "IslandActivity.js" as Island
 
-// Island: the notch's primary surface. Compact shows the clock and up to two
-// live activities either side of the camera; expanded shows controls for the
-// activity that is showing. Replaces the dashboard as what a glance reveals;
-// the dashboard stays reachable behind an explicit control (R6, KTD8).
-//
-// The five collectors are the existing ones, unchanged (KTD2). Selection is
-// pure logic in IslandActivity.js so it can be tested with node (KTD3).
+// Island: Dynamic Island pill (sizes in IslandGeom.js). Morphs to an activity
+// card on hover/click. Notch cutout-fill is gone; tab dashboard ports next.
+
+
 Item {
   id: root
 
@@ -138,7 +136,7 @@ Item {
   MediaActivity { id: media }
   WordinkActivity { id: dictation }
   readonly property bool wordinkOn: settings.optWordink !== false
-  MessagesActivity { id: messagesAct; enabled: root.settings.optMessages === true }
+  MessagesActivity { id: messagesAct }
   AgentsActivity { id: agents; enabled: root.settings.optAgents === true }
   ScreenshotsActivity { id: shots; enabled: root.settings.snapdex }
   ChargingActivity {
@@ -238,27 +236,10 @@ Item {
 
   property bool dashboardOpen: false
   property string pendingTab: ""
-  function openDashboard(tab) { root.pendingTab = tab || ""; root.dashboardOpen = true }
-
-  Loader {
-    id: dashboard
-    active: root.dashboardOpen
-    source: "Notch.qml"
-    // Notch.qml builds its own per-screen windows, so this item needs no size.
-    onLoaded: {
-      if (!item) return
-      item.shell = root.shell
-      if (root.pendingTab !== "") item.openTabRequested(root.pendingTab)
-    }
-    // Notch.qml's own Escape / outside-click ends in collapseRequested. While
-    // loaded as the dashboard that must return us to the island, or the
-    // island stays hidden for the rest of the session.
-    Connections {
-      target: dashboard.item
-      ignoreUnknownSignals: true
-      function onCollapseRequested() { root.dashboardOpen = false }
-      function onOpenTabRequested(id) { root.dashboardOpen = true }
-    }
+  function openDashboard(tab) {
+    // Tabbed dashboard ports next; for now open the island activity card.
+    root.pendingTab = tab || ""
+    root.openRequested()
   }
 
   Connections {
@@ -323,9 +304,10 @@ Item {
       // height when it does not. The prototype's 37 was a constant that sat
       // a few px below the bar on this panel.
       readonly property int barHeight: 32
-      readonly property int compactHeight: cut > 0 ? Math.max(cut, barHeight) : barHeight
-      readonly property int expandedWidth: 374
-      readonly property int expandedHeight: 180
+      // Geom.js owns Dynamic Island sizes (compact pill, not cutout-fill).
+      readonly property int compactHeight: Geom.COMPACT_H
+      readonly property int expandedWidth: Geom.EXPANDED_W
+      readonly property int expandedHeight: Geom.EXPANDED_H
 
       // What the right ear must show: the top activity, else the idle slot.
       readonly property string idleSlot: Model.idleSlot(root.now.getTime() / 1000,
@@ -345,7 +327,7 @@ Item {
         return mDate
       }
       readonly property int earTarget: Model.earWidthFit(sideNeed, earBase, earMax)
-      readonly property int compactWidth: Math.min(modelData.width - 16, camW + 2 * earTarget)
+      readonly property int compactWidth: Geom.compactWidth(camW, earTarget, modelData.width)
 
       // Measures the ear text so the island grows to fit it, as Notch.qml does.
       // TextMetrics measures its own `text` (advanceWidth), so each shape the
@@ -452,11 +434,9 @@ Item {
       // a pinned island, which is why the expanded view kept vanishing.
 
       anchors.top: true
-      // Sized from the island itself, plus slack for the shadow-less edge: a
-      // constant here clips the island whenever compactWidth grows (two
-      // activities, or a camera-width override).
-      implicitWidth: Math.max(expandedWidth, compactWidth) + 40
-      implicitHeight: expanded ? expandedHeight + 20 : compactHeight + 20
+      // Window follows the island; slack lives in Geom.js (keep it small).
+      implicitWidth: Math.max(Geom.windowWidth(true, 0), Geom.windowWidth(false, compactWidth))
+      implicitHeight: Geom.windowHeight(expanded)
       color: "transparent"
       WlrLayershell.namespace: "omarchy-notch-island"
       WlrLayershell.layer: WlrLayer.Overlay
@@ -569,6 +549,7 @@ Item {
 
           ChargeBolt {
             visible: win.chargingShown
+            shown: win.chargingShown
             anchors.verticalCenter: parent.verticalCenter
             x: island.earLive + win.camW + 6
             pulse: charging.motion === "pulse"
@@ -577,7 +558,6 @@ Item {
             visible: win.hudShown
             anchors.verticalCenter: parent.verticalCenter
             x: island.earLive + win.camW + 6
-            kind: hud.kind
             level: hud.level
             muted: hud.muted
           }
@@ -891,31 +871,6 @@ Item {
             }
           }
 
-          // Dashboard route (R6, KTD8): a deliberate, always-present control,
-          // bottom-right beside Close so the top of the box is the activity.
-          Item {
-            anchors.right: parent.right
-            anchors.rightMargin: 64
-            y: 132
-            width: 24; height: 24
-            activeFocusOnTab: true
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Open the dashboard")
-            Text {
-              anchors.centerIn: parent
-              text: "☰"
-              textFormat: Text.PlainText
-              color: root.mutedText
-              font.pixelSize: 16
-            }
-            function activate() { root.openDashboard() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
-          }
 
           // Close control.
           Item {
