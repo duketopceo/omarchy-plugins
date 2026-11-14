@@ -4,7 +4,11 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.Commons as Commons
+import "Agents.js" as Agents
+import "Capabilities.js" as Caps
 import "Expand.js" as Expand
+import "Plugins.js" as Plugins
+import "Tabs.js" as Tabs
 import "Model.js" as Model
 import "Watchlist.js" as Watchlist
 import "Settings.js" as Settings
@@ -45,6 +49,102 @@ Item {
   readonly property var shellConfig: shell && shell.shellConfig ? shell.shellConfig : fileConfig
   property var pending: ({})
   readonly property var settings: Settings.resolve(Settings.pluginEntry(shellConfig, pluginId), pending)
+
+  // The tabs were written against Notch.qml's API and are unchanged, so the
+  // island exposes the same surface: settings writes, capability probe, plugin
+  // launching, network and usage state.
+  function setSetting(key, value) {
+    var copy = {}
+    for (var k in pending) copy[k] = pending[k]
+    copy[key] = value
+    pending = copy
+    if (!shell || typeof shell.mutateShellConfig !== "function") return
+    var patch = {}
+    patch[key] = value
+    shell.mutateShellConfig(Settings.settingsMutator(pluginId, patch))
+  }
+
+  readonly property string pluginDir: {
+    var p = Qt.resolvedUrl(".").toString()
+    if (p.indexOf("file://") === 0) p = p.substring(7)
+    if (p.length > 1 && p.charAt(p.length - 1) === "/") p = p.substring(0, p.length - 1)
+    return p
+  }
+
+  // Optional-module probe (bin/notch-probe), for the Settings tab.
+  property var capabilities: Caps.emptyProbe()
+  Process {
+    id: capProbe
+    command: [root.pluginDir + "/bin/notch-probe"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text && text.length < 100000) root.capabilities = Caps.parseProbe(text)
+    }
+    onExited: function (code) { if (code !== 0) root.capabilities = Caps.emptyProbe() }
+  }
+  Timer {
+    interval: 400
+    running: true
+    repeat: false
+    onTriggered: if (!capProbe.running) capProbe.running = true
+  }
+  readonly property string platformNote: Caps.platformTruth(capabilities)
+
+  // Opening another plugin's panel, from the Plugins and Home tabs.
+  property var openSteps: []
+  property int openIndex: 0
+  property string openFailed: ""
+  property string openingId: ""
+  Timer { id: openFailedClear; interval: 2200; onTriggered: root.openFailed = "" }
+  function openPlugin(id) { openPluginChecked(id, null) }
+  function openPluginChecked(id, fallback) {
+    if (opener.running) return
+    openingId = String(id)
+    openSteps = Plugins.openChain(String(id), fallback)
+    openIndex = 0
+    runOpenStep()
+  }
+  function runOpenStep() {
+    if (openIndex >= openSteps.length) { openFailed = openingId; openFailedClear.restart(); return }
+    opener.command = openSteps[openIndex].cmd
+    opener.running = true
+  }
+  Process {
+    id: opener
+    stdout: StdioCollector { id: openerOut }
+    onExited: function (code) {
+      if (Plugins.stepOk(root.openSteps[root.openIndex], code, openerOut.text)) return
+      root.openIndex += 1
+      root.runOpenStep()
+    }
+  }
+  function openWisp() { openPluginChecked("io.github.duketopceo.wisp", [Quickshell.env("HOME") + "/.local/bin/wisp-trigger"]) }
+
+  // Tailscale / NordVPN state for the Network tab and the idle dot.
+  NetworkState { id: networkState }
+  readonly property var network: networkState
+
+  // AI usage, refreshed at most every 5 minutes, only when a view asks.
+  property var usage: ({ ok: false, providers: [] })
+  property real usageAt: 0
+  function refreshUsage() {
+    var t = Date.now()
+    if (usageProc.running || t - usageAt < 5 * 60 * 1000) return
+    usageAt = t
+    usageProc.running = true
+  }
+  Process {
+    id: usageProc
+    command: [Quickshell.env("HOME") + "/.local/bin/ai-usagebar-omaseal", "usage", "--json"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: if (text && text.length < 500000) root.usage = Agents.parseUsage(text)
+    }
+  }
+
+  readonly property color textColor: Commons.Color.foreground
+  readonly property color dimColor: Commons.Color.muted
+  readonly property string textColorStr: String(textColor)
 
   readonly property color islandColor: "black"
   // Surface colours, named once. These keep the prototype's values (KTD3);
@@ -308,8 +408,20 @@ Item {
       // a few px below the bar on this panel.
       readonly property int barHeight: 32
       readonly property int compactHeight: cut > 0 ? Math.max(cut, barHeight) : barHeight
-      readonly property int expandedWidth: 374
-      readonly property int expandedHeight: 180
+      // Expanded is the tabbed panel the dashboard already had, sized per tab
+      // (Tabs.js) and clamped to the screen. Home hosts the activity views.
+      property string currentTab: "home"
+      // Room above the content for the tab strip, and below it for the footer.
+      readonly property int stripH: 44
+      readonly property int footerH: 34
+      readonly property var panelSz: Expand.panelSize(modelData.width, Tabs.sizeFor(currentTab))
+      // The tab file reports its own natural height; grow to fit it rather
+      // than clipping the bottom rows inside a fixed box.
+      readonly property int contentH: tabLoader.item && tabLoader.item.implicitHeight > 0
+        ? tabLoader.item.implicitHeight
+        : (win.currentTab === "activity" ? 180 : panelSz.height - stripH - footerH)
+      readonly property int expandedWidth: panelSz.width
+      readonly property int expandedHeight: stripH + contentH + footerH
 
       // What the right ear must show: the top activity, else the idle slot.
       readonly property string idleSlot: Model.idleSlot(root.now.getTime() / 1000,
@@ -552,357 +664,314 @@ Item {
         }
 
         // ---------------------------------------------------------- expanded
+        // The real panel: a tab strip and the tab's own content. Home carries
+        // the activity views below; every other tab is the unchanged file from
+        // Tabs.js, which reads this root as its `notch`.
         Item {
           anchors.fill: parent
           opacity: win.expanded ? 1 : 0
           visible: opacity > 0
           Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : Motion.ISLAND_DETAIL_MS; easing.type: Easing.OutCubic } }
 
-          // Neutral state: the activity that was showing has ended.
-          Text {
-            anchors.centerIn: parent
-            visible: win.expanded && win.selected === null
-            text: qsTr("Nothing active")
-            textFormat: Text.PlainText
-            color: root.mutedText
-            font.family: root.fontFamily
-            font.pixelSize: 13
+          // Tab strip
+          Row {
+            id: strip
+            anchors.top: parent.top
+            anchors.topMargin: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 6
+            Repeater {
+              model: Tabs.visibleTabs(root.settings)
+              Rectangle {
+                required property var modelData
+                readonly property bool sel: win.currentTab === modelData.id
+                width: chip.implicitWidth + 20
+                height: 26
+                radius: 13
+                color: sel ? root.pillColor : "transparent"
+                Accessible.role: Accessible.Button
+                Accessible.name: modelData.title
+                activeFocusOnTab: true
+                Text {
+                  id: chip
+                  anchors.centerIn: parent
+                  text: modelData.title
+                  textFormat: Text.PlainText
+                  color: sel ? root.titleText : root.dimText
+                  font.family: root.fontFamily
+                  font.pixelSize: 12
+                }
+                TapHandler { onTapped: win.currentTab = modelData.id }
+                Keys.onPressed: function (e) {
+                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                    win.currentTab = modelData.id; e.accepted = true
+                  }
+                }
+              }
+            }
           }
 
-          // Per-activity detail. Each control is bound to its own id, so a
-          // reorder cannot move it (KTD6).
+          // Home: the dashboard's own Home tab, unchanged, so the island
+          // carries every feature the old notch had.
+          Loader {
+            anchors.fill: parent
+            anchors.topMargin: win.stripH
+            anchors.bottomMargin: win.footerH
+            active: win.expanded && win.currentTab === "home"
+            source: "HomeTab.qml"
+            onLoaded: if (item) item.notch = root
+          }
+
+          // The live-activity surface, reachable as its own tab.
           Item {
             anchors.fill: parent
-            visible: win.selected !== null
+            anchors.topMargin: win.stripH
+            anchors.bottomMargin: win.footerH
+            visible: win.currentTab === "activity"
 
-            // Media: artwork, title, artist, progress, transport.
+            // Neutral state: the activity that was showing has ended.
+            Text {
+              anchors.centerIn: parent
+              visible: win.currentTab === "activity" && win.selected === null
+              text: qsTr("Nothing active")
+              textFormat: Text.PlainText
+              color: root.mutedText
+              font.family: root.fontFamily
+              font.pixelSize: 13
+            }
+
+            // Per-activity detail. Each control is bound to its own id, so a
+            // reorder cannot move it (KTD6).
             Item {
-              id: mediaView
               anchors.fill: parent
-              visible: win.selected !== null && win.selected.id === "media"
+              visible: win.selected !== null
 
-              Rectangle {
-                id: artwork
-                x: 22; y: 41; width: 60; height: 60; radius: 13
-                color: root.pillColor
-                Image {
-                  anchors.fill: parent
-                  // Only while the media view is showing, and decoded at the
-                  // 60 px it is drawn at rather than full cover resolution.
-                  source: win.expanded && win.selected !== null && win.selected.id === "media"
-                    && media.player && media.player.trackArtUrl ? media.player.trackArtUrl : ""
-                  sourceSize.width: 120
-                  sourceSize.height: 120
-                  fillMode: Image.PreserveAspectCrop
-                  asynchronous: true
-                  visible: status === Image.Ready
+              // Media: artwork, title, artist, progress, transport.
+              Item {
+                id: mediaView
+                anchors.fill: parent
+                visible: win.selected !== null && win.selected.id === "media"
+                Rectangle {
+                  id: artwork
+                  x: 22; y: 4; width: 60; height: 60; radius: 13
+                  color: root.pillColor
+                  Image {
+                    anchors.fill: parent
+                    source: win.expanded && win.selected !== null && win.selected.id === "media"
+                      && media.player && media.player.trackArtUrl ? media.player.trackArtUrl : ""
+                    sourceSize.width: 120
+                    sourceSize.height: 120
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: status === Image.Ready
+                  }
+                  Text {
+                    anchors.centerIn: parent
+                    visible: !media.player || !media.player.trackArtUrl
+                    text: "\u266b"
+                    textFormat: Text.PlainText
+                    color: root.dimText
+                    font.pixelSize: 25
+                  }
                 }
                 Text {
-                  anchors.centerIn: parent
-                  visible: !media.player || !media.player.trackArtUrl
-                  text: "♫"
+                  x: 98; y: 6; width: parent.width - x - 26
+                  text: win.selected !== null ? win.selected.text : ""
                   textFormat: Text.PlainText
-                  color: root.dimText
-                  font.pixelSize: 25
-                }
-              }
-              Text {
-                x: 98; y: 44; width: parent.width - x - 26
-                text: win.selected !== null ? win.selected.text : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.titleText
-                font.family: root.fontFamily
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-              }
-              Text {
-                x: 98; y: 66; width: parent.width - x - 26
-                text: media.player ? (media.player.trackArtist || media.player.identity) : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.dimText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-              }
-              Rectangle {
-                x: 23; y: 112; width: parent.width - 46; height: 4; radius: 2
-                color: root.trackColor
-                visible: !!media.player && media.player.length > 0
-                Rectangle {
-                  width: parent.width * Media.fraction(media.player ? media.player.position : 0, media.player ? media.player.length : 0)
-                  height: parent.height
-                  radius: 2
+                  elide: Text.ElideRight
                   color: root.titleText
+                  font.family: root.fontFamily
+                  font.pixelSize: 15
+                  font.weight: Font.DemiBold
+                }
+                Text {
+                  x: 98; y: 28; width: parent.width - x - 26
+                  text: media.player ? (media.player.trackArtist || media.player.identity) : ""
+                  textFormat: Text.PlainText
+                  elide: Text.ElideRight
+                  color: root.dimText
+                  font.family: root.fontFamily
+                  font.pixelSize: 13
+                }
+                Rectangle {
+                  x: 23; y: 74; width: parent.width - 46; height: 4; radius: 2
+                  color: root.trackColor
+                  visible: !!media.player && media.player.length > 0
+                  Rectangle {
+                    width: parent.width * Media.fraction(media.player ? media.player.position : 0, media.player ? media.player.length : 0)
+                    height: parent.height
+                    radius: 2
+                    color: root.titleText
+                  }
+                }
+                Row {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  y: 88
+                  spacing: 38
+                  visible: !!media.player
+                  Repeater {
+                    model: ["previous", "toggle", "next"]
+                    Item {
+                      id: transport
+                      required property string modelData
+                      width: 42; height: 38
+                      activeFocusOnTab: true
+                      Accessible.role: Accessible.Button
+                      Accessible.name: transport.modelData === "previous" ? qsTr("Previous track")
+                        : transport.modelData === "next" ? qsTr("Next track")
+                        : media.player && media.player.isPlaying ? qsTr("Pause") : qsTr("Play")
+                      Text {
+                        anchors.centerIn: parent
+                        text: transport.modelData === "previous" ? "\u23ee"
+                          : transport.modelData === "next" ? "\u23ed"
+                          : media.player && media.player.isPlaying ? "\u2161" : "\u25b6"
+                        textFormat: Text.PlainText
+                        color: root.altText
+                        font.pixelSize: transport.modelData === "toggle" ? 25 : 18
+                      }
+                      function activate() {
+                        if (!media.player) return
+                        if (transport.modelData === "previous") media.player.previous()
+                        else if (transport.modelData === "next") media.player.next()
+                        else media.player.togglePlaying()
+                      }
+                      TapHandler { onTapped: transport.activate() }
+                      Keys.onPressed: function (e) {
+                        if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                          transport.activate(); e.accepted = true
+                        }
+                      }
+                    }
+                  }
                 }
               }
-              Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 129
-                spacing: 38
-                visible: !!media.player
-                Repeater {
-                  model: ["previous", "toggle", "next"]
-                  Item {
-                    id: transport
-                    required property string modelData
-                    width: 42; height: 38
+
+              // The four single-action activities share one shape: a label and
+              // one pill, differing only in id, text and what the pill runs.
+              Repeater {
+                model: [
+                  { act: "dictation",   label: qsTr("Stop"),    named: qsTr("Stop dictation") },
+                  { act: "agents",      label: qsTr("Herdr"),   named: qsTr("Open herdr") },
+                  { act: "messages",    label: qsTr("Blip"),    named: qsTr("Open Blip") },
+                  { act: "screenshots", label: qsTr("Library"), named: qsTr("Open screenshot library") }
+                ]
+                Item {
+                  id: detail
+                  required property var modelData
+                  anchors.fill: parent
+                  visible: win.selected !== null && win.selected.id === detail.modelData.act
+                  Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 10
+                    width: parent.width - 44
+                    horizontalAlignment: Text.AlignHCenter
+                    text: win.selected !== null ? win.selected.text : ""
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: root.brightText
+                    font.family: root.fontFamily
+                    font.pixelSize: 14
+                  }
+                  Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: 74
+                    width: 96; height: 32; radius: 16
+                    color: root.pillColor
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: transport.modelData === "previous" ? qsTr("Previous track")
-                      : transport.modelData === "next" ? qsTr("Next track")
-                      : media.player && media.player.isPlaying ? qsTr("Pause") : qsTr("Play")
+                    Accessible.name: detail.modelData.named
+                    // Dictation's control is state-gated; the rest are always
+                    // offered because their activity is only active when the
+                    // backend is really there. Library needs its folder.
+                    visible: detail.modelData.act !== "dictation"
+                      || Island.action("dictation", dictation.state) === "stop"
                     Text {
                       anchors.centerIn: parent
-                      text: transport.modelData === "previous" ? "⏮"
-                        : transport.modelData === "next" ? "⏭"
-                        : media.player && media.player.isPlaying ? "Ⅱ" : "▶"
+                      text: detail.modelData.label
                       textFormat: Text.PlainText
-                      color: root.altText
-                      font.pixelSize: transport.modelData === "toggle" ? 25 : 18
+                      color: root.labelText
+                      font.family: root.fontFamily
+                      font.pixelSize: 13
+                      font.weight: Font.DemiBold
                     }
                     function activate() {
-                      if (!media.player) return
-                      if (transport.modelData === "previous") media.player.previous()
-                      else if (transport.modelData === "next") media.player.next()
-                      else media.player.togglePlaying()
+                      if (detail.modelData.act === "dictation") dictation.toggle()
+                      else if (detail.modelData.act === "agents") agents.openApp()
+                      else if (detail.modelData.act === "messages") messagesAct.openBlip()
+                      else shots.openLibrary()
                     }
-                    TapHandler { onTapped: transport.activate() }
+                    TapHandler { onTapped: parent.activate() }
                     Keys.onPressed: function (e) {
                       if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                        transport.activate(); e.accepted = true
+                        parent.activate(); e.accepted = true
                       }
                     }
                   }
                 }
               }
             }
-
-            // Dictation: the only control gated on a live state machine, and it
-            // appears only while recording (KTD6). Transcribing and done show
-            // text with no action.
-            Item {
-              anchors.fill: parent
-              visible: win.selected !== null && win.selected.id === "dictation"
-              Text {
-                anchors.centerIn: parent
-                width: parent.width - 44
-                horizontalAlignment: Text.AlignHCenter
-                text: win.selected !== null ? win.selected.text : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.brightText
-                font.family: root.fontFamily
-                font.pixelSize: 14
-              }
-              Rectangle {
-                readonly property string act: Island.action("dictation", dictation.state)
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 120
-                width: 96; height: 32; radius: 16
-                visible: act === "stop"
-                color: root.pillColor
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Stop dictation")
-                Text {
-                  anchors.centerIn: parent
-                  text: qsTr("Stop")
-                  textFormat: Text.PlainText
-                  color: root.labelText
-                  font.family: root.fontFamily
-                  font.pixelSize: 13
-                  font.weight: Font.DemiBold
-                }
-                function activate() { dictation.toggle() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
-              }
-            }
-
-            // Agents: a route to herdr. Rendered only when agents are on.
-            Item {
-              anchors.fill: parent
-              visible: win.selected !== null && win.selected.id === "agents"
-              Text {
-                anchors.centerIn: parent
-                width: parent.width - 44
-                horizontalAlignment: Text.AlignHCenter
-                text: win.selected !== null ? win.selected.text : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.brightText
-                font.family: root.fontFamily
-                font.pixelSize: 14
-              }
-              Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 120
-                width: 96; height: 32; radius: 16
-                color: root.pillColor
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Open herdr")
-                Text {
-                  anchors.centerIn: parent
-                  text: qsTr("Herdr")
-                  textFormat: Text.PlainText
-                  color: root.labelText
-                  font.family: root.fontFamily
-                  font.pixelSize: 13
-                  font.weight: Font.DemiBold
-                }
-                function activate() { agents.openApp() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
-              }
-            }
-
-            // Messages: a route to Blip. Read-only; never sends (KTD7).
-            Item {
-              anchors.fill: parent
-              visible: win.selected !== null && win.selected.id === "messages"
-              Text {
-                anchors.centerIn: parent
-                width: parent.width - 44
-                horizontalAlignment: Text.AlignHCenter
-                text: win.selected !== null ? win.selected.text : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.brightText
-                font.family: root.fontFamily
-                font.pixelSize: 14
-              }
-              Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 120
-                width: 96; height: 32; radius: 16
-                color: root.pillColor
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Open Blip")
-                Text {
-                  anchors.centerIn: parent
-                  text: qsTr("Blip")
-                  textFormat: Text.PlainText
-                  color: root.labelText
-                  font.family: root.fontFamily
-                  font.pixelSize: 13
-                  font.weight: Font.DemiBold
-                }
-                function activate() { messagesAct.openBlip() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
-              }
-            }
-
-            // Screenshots: a route to the library.
-            Item {
-              anchors.fill: parent
-              visible: win.selected !== null && win.selected.id === "screenshots"
-              Text {
-                anchors.centerIn: parent
-                width: parent.width - 44
-                horizontalAlignment: Text.AlignHCenter
-                text: win.selected !== null ? win.selected.text : ""
-                textFormat: Text.PlainText
-                elide: Text.ElideRight
-                color: root.brightText
-                font.family: root.fontFamily
-                font.pixelSize: 14
-              }
-              Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 120
-                width: 96; height: 32; radius: 16
-                color: root.pillColor
-                activeFocusOnTab: true
-                Accessible.role: Accessible.Button
-                Accessible.name: qsTr("Open screenshot library")
-                // Hidden rather than inert: opening nothing is not an action.
-                visible: shots.libraryOk
-                enabled: shots.libraryOk
-                Text {
-                  anchors.centerIn: parent
-                  text: qsTr("Library")
-                  textFormat: Text.PlainText
-                  color: root.labelText
-                  font.family: root.fontFamily
-                  font.pixelSize: 13
-                  font.weight: Font.DemiBold
-                }
-                function activate() { shots.openLibrary() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
-              }
-            }
           }
 
-          // Dashboard route (R6, KTD8): a deliberate, always-present control,
-          // bottom-right beside Close so the top of the box is the activity.
+          // Every other tab is the unchanged dashboard file.
+          Loader {
+            id: tabLoader
+            anchors.fill: parent
+            anchors.topMargin: win.stripH
+            anchors.bottomMargin: win.footerH
+            active: win.expanded && win.currentTab !== "home"
+            readonly property var tab: Tabs.select(win.currentTab, Tabs.visibleTabs(root.settings))
+            source: tab && tab.source ? tab.source : ""
+            onLoaded: if (item) item.notch = root
+          }
+
+          // Dashboard controls, bottom-right.
           Item {
             anchors.right: parent.right
             anchors.rightMargin: 64
-            y: 132
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 14
             width: 24; height: 24
+            visible: win.currentTab !== "home"
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Open the dashboard")
+            Accessible.name: qsTr("Back to activities")
             Text {
               anchors.centerIn: parent
-              text: "☰"
+              text: "\u2630"
               textFormat: Text.PlainText
               color: root.mutedText
               font.pixelSize: 16
             }
-            function activate() { root.openDashboard() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
+            TapHandler { onTapped: win.currentTab = "home" }
+            Keys.onPressed: function (e) {
+              if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                win.currentTab = "home"; e.accepted = true
+              }
+            }
           }
 
-          // Close control.
           Item {
             anchors.right: parent.right
             anchors.rightMargin: 24
-            y: 132
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 12
             width: 24; height: 24
             activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Close")
             Text {
               anchors.centerIn: parent
-              text: "×"
+              text: "\u00d7"
               textFormat: Text.PlainText
               color: root.mutedText
               font.pixelSize: 21
             }
-            function activate() { win.closeIsland() }
-                TapHandler { onTapped: activate() }
-                Keys.onPressed: function (e) {
-                  if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
-                    activate(); e.accepted = true
-                  }
-                }
+            TapHandler { onTapped: win.closeIsland() }
+            Keys.onPressed: function (e) {
+              if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Space) {
+                win.closeIsland(); e.accepted = true
+              }
+            }
           }
         }
       }

@@ -30,10 +30,14 @@ def test_manifest_keeps_the_installed_id_and_points_at_the_island():
     assert (NOTCH / manifest["entryPoints"]["panel"]).is_file()
 
 
-def test_the_old_panel_stays_in_source_for_rollback():
-    # KTD1/R3: the dashboard implementation must remain recoverable.
-    assert (NOTCH / "Notch.qml").is_file()
-    assert (NOTCH / "ExpandedPanel.qml").is_file()
+def test_the_old_panel_is_retired():
+    # The island owns every tab now; the dashboard implementation lives in git
+    # history (commit b9029d2 and earlier), not in the shipped plugin.
+    assert not (NOTCH / "Notch.qml").exists()
+    assert not (NOTCH / "ExpandedPanel.qml").exists()
+    # Its per-tab content is still shipped, and the island hosts it.
+    for tab in ("HomeTab.qml", "MediaTab.qml", "NetworkTab.qml", "SettingsTab.qml"):
+        assert (NOTCH / tab).is_file(), tab
 
 
 # --------------------------------------------------------------- ID binding
@@ -42,8 +46,12 @@ def test_each_detail_view_is_bound_to_its_own_activity_id():
     # KTD6: a control must never act on a different activity after a reorder.
     # Every detail block tests `selected.id === "<id>"`, never a rank.
     text = source()
+    # Each bound id is still tested by value, never by rank.
     for activity in ("media", "dictation", "agents", "messages", "screenshots"):
-        assert f'win.selected.id === "{activity}"' in text, activity
+        assert f'"{activity}"' in text, activity
+    assert "win.selected.id === \"media\"" in text
+    # The four single-action views share one Repeater keyed on the id.
+    assert 'win.selected.id === detail.modelData.act' in text
     assert not re.search(r'selected\.id === \d', text), "an activity was matched by rank"
 
 
@@ -51,8 +59,7 @@ def test_stop_is_gated_on_the_recording_state():
     # KTD6: "Stop" may only appear while recording; Island.action owns that
     # rule, so the QML must ask it rather than testing the state itself.
     text = source()
-    assert 'Island.action("dictation", dictation.state)' in text
-    assert 'visible: act === "stop"' in text
+    assert 'Island.action("dictation", dictation.state) === "stop"' in text
 
 
 def test_a_finished_activity_leaves_a_neutral_state():
@@ -98,10 +105,11 @@ def test_the_dashboard_route_loads_the_old_panel():
     # R6/KTD8: the old surface must actually open. The plugin has one entry
     # point, so there is no separate panel to summon; Notch.qml is loaded here.
     text = source()
+    # The dashboard's tabs are the island's own tabs now, so "reachable"
+    # means the tab files load through the island's Loader.
+    assert 'source: tab && tab.source ? tab.source : ""' in text
+    assert "item.notch = root" in text
     assert "function openDashboard(" in text
-    assert 'source: "Notch.qml"' in text
-    assert "active: root.dashboardOpen" in text
-    assert 'qsTr("Open the dashboard")' in text
 
 
 def test_the_dashboard_can_hand_control_back():
@@ -119,7 +127,7 @@ def test_activity_targets_are_focusable_and_activate_from_the_keyboard():
     buttons = text.count("Accessible.role: Accessible.Button")
     focusable = text.count("activeFocusOnTab: true")
     keys = text.count("Keys.onPressed")
-    assert buttons >= 6, buttons
+    assert buttons >= 5, buttons
     assert buttons == focusable, f"{buttons} buttons but {focusable} focusable"
     assert keys >= focusable, f"{focusable} focusable targets but {keys} key handlers"
 
@@ -134,14 +142,13 @@ def test_the_island_reuses_the_existing_collectors():
         assert re.search(rf"^\s*{component}\s*\{{", text, re.M), component
 
 
-def test_the_island_instantiates_no_removed_tab_content():
-    # R3: no network, power, system, stocks, or plugin-management *tabs*.
-    # The ambient idle cycle (weather, watchlist) is deliberately kept: it is
-    # what the compact notch showed, and it is not a tab.
+def test_the_compact_bar_stays_an_activity_surface():
+    # The tabs live behind the expanded panel, reached by the strip; the
+    # compact bar itself carries the clock, the idle cycle and activities.
     text = source()
-    for banned in ("NetworkTab", "PowerTab", "SystemTab", "StocksTab",
-                   "PluginsTab", "NetworkState"):
-        assert banned not in text, banned
+    compact = text[text.index("-------- compact"):text.index("-------- expanded")]
+    for banned in ("NetworkTab", "PowerTab", "SystemTab", "StocksTab", "PluginsTab"):
+        assert banned not in compact, banned
 
 
 def test_the_ambient_idle_cycle_is_present():

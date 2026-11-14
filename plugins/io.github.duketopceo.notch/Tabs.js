@@ -15,6 +15,9 @@ var PANEL_SIZE = { w: 720, h: 380 }
 
 var TABS = [
   { id: "home", title: "Home", short: "Home", glyph: "\u{F02DC}", source: "HomeTab.qml", size: PANEL_SIZE },
+  // The island's live-activity surface. `source` is empty because Island.qml
+  // renders it inline: no tab file, just the built-in view.
+  { id: "activity", title: "Activity", short: "Live", glyph: "\u{F0E7}", source: "", size: PANEL_SIZE },
   { id: "media", title: "Media", short: "Media", glyph: "\u{F075A}", source: "MediaTab.qml", size: PANEL_SIZE },
   { id: "agents", title: "Agents", short: "Agents", glyph: "\u{F06A9}", source: "AgentsTab.qml", optional: "optAgents", size: PANEL_SIZE },
   { id: "messages", title: "Messages", short: "Msgs", glyph: "\u{F0361}", source: "MessagesTab.qml", optional: "optMessages", size: PANEL_SIZE },
