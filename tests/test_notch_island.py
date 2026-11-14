@@ -26,8 +26,11 @@ def test_manifest_keeps_the_installed_id_and_points_at_the_island():
     # every saved opt-in setting.
     manifest = json.loads(MANIFEST.read_text())
     assert manifest["id"] == "io.github.duketopceo.notch"
-    assert manifest["entryPoints"]["panel"] == "Island.qml"
+    # Hybrid entry: Notch.qml morphs compact island → tabbed dashboard on hover.
+    # Island.qml remains as the activity-island experiment, not the panel entry.
+    assert manifest["entryPoints"]["panel"] == "Notch.qml"
     assert (NOTCH / manifest["entryPoints"]["panel"]).is_file()
+    assert ISLAND.is_file()
 
 
 def test_the_dashboard_panel_remains_reachable():

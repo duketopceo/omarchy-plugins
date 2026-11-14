@@ -541,14 +541,15 @@ Item {
         bottomRightRadius: Math.min(root.islandRadius, Math.round(height * 0.45))
 
         PxlBody { anchors.fill: parent; visible: Tk.pxl; fill: root.islandColor; edge: win.notched && island.earsOn ? root.islandColor : Tk.edge }
-        // U5: hover opens the panel; keyboard focus stays None (see window above).
+        // Hover opens the tabbed dashboard; leaving collapses unless pinned.
+        // Click pins (survives leave); unfocus / Escape / outside click clears.
         HoverHandler { onHoveredChanged: win.xevent(hovered ? "enter" : "leave") }
-        // A click on the island itself (outside any tab content) pins it open.
         TapHandler {
           gesturePolicy: TapHandler.ReleaseWithinBounds
           onTapped: {
             win.pinned = true
-            if (Caps.needsSetup(root.settings)) win.currentTab = "settings"
+            // Land on Home with the full tab strip. First-run setup lives inside
+            // the Settings tab — do not trap the whole panel on Prefs alone.
             if (win.xstate !== "open") win.xstate = "open"
           }
         }

@@ -128,7 +128,7 @@ Each entry is `{ id, active (bool), priority (int, higher wins), text (string), 
 
 ## Status
 
-v0.1 with capability probe + first-run optional setup. Linux/Omarchy only (including Asahi when Omarchy runs there) — not macOS. See plan `docs/plans/2026-11-04-0215-feat-notch-island-plan.md`.
+v0.3.1 — **hybrid entry is `Notch.qml`**: compact island (clock / activities in the ears) morphs into the full tabbed dashboard on hover. Leave collapses; click pins; Escape / unfocus / outside click clears. Linux/Omarchy only (including Asahi). Plan: `docs/plans/2026-11-14-feat-notch-finalize-plan.md`.
 
 ## NOTICE
 
