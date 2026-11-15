@@ -1,0 +1,72 @@
+// Window layout and input-mask rectangles for the Island. ES5, no Qt types.
+//
+// The window is fixed: card size plus a slop margin on both sides and below,
+// so it never resizes (resizing a layer surface under the pointer is what made
+// hover unreliable). The mask follows the state-driven hot zone, never the
+// animating shape: pill + 6 px while closed or arming, card + 12 px while the
+// card is open or leaving. Rectangles are in window coordinates; the window is
+// anchored to the top edge and centered, so everything is symmetric around
+// width / 2.
+//
+// g = Geom.compute(...) output.
+
+var PILL_SLOP = 6
+var CARD_SLOP = 12
+
+function _num(v) {
+  var n = Number(v)
+  return isFinite(n) ? n : 0
+}
+
+function windowSize(g) {
+  return { width: _num(g.card.width) + 2 * CARD_SLOP, height: _num(g.card.height) + CARD_SLOP }
+}
+
+function _clip(r, w) {
+  var x = Math.max(0, r.x)
+  var right = Math.min(w.width, r.x + r.width)
+  var bottom = Math.min(w.height, r.y + r.height)
+  return { x: x, y: 0, width: Math.max(0, right - x), height: Math.max(0, bottom) }
+}
+
+// zone: "pill" | "card" (Hover.zoneFor). Hot-zone rectangle including slop.
+function rect(zone, g) {
+  var w = windowSize(g)
+  if (zone === "card") {
+    return _clip({ x: (w.width - g.card.width) / 2 - CARD_SLOP, y: 0,
+                   width: g.card.width + 2 * CARD_SLOP, height: g.card.height + CARD_SLOP }, w)
+  }
+  return _clip({ x: (w.width - g.compactWidth) / 2 - PILL_SLOP, y: 0,
+                 width: g.compactWidth + 2 * PILL_SLOP, height: g.compactHeight + PILL_SLOP }, w)
+}
+
+// The visible shape for a zone, without slop, centered at the top.
+function visualRect(zone, g) {
+  var w = windowSize(g)
+  var cw = zone === "card" ? g.card.width : g.compactWidth
+  var ch = zone === "card" ? g.card.height : g.compactHeight
+  return { x: (w.width - cw) / 2, y: 0, width: cw, height: ch }
+}
+
+function contains(r, x, y) {
+  return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
+}
+
+// One screen's entry in the IPC `state` reply.
+function snapshot(screenName, model, zoneRect) {
+  var m = model || {}
+  return {
+    screen: String(screenName),
+    state: m.state,
+    flags: {
+      pinned: !!m.pinned, focused: !!m.focused, held: !!m.held, summoned: !!m.summoned,
+      rearmLock: !!m.rearmLock, pointerInside: !!m.pointerInside, fullscreen: !!m.fullscreen
+    },
+    rect: zoneRect
+  }
+}
+
+if (typeof module !== "undefined") module.exports = {
+  PILL_SLOP: PILL_SLOP, CARD_SLOP: CARD_SLOP,
+  windowSize: windowSize, rect: rect, visualRect: visualRect, contains: contains, snapshot: snapshot
+}
