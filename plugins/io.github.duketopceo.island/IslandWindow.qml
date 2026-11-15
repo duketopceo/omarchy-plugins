@@ -21,10 +21,11 @@ PanelWindow {
   property var island: null
   required property var modelData
 
-  // The single place that picks the layer. Top sits under fullscreen windows
-  // and keeps direct scanout; switch to WlrLayer.Overlay here if the live
-  // stacking check shows the bar covering the pill.
-  readonly property int windowLayer: WlrLayer.Top
+  // The single place that picks the layer. Overlay, because the Omarchy bar is
+  // also on Top and two Top surfaces stack by map order, which a shell restart
+  // can flip (U1 probe, 2026-11-15). The window hides under real fullscreen
+  // (KTD6), so Overlay never costs a fullscreen app its direct scanout.
+  readonly property int windowLayer: WlrLayer.Overlay
 
   screen: modelData
   color: "transparent"
@@ -88,15 +89,6 @@ PanelWindow {
   function closeByIpc() { win.send("ipcClose") }
   function focusCard() { win.send("focus") }
 
-  // The grab clearing returns the card to plain open (keyboard off), never closed.
-  function focusLost() {
-    if (!win.model.focused) return
-    var m = {}
-    for (var k in win.model) m[k] = win.model[k]
-    m.focused = false
-    win.model = m
-  }
-
   function snapshot() {
     var s = Zone.snapshot(win.screen.name, win.model, win.zoneRect)
     s.zone = win.zone
@@ -109,26 +101,10 @@ PanelWindow {
     return s
   }
 
-  // After the hot zone shrinks, Hyprland may send no leave for a pointer that
-  // now lies outside it (KTD3 fallback): read the cursor once and say so.
-  onZoneChanged: if (win.zone === "pill") Qt.callLater(win.recheckPointer)
-  function recheckPointer() {
-    if (!win.island || !win.model.pointerInside) return
-    win.island.readCursor(function(pos) {
-      if (!pos || !win.model.pointerInside) return
-      var lx = pos.x - (win.screen.x + (win.screen.width - win.winSize.width) / 2)
-      var ly = pos.y - win.screen.y
-      if (!Zone.contains(win.zoneRect, lx, ly)) win.send("leave")
-    })
-  }
-
   // ---- keyboard (KTD5) ----
-  HyprlandFocusGrab {
-    active: win.model.focused && win.cardShown
-    windows: [win]
-    onCleared: win.focusLost()
-  }
-
+  // OnDemand focus only, no HyprlandFocusGrab: the U1 probe showed an active
+  // grab stops Hyprland sending pointer leave, which would keep a focused
+  // card open after the pointer leaves.
   Shortcut {
     sequence: "Escape"
     enabled: win.model.focused && win.cardShown

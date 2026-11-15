@@ -46,10 +46,21 @@ Run 2026-11-15 on omarchy-max, Hyprland 0.57.2, eDP-1 only (3456x2234, scale 2, 
 | Question | Answer | Branch |
 |---|---|---|
 | Pointer move command | `hyprctl dispatch 'hl.dsp.cursor.move({ x = X, y = Y })'` moves the pointer (confirmed with `hyprctl cursorpos`); `hyprctl eval` with the same Lua returns `ok` but does not move it | KTD11: use `dispatch` |
-| Does the move produce hover enter/leave? | Not answered: the session was on the lock screen, so pointer events went to the lock surface and the probe saw none | Pending |
-| Layer Top covered by a fullscreen window | Not answered (screen locked) | Pending; KTD6 hides the island under fullscreen either way |
-| Leave after the mask shrinks under a still pointer | Not answered (screen locked) | Pending; KTD3 fallback not built yet |
-| `HyprlandFocusGrab` clears by itself | Not answered (screen locked) | Pending |
-| Island vs bar stacking on layer Top | Partly: `omarchy-bar` is a full-screen-sized layer-2 (Top) surface with an input mask; the probe also mapped on layer 2. Which one draws on top and takes the pointer at the bar's center was not observable (screen locked) | Pending; KTD1 stays Top until this is checked |
+| Does the move produce hover enter/leave? | Yes, once unlocked: the probe logged `hovered=true` on entry and `hovered=false` on exit (the first attempt ran on the lock screen and saw nothing) | KTD11 live check is viable |
+| Layer Top covered by a fullscreen window | Moot: the island unmaps under real fullscreen (see AE6 below) | KTD6 |
+| Leave after the mask shrinks under a still pointer | Yes: shrinking the mask from card to pill with the pointer in the dropped area produced `hovered=false` 2 ms later | KTD3 cursor re-check fallback not needed; removed |
+| `HyprlandFocusGrab` clears by itself | No (held 8 s). But while the grab is active Hyprland sends no pointer leave: the pointer moved outside and `hovered` stayed true | KTD5 fallback: `OnDemand` focus without a grab, so a focused card still closes on leave |
+| Island vs bar stacking | The bar is a full-screen-sized layer-2 (Top) surface. A probe on Top drew above the bar's icons and took the pointer at the bar center (icon pixels measured pink under the 50% red probe), but only because it mapped after the bar; that order is not guaranteed across shell restarts. Overlay (level 3) sits above the bar by layer | KTD1 fallback: layer Overlay |
 
-Re-run the probes with the screen unlocked before U4–U6 live verification.
+### Live verification (P1, eDP-1)
+
+| Check | Result |
+|---|---|
+| Plugin loads | `omarchy-island` mapped on layer 3 at 744x392; no Island errors in the shell log |
+| Pill | Time and short date ears render (screenshot) |
+| AE1, AE2 hover open/close | `bin/island-hover-check --runs 20 --mode both`: 20/20 passed, single jumps and interpolated steps |
+| AE3 click-open and pin, AE5 Esc with rearm | Not automated: needs `ydotoold` (disabled on this host); manual pass pending |
+| AE4 keybinding/IPC open | `qs ipc call island toggle` opened with `summoned` and `focused`; closed by itself after 5 s untouched |
+| AE6 fullscreen | Scratch window fullscreen: island hidden and its layer unmapped; restored on exit; maximized does not hide it |
+| DP-3 | Not connected during this run |
+| Settings save (U7) | Not exercised live (needs a click into the card); manual pass pending |
