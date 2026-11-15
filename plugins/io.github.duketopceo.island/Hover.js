@@ -125,6 +125,11 @@ function step(model, event, settings) {
       }
       if (m.timerKind === "summon" && m.state === "open") {
         if (m.held || m.pinned || !summonPending) return stopTimer(m)
+        if (m.pointerInside) {
+          m.summoned = false
+          m.enteredSinceSummon = true
+          return stopTimer(m)
+        }
         return closed(m)
       }
       return stopTimer(m)
@@ -188,6 +193,13 @@ function step(model, event, settings) {
       m.enteredSinceSummon = false
       m.focused = true
       m.rearmLock = false
+      // Pointer already on the island: no enter edge will follow, so this
+      // counts as the first visit and the untouched timeout does not apply.
+      if (m.pointerInside) {
+        m.summoned = false
+        m.enteredSinceSummon = true
+        return stopTimer(m)
+      }
       return startTimer(m, "summon", cfg.summonTimeout)
 
     case "focus":

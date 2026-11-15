@@ -54,6 +54,7 @@ required. See `.env.example`.
 | `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
 | `io.github.duketopceo.wordink` | WordInk dictation: mic state icon, click to dictate, mic picker, recent dictations, weekly usage (local `wordink` CLI) |
 | `io.github.duketopceo.hotkey-tally` | Counts how often each wrapped Hyprland binding is used (aggregate counts only, local) |
+| `io.github.duketopceo.island` | Top-center Island pill per screen: opens on hover, closes when the pointer leaves; time, date, settings card; hides under fullscreen; `island` IPC target |
 
 ### Retired
 
@@ -88,6 +89,7 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
 | `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
 | `io.github.duketopceo.hotkey-tally` | https://github.com/duketopceo/omarchy-hotkey-tally (not yet published) |
+| `io.github.duketopceo.island` | https://github.com/duketopceo/omarchy-island (not yet published) |
 
 Install any of them with:
 

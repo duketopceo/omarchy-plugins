@@ -115,6 +115,15 @@ def test_summon_held_timeout_defers_then_restarts():
     assert out[3]["state"] == "open" and out[3]["timer"] == 5000
 
 
+def test_summon_while_pointer_inside_counts_as_visited():
+    # Pointer already on the card when the keybinding fires: no enter edge
+    # will come, so the 5 s untouched timeout must not close it (R7, R11).
+    out = drive(["enter", T(True), "summon", T(True), "leave"])
+    assert out[2]["state"] == "open"
+    assert out[3]["state"] == "open"
+    assert out[4]["state"] == "leaving"
+
+
 def test_summon_focuses_pill_click_does_not():
     assert drive(["summon"])[0]["model"]["focused"] is True
     assert drive(["click"])[0]["model"]["focused"] is False
