@@ -120,6 +120,15 @@
         "bar-widget"
       ],
       "repo": "https://github.com/duketopceo/omarchy-netline"
+    },
+    {
+      "id": "io.github.duketopceo.island",
+      "path": "plugins/io.github.duketopceo.island",
+      "version": "0.1.0",
+      "kinds": [
+        "panel"
+      ],
+      "repo": "https://github.com/duketopceo/omarchy-island"
     }
   ]
 }
