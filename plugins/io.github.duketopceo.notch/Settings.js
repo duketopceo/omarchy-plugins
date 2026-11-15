@@ -16,16 +16,18 @@ var DEFAULTS = {
   hoverDelay: 150,    // ms before hover expands the panel
   reduceMotion: false, // swap springs and slides for quick fades
   snapdex: false,     // optional: Screenshots tab (snapdex when detected)
-  optAgents: true,    // optional: Agents tab (herdr when detected)
-  optMessages: true,  // optional: Messages tab (Blip when detected)
+  optAgents: false,   // optional: Agents tab (herdr when detected) — off for public defaults
+  optMessages: false, // optional: Messages tab (Blip when detected) — off for public defaults
   optWordink: true,   // Home Dict / activity when wordink CLI exists
   optWisp: true,      // Home Wisp dot when wisp plugin exists
   optFan: true,       // System fan mode writes when lukedaduke.fan exists
   aiUsage: true,      // AI usage tab + the percent on the Plugins hub AI tile
-  dayflow: false,     // local: Dayflow tab, Home tile, idle slot + paused indicator
+  dayflow: false,     // Dayflow tab, Home tile, idle slot + paused indicator
   timer: true,        // Timer tab, ear countdown, finish notification
   chargingAlert: true, // ear shows percent and time to full when AC is plugged in
   hudOwner: "omarchy", // "omarchy" | "notch": who draws the volume/brightness popup (one, never both)
+  hostNotifications: false, // opt-in island notification host (stock Omarchy default)
+  hideOnFullscreen: true,   // unmap idle Overlay under real Hyprland fullscreen
   clipboard: true,    // Clipboard tab (needs cliphist; hidden when it is missing)
   quickActionsOn: true, // Home quick-actions row
   quickActions: null, // owner-pinned actions; null = the seeded defaults (see SEED_ACTIONS)
@@ -68,9 +70,15 @@ var FIELDS = [
   { key: "timer", section: "features", feature: true, label: "Timer tab", type: "bool", hint: "Countdown and pomodoro; time left shows in the ear." },
   { key: "chargingAlert", section: "features", feature: true, label: "Charging alert", type: "bool", hint: "Percent and time to full in the ear when you plug in." },
   { key: "hudOwner", section: "features", feature: true, label: "Volume and brightness popup", type: "choice",
-    hint: "Notch's HUD replaces Omarchy's; turn Omarchy's off too.",
+    hint: "Island HUD replaces Omarchy's; turn Omarchy's off too.",
     detail: "Omarchy's OSD: add \"omarchy.osd\" to disabledPlugins in shell.json. Otherwise both show.", detailWhen: "notch",
-    options: [{ value: "omarchy", label: "Omarchy" }, { value: "notch", label: "Notch" }] },
+    options: [{ value: "omarchy", label: "Omarchy" }, { value: "notch", label: "Island" }] },
+  { key: "hostNotifications", section: "features", feature: true, label: "Host notifications in island", type: "bool",
+    hint: "Opt-in; keep stock Omarchy notifications unless you take over.",
+    detail: "Add \"omarchy.notifications\" to disabledPlugins in shell.json. Only one D-Bus notification owner is allowed. Full card UI is phased.",
+    detailWhen: true },
+  { key: "hideOnFullscreen", section: "features", feature: true, label: "Hide idle island in fullscreen", type: "bool",
+    hint: "Hide the idle Overlay in real fullscreen for scanout." },
   { key: "clipboard", section: "features", feature: true, label: "Clipboard tab", type: "bool", hint: "Recent copies from cliphist; needs cliphist installed." },
   { key: "quickActionsOn", section: "features", feature: true, label: "Quick actions", type: "bool", hint: "A row of your pinned shortcuts on Home; edit them under Advanced." },
   { key: "optWordink", section: "features", feature: true, label: "Dictation (WordInk)", type: "bool", setup: true, hint: "Shows recording state from the WordInk dictation app." },

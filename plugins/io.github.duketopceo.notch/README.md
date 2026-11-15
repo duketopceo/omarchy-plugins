@@ -1,8 +1,8 @@
-# Notch
+# Notch (Dynamic Island)
 
-A Mac-style notch island at the top center of every screen, for Omarchy 4.5.
+A **Dynamic Island** pill for Omarchy 4.5 — floating capsule over the camera (or a virtual pill on other screens), morphing into a tabbed dashboard on hover.
 
-**Self-contained:** install this plugin alone on a clean Omarchy box and you get a usable island — clock/date, weather, hover expand with built-in tabs (Home, Media, Network, Power, System, Stocks, Plugins, Settings). First click opens **Settings** until you finish optional setup: `bin/notch-probe` detects screenshots / agents / messages / WordInk / Wisp / finance / fan (and GPU/NPU labels) and offers Enable for each. Nothing hard-depends on Luke’s private shell config or on other duketopceo plugins.
+**Public plugin:** install alone on a clean Omarchy box. You get clock/date, weather, media ears, timer/charging, and hover → Home / Media / Network / Power / System / Stocks / Plugins / Settings. Optional modules (agents, messages, screenshots, Dayflow, island HUD, notification hosting) stay off or detect-gated until you enable them. Nothing hard-depends on a personal machine config.
 
 ## Platform (honest)
 
@@ -23,9 +23,15 @@ From this umbrella repo:
 # then enable io.github.duketopceo.notch in Omarchy plugin settings / shell.json
 ```
 
-Or from the monorepo: `omarchy plugin add https://github.com/duketopceo/omarchy-plugins` (plugin id `io.github.duketopceo.notch`).
+Marketplace / standalone (after publish):
 
-No other duketopceo plugins are required. Optional host tools (when present): `tailscale`, `nordvpn`, MPRIS players, `wordink`, Blip (`nixfred.blip`), herdr, snapdex, lukedaduke.fan.
+```bash
+omarchy plugin add https://github.com/duketopceo/omarchy-notch
+```
+
+Umbrella authoring repo: `duketopceo/omarchy-plugins` (this tree). Plugin id stays `io.github.duketopceo.notch`.
+
+No other duketopceo plugins are required. Optional host tools (when present): `tailscale`, `nordvpn`, MPRIS players, `wordink`, Blip (`nixfred.blip`), herdr, snapdex, lukedaduke.fan, Dayflow.
 
 ## Setup (optional modules)
 
@@ -43,10 +49,11 @@ No other duketopceo plugins are required. Optional host tools (when present): `t
 
 Built-in (always on): Home, Media, Network, Power, System, Stocks, Plugins, Settings. GPU/NPU on System are **labels from probe** (Asahi AGX / NVIDIA / AMD / Intel / none; ANE when present) — utilization is not claimed where the kernel does not expose it.
 
-- On panels with a camera cutout (Omarchy's `display-cutouts.json`) it hugs the camera: time in the left ear, date in the right ear.
-- On other screens it is a virtual notch with the same content on one line.
-- The ear text hugs the camera (6 px gap: left ear right-aligned, right ear left-aligned) and the island is exactly the cutout height.
-- Idle: clock and date, with the current weather sliding in every half minute. While music plays, the track title takes the right ear.
+- Compact look is a **floating pill** (`IslandGeom.js`, ~28px) — not a square-top cutout fill.
+- Time/date in the ears; live activities (media, timer, charging, …) take the right ear; otherwise weather/stocks idle rotation.
+- On externals / notchless panels: virtual pill with the same behavior.
+- **Fullscreen:** idle island unmaps under real Hyprland fullscreen (mode bit 2) so Overlay does not block direct scanout (`hideOnFullscreen`, default on).
+- **Notifications:** stock Omarchy keeps `org.freedesktop.Notifications` by default. Opt-in `hostNotifications` requires adding `omarchy.notifications` to `disabledPlugins` first (only one D-Bus owner). Full island card UI is phased; Settings shows the conflict warning when opted in without the disable.
 
 Weather comes from Open-Meteo (free, no key) for the place set in Omarchy's weather settings, fetched at most every 15 minutes by `bin/notch-data` into `~/.cache/omarchy/notch.json`. Stock quotes use Yahoo's public endpoints for the Omarchy finance watchlist (or this plugin's `stocks.watchlist` setting).
 

@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "io.github.duketopceo.notch",
   "name": "Notch",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "author": "duketopceo",
   "license": "MIT",
   "homepage": "https://github.com/duketopceo/omarchy-plugins",
-  "description": "Dynamic Island pill (IslandGeom: 28px); activity expand. Tab dashboard ports next.",
+  "description": "Public Dynamic Island for Omarchy: pill morphs to tabbed dashboard; optional HUD/notifications.",
   "kinds": [
     "panel"
   ],
