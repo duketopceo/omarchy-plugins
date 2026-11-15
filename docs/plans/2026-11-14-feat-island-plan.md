@@ -441,7 +441,7 @@ catalog.json (entry added)
 - **Approach:** The check script walks the pointer through AE1, AE2, AE3 and AE5 on each screen using the U1-confirmed move command, reads `state()` after each step, and exits non-zero on any mismatch; it repeats N times. The review doc records the results; the repo README lists the plugin.
 - **Patterns to follow:** `bin/` helper conventions in `plugins/io.github.duketopceo.hotkey-tally/bin/`.
 - **Test expectation:** none -- live-only script; its own run is the evidence, recorded in the review doc.
-- **Verification:** 20 consecutive passes on eDP-1 and DP-3; the full CI gate list passes locally.
+- **Verification:** 20 consecutive passes on eDP-1 and DP-3, with the script moving the pointer in small interpolated steps as well as single jumps; one manual pass with the real trackpad and mouse on each screen, recorded in the review doc with any accidental opens; the full CI gate list passes locally.
 
 ---
 
