@@ -40,18 +40,6 @@ function rect(zone, g) {
                  width: g.compactWidth + 2 * PILL_SLOP, height: g.compactHeight + PILL_SLOP }, w)
 }
 
-// The visible shape for a zone, without slop, centered at the top.
-function visualRect(zone, g) {
-  var w = windowSize(g)
-  var cw = zone === "card" ? g.card.width : g.compactWidth
-  var ch = zone === "card" ? g.card.height : g.compactHeight
-  return { x: (w.width - cw) / 2, y: 0, width: cw, height: ch }
-}
-
-function contains(r, x, y) {
-  return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height
-}
-
 // One screen's entry in the IPC `state` reply.
 function snapshot(screenName, model, zoneRect) {
   var m = model || {}
@@ -68,5 +56,5 @@ function snapshot(screenName, model, zoneRect) {
 
 if (typeof module !== "undefined") module.exports = {
   PILL_SLOP: PILL_SLOP, CARD_SLOP: CARD_SLOP,
-  windowSize: windowSize, rect: rect, visualRect: visualRect, contains: contains, snapshot: snapshot
+  windowSize: windowSize, rect: rect, snapshot: snapshot
 }

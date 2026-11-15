@@ -77,19 +77,6 @@ def test_narrow_screen_zone_stays_inside_window():
         assert r["y"] >= 0 and r["y"] + r["height"] <= w["height"]
 
 
-def test_visual_rects_are_centered_and_inside_their_zone():
-    g = geom(MAC_SCREEN)
-    for z in ("pill", "card"):
-        v = run(f"Zone.visualRect('{z}',{g})")
-        r = run(f"Zone.rect('{z}',{g})")
-        assert v["x"] >= r["x"] and v["x"] + v["width"] <= r["x"] + r["width"]
-        assert v["y"] == 0 and v["height"] <= r["height"]
-
-
-def test_contains_is_half_open():
-    assert run("Zone.contains({x:0,y:0,width:10,height:5},0,0)") is True
-    assert run("Zone.contains({x:0,y:0,width:10,height:5},10,2)") is False
-    assert run("Zone.contains({x:0,y:0,width:10,height:5},9,5)") is False
 
 
 def test_snapshot_reports_state_flags_and_zone():

@@ -17,7 +17,7 @@ import "Screens.js" as Screens
 PanelWindow {
   id: win
 
-  // The Island root: settings, probe, fullscreenOn(), readCursor(), saveSettings().
+  // The Island root: settings, probe, cameraWidth, fullscreenOn(), saveSettings().
   property var island: null
   required property var modelData
 
@@ -46,7 +46,7 @@ PanelWindow {
   readonly property var monitor: Hyprland.monitorFor(win.screen)
   readonly property var screenInfo: Screens.describe(win.screen, win.monitor ? win.monitor.lastIpcObject : null)
   readonly property var geom: Geom.compute(win.island ? win.island.probe : null, win.screenInfo,
-                                          win.island && win.island.settings ? win.island.settings.cameraWidth : 0)
+                                          win.island ? win.island.cameraWidth : 0)
   readonly property var winSize: Zone.windowSize(win.geom)
   readonly property var zoneRect: Zone.rect(win.zone, win.geom)
 

@@ -50,6 +50,8 @@ Item {
   property string shellText: ""
   readonly property var resolved: Settings.resolve(root.shellText, root.pluginId)
   readonly property var settings: root.resolved.settings
+  // A primitive, so an unrelated shell.json edit does not re-run each window's geometry.
+  readonly property int cameraWidth: root.settings ? (root.settings.cameraWidth || 0) : 0
   readonly property bool entryExists: root.resolved.entryExists
 
   FileView {
