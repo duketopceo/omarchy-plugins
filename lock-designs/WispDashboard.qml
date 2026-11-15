@@ -263,7 +263,7 @@ DesignBase {
     Tile {
       icon: weather.glyph
       label: lock.tr("Weather")
-      value: weather.failed || !weather.current ? "—" : weather.tempC
+      value: weather.failed || !weather.current ? "—" : weather.tempF
       sub: weather.failed ? lock.tr("Offline") : [weather.condition, weather.place].filter(function(s) { return s && s.length }).join(" · ")
     }
     Tile {
