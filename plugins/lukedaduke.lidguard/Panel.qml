@@ -296,6 +296,14 @@ Panel {
           }
         }
 
+        Text {
+          width: parent.width
+          text: "Disarms when unplugged"
+          textFormat: Text.PlainText
+          color: root.dim
+          font.family: root.fontFamily; font.pixelSize: Style.font.caption
+        }
+
         // ---- disarm ----
         Rectangle {
           width: parent.width
