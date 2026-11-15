@@ -5,11 +5,14 @@ type: feat
 artifact_contract: ce-unified-plan/v1
 product_contract_source: ce-plan-bootstrap
 execution: code
-status: active
+status: superseded
+superseded_by: docs/plans/2026-11-14-feat-dynamic-island-polished-plan.md
 supersedes:
   - docs/plans/2026-11-13-feat-island-activity-merge-plan.md
   - docs/plans/2026-11-04-0215-feat-notch-island-plan.md
 ---
+
+> **Superseded** by `docs/plans/2026-11-14-feat-dynamic-island-polished-plan.md` (polished public Dynamic Island + useful notch; notifications opt-in). Kept for history.
 
 # Notch finalize — Island ship, then wave2 and dayflow/pxl
 

@@ -39,13 +39,16 @@ def test_tab_list_shape_and_sources():
 def test_optional_tabs_off_by_default_and_setup_keys_exist():
     off = [t["id"] for t in run("T.visibleTabs(S.resolve(null))")]
     assert "screenshots" not in off
-    # local branch keeps Agents/Messages on by default (owner uses both); upstream default is off
-    assert "agents" in off and "messages" in off
+    # Public defaults: Agents/Messages off until Enable (calm install for strangers).
+    assert "agents" not in off and "messages" not in off
     assert "network" in off and "stocks" in off and "plugins" in off
     on = [t["id"] for t in run("T.visibleTabs(S.resolve({snapdex:true,optAgents:true,optMessages:true}))")]
     assert set(["screenshots", "agents", "messages"]).issubset(on)
     assert run("S.DEFAULTS.snapdex") is False
-    assert run("S.DEFAULTS.optAgents") is True
+    assert run("S.DEFAULTS.optAgents") is False
+    assert run("S.DEFAULTS.optMessages") is False
+    assert run("S.DEFAULTS.hostNotifications") is False
+    assert run("S.DEFAULTS.hideOnFullscreen") is True
     assert run("S.DEFAULTS.setupDone") is False
     assert run("S.field('snapdex').type") == "bool"
     prefs = [f["key"] for f in run("S.prefFields()")]
