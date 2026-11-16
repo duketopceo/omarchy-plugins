@@ -6,14 +6,39 @@ its own when the pointer leaves. On MacBook panels it sits on the camera
 cutout; on other screens it is a virtual pill of the same shape.
 
 P1 is the shell (pill, hover open and close, fixed-size card, fullscreen
-step-aside, settings). P2 adds the live activities below. More pages arrive in
-later phases.
+step-aside, settings). P2 adds the live activities below. 0.3.0 brings it
+close to Apple's Dynamic Island (see Presentation). More pages arrive in later
+phases.
+
+## Presentation
+
+- **Black on the notch.** On a MacBook panel with a camera cutout the closed
+  pill (and the bubble) is pure black, so it merges with the cutout. Text and
+  accents keep the theme's colors (the theme background is used for text when
+  the theme's text would not read on black). The open card and alerts use the
+  theme's popup colors on every screen; screens without a cutout keep the
+  theme-colored pill.
+- **Spring morph.** Opening, and an alert growing, overshoot slightly and
+  settle; closing eases out. The pill's width follows its content (each ear
+  56 to 120 px). With reduced motion (Hyprland animations off) everything
+  snaps.
+- **Split bubble.** With two live activities the second is a small circle to
+  the right of the pill. Hovering it opens the card as usual; clicking it opens
+  the card with that activity on top.
+- **Alerts.** For about 3 s the island grows to say: charging started
+  (battery ring and percent), timer done, a Bluetooth audio device connected
+  (name and battery), Do Not Disturb on or off, and microphone muted or on.
+  An alert never takes keyboard focus, never shows under a fullscreen window
+  (it is dropped, not saved for later) or while the card is open, and ends
+  as soon as the pointer comes to rest on the pill. The mic-mute alert follows
+  the volume HUD's rule: it shows only after you disable `omarchy.osd`,
+  because Omarchy's OSD already shows mic mute.
 
 ## Live activities
 
 What is happening now shows in the pill's right ear (glyph and a short form,
 such as `0:12` or `46%`); with nothing live the ear shows the date. A second
-live activity shows only as an icon at the ear's outer edge. On the card's Now
+live activity shows as the split bubble beside the pill. On the card's Now
 page the top activity gets its controls and up to two more activities get a
 row each. While the card is open nothing moves under the pointer: a new
 activity takes a free row, never the top.
@@ -21,10 +46,12 @@ activity takes a free row, never the top.
 | Activity | Source | Card controls | Priority |
 |---|---|---|---|
 | Dictation | the local `wordink` CLI | Stop (transcribes and pastes, like the shortcut) | 90 |
+| Screen recording | Omarchy's recorder (`omarchy screenrecord`) | elapsed time, Stop (`omarchy-capture-screenrecording --stop-recording`) | 88 |
 | Volume and brightness (opt-in) | PipeWire default sink, internal backlight | level bar, about 1.6 s | 80 |
 | Timer | the Island's own | pause or resume, +1 min, cancel | 70 |
 | Media | MPRIS | art, title and artist, scrub, previous, play or pause, next | 50 |
 | Charging | `/sys/class/power_supply` | percent and time to full, about 6 s | 30 |
+| Bluetooth audio | BlueZ through Quickshell | name and battery; card only, never the ear or bubble | 20 |
 
 - Media stays for 10 minutes after a player pauses. Album art shows only from
   local `file:` or `data:` URLs; players that publish `https://` art (Spotify,
@@ -33,7 +60,27 @@ activity takes a free row, never the top.
 - The charging notice shows when the battery starts charging. With a charge
   limit, plugging in at or above the limit reports "Not charging", so no
   notice shows.
+- While media plays, its ear glyph is a moving equalizer. When the track's
+  art is a local file, the equalizer, scrub bar and play button take a color
+  from the art; `data:` art (mpv) keeps the theme accent, because Quickshell's
+  color quantizer reads files only.
 - A missing tool hides its activity and shows no error.
+
+### Indicators
+
+Indicators do not count as activities and never take the ear.
+
+- **Mic and camera in use:** an orange dot (microphone) and a green dot
+  (camera) right of the camera cutout. The microphone counts PipeWire capture
+  streams the way Omarchy's bar does, minus passive and monitor streams (the
+  Asahi DSP always captures); the camera counts the owner's processes holding a
+  `/dev/video*` capture device open (`bin/island-camera`, one long-running
+  watcher; codec nodes such as `avd` do not count). The hues are Apple's; their
+  saturation and lightness come from the theme's urgent color.
+- **Do Not Disturb:** a bell-off glyph beside the time while Omarchy's
+  notifications are silenced. The card's Do Not Disturb button runs
+  `omarchy-toggle-notification-silencing`. Both hide when `omarchy.notifications`
+  is disabled.
 
 ### Timer
 
@@ -88,6 +135,11 @@ Island writes nothing else there.
 | `media` | true | true/false | show the MPRIS media activity |
 | `charging` | true | true/false | show the charging notice |
 | `hud` | true | true/false | show the volume and brightness level once `omarchy.osd` is disabled |
+| `screenRecording` | true | true/false | show Omarchy's screen recording |
+| `privacy` | true | true/false | show the mic and camera dots |
+| `dnd` | true | true/false | show Do Not Disturb and its card button |
+| `bluetooth` | true | true/false | show Bluetooth audio devices |
+| `alerts` | true | true/false | show transient alerts |
 
 The Settings page in the card edits all of these.
 
@@ -105,8 +157,9 @@ The Island never runs it and never edits the bar layout.
 ## Probe
 
 `bin/island-probe` prints one JSON object (platform, which optional tools
-exist, display cutouts, device model, battery and backlight names). It checks
-existence only and makes no network calls.
+exist, including Omarchy's own commands in `/usr/share/omarchy/bin`, display
+cutouts, device model, battery and backlight names). It checks existence only
+and makes no network calls.
 
 ## IPC
 
@@ -122,18 +175,24 @@ qs -p /usr/share/omarchy/shell ipc call island close
 qs -p /usr/share/omarchy/shell ipc call island state           # JSON, one object per screen
 qs -p /usr/share/omarchy/shell ipc call island timer 5m        # "ok" or "invalid"
 qs -p /usr/share/omarchy/shell ipc call island act media toggle
+qs -p /usr/share/omarchy/shell ipc call island preview charging # sample alert
 ```
 
 `act <id> <action>` does what the matching card control does and returns `ok`
-or `unknown`: `dictation stop`; `media toggle|next|previous`;
-`timer pause|resume|add|cancel` (`add` is +1 min).
+or `unknown`: `dictation stop`; `screenrec stop`; `media toggle|next|previous`;
+`timer pause|resume|add|cancel` (`add` is +1 min). `preview <kind>` shows a
+sample alert (`charging`, `timer`, `bluetooth`, `dnd`, `mic`) and returns `ok`,
+`off` (alerts disabled) or `unknown`.
 
 `open`, `toggle` and `focus` give the card keyboard focus. An IPC-opened card
 stays until the pointer has entered and left it, or 5 s pass untouched.
 `state` reports per screen: `screen`, `state`, `flags`, the hot-zone `rect`
 (and `pillRect`, `cardRect`, `origin`, `window`, `pinCenter`, `hidden`), the
-`top` and `second` activity ids, the card's `held` order, and `activities`
-(every live activity's `id`, `priority`, `text` and `card`).
+`top` and `second` activity ids, the card's `held` order, `activities`
+(every live activity's `id`, `priority`, `text` and `card`), `presentation`
+(`mode`: compact, split, alert or expanded; `surface`; pill and ear width;
+`bubble`), the shown `alert`, and `indicators` (`mic`, `camera`, `dnd`,
+`dndAvailable`, `recording`, `mediaTint`).
 
 ## Hover check
 
@@ -154,4 +213,5 @@ it cannot read the island state or the session reports locked. The click and
 Esc cases need `ydotool` (with `ydotoold` running) and `wtype`; without them
 those cases are reported as skipped and the exit status is 2 (`--allow-skip`
 makes it 0). Pass `--open-delay` and `--close-delay` if you changed the
-settings, and `--qs-args` to select a different running shell.
+settings, and `--qs-args` to select a different running shell. Exit status:
+0 passed, 1 mismatch, 2 refused or skipped, 3 the `--deadline` ran out.
