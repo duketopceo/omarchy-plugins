@@ -183,3 +183,44 @@ def test_unfocus_when_closed_or_unfocused_is_unchanged():
     out = drive(["unfocus", "click", "unfocus"])
     assert out[0]["state"] == "closed" and out[0]["timer"] == KEEP
     assert out[2]["model"] == out[1]["model"] and out[2]["timer"] == KEEP
+
+
+# ---- hover intent (pointer-speed gate on the open timer) ----
+
+def TM(hovered, moving):
+    return {"type": "timer", "hovered": hovered, "moving": moving}
+
+
+def test_intent_moving_pointer_stays_arming_and_rechecks():
+    out = drive(["enter", TM(True, True)])
+    assert states(out) == ["arming", "arming"]
+    assert out[1]["timer"] == 40 and out[1]["model"]["timerKind"] == "open"
+
+
+def test_intent_opens_once_pointer_rests():
+    out = drive(["enter", TM(True, True), TM(True, False)])
+    assert states(out) == ["arming", "arming", "open"] and out[-1]["timer"] == 0
+
+
+def test_intent_moving_then_leave_closes():
+    out = drive(["enter", TM(True, True), "leave"])
+    assert states(out)[-1] == "closed" and out[-1]["timer"] == 0
+
+
+def test_intent_moving_outside_closes():
+    out = drive(["enter", TM(False, True)])
+    assert states(out)[-1] == "closed"
+
+
+def test_intent_timer_without_moving_opens_as_before():
+    out = drive(["enter", T(True)])
+    assert states(out)[-1] == "open"
+
+
+def test_intent_ignored_by_close_and_summon_timers():
+    out = drive(["enter", T(True), "leave", TM(False, True)])
+    assert states(out)[-1] == "closed"
+    out = drive(["summon", TM(False, True)])
+    assert states(out)[-1] == "closed"
+    out = drive(["enter", T(True), "leave", TM(True, True)])
+    assert states(out)[-1] == "open"

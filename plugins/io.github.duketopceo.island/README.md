@@ -33,6 +33,11 @@ phases.
   as soon as the pointer comes to rest on the pill. The mic-mute alert follows
   the volume HUD's rule: it shows only after you disable `omarchy.osd`,
   because Omarchy's OSD already shows mic mute.
+- **Hover intent.** The card opens when the pointer arrives and rests, not
+  when it passes over. When the open delay runs out while the pointer is
+  still moving fast (0.5 px/ms or more over the last 80 ms), the Island looks
+  again 40 ms later instead of opening; a pointer that leaves first never
+  opens it. Clicking the pill still opens it at once.
 
 ## Live activities
 
@@ -50,6 +55,7 @@ activity takes a free row, never the top.
 | Volume and brightness (opt-in) | PipeWire default sink, internal backlight | level bar, about 1.6 s | 80 |
 | Timer | the Island's own | pause or resume, +1 min, cancel | 70 |
 | Media | MPRIS | art, title and artist, scrub, previous, play or pause, next | 50 |
+| Calendar | `bin/island-calendar` (see below) | next event title and time, Join for a meeting link | 40 |
 | Charging | `/sys/class/power_supply` | percent and time to full, about 6 s | 30 |
 | Bluetooth audio | BlueZ through Quickshell | name and battery; card only, never the ear or bubble | 20 |
 
@@ -74,6 +80,30 @@ activity takes a free row, never the top.
   that loads, including `https:` and `data:`); with no art they use the theme
   accent.
 - A missing tool hides its activity and shows no error.
+
+### Calendar
+
+`bin/island-calendar` reads the next 24 hours of timed events (all-day events
+are skipped) from the first source that exists, in this order: Omarchy's
+calendar file (`~/.local/state/omarchy/calendar-events.json`, written by
+`omarchy-calendar-sync-all`), `khal`, `gcalcli`, then evolution-data-server.
+That source is used even when nothing is due, so later sources are not run
+on every poll; only a tool that fails falls through to the next. It is
+read-only and makes no network call of its own; `gcalcli` talks to Google as
+it always does. The Island runs it once a minute, or every 10 minutes while
+no source exists.
+
+- When a long event is already under way, the next meeting still gets its
+  countdown and Join; the long event shows only when nothing else is coming.
+
+- Within 10 minutes of the start the ear counts down (`in 8m`), then shows
+  `now` for the event's first 10 minutes. Otherwise the event is a card row
+  only: `Title · 09:30`.
+- **Join** shows when the event's link, location or notes hold an https
+  Zoom (`zoom.us` and its subdomains), Google Meet or Microsoft Teams link,
+  matched on the exact host (a plain hostname only: no user part, backslash
+  or escapes). It opens the link with `xdg-open`.
+- With no calendar source the activity never shows.
 
 ### Indicators
 
@@ -149,6 +179,7 @@ Island writes nothing else there.
 | `privacy` | true | true/false | show the mic and camera dots |
 | `dnd` | true | true/false | show Do Not Disturb and its card button |
 | `bluetooth` | true | true/false | show Bluetooth audio devices |
+| `calendar` | true | true/false | show the next calendar event (off stops the poll) |
 | `alerts` | true | true/false | show transient alerts |
 
 The Settings page in the card edits all of these.

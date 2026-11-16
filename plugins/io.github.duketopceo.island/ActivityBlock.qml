@@ -98,6 +98,14 @@ Item {
       onClicked: block.send("stop")
     }
 
+    // Calendar: Join the next meeting's link
+    ActivityButton {
+      visible: block.kind === "calendar" && Glyphs.primaryControl(block.activity) === "join"
+      label: Glyphs.controlLabel("join", block.activity)
+      emphasized: true
+      onClicked: block.send("join")
+    }
+
     // Timer
     ActivityButton {
       visible: block.kind === "timer" && block.activity.state !== "done"

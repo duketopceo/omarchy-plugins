@@ -11,7 +11,8 @@
 var DEFAULTS = {
   openDelay: 140, closeDelay: 450, cameraWidth: 0,
   dictation: true, media: true, webArt: true, charging: true, hud: true,
-  screenRecording: true, privacy: true, dnd: true, bluetooth: true, alerts: true
+  screenRecording: true, privacy: true, dnd: true, bluetooth: true, alerts: true,
+  calendar: true
 }
 var RANGES = {
   openDelay: [0, 600],

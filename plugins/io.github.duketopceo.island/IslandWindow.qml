@@ -4,6 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons as Commons
 import "Hover.js" as Hover
+import "Intent.js" as Intent
 import "Geom.js" as Geom
 import "Zone.js" as Zone
 import "Screens.js" as Screens
@@ -44,6 +45,11 @@ PanelWindow {
   property string page: "now"
   readonly property bool cardShown: Hover.cardShown(win.model)
   readonly property string zone: Hover.zoneFor(win.model)
+  // Recent pointer motion inside the hot zone, for the hover-intent check on
+  // the open timer (Intent.js). Hot-zone coordinates shift when the zone
+  // commits, so the samples start over then, and on leave.
+  property var motion: []
+  onZoneChanged: win.motion = []
   onCardShownChanged: {
     if (!win.cardShown) win.hold.ids = []
     else { win.zoneCardH = win.geom.card.height; win.zoneFresh = true }
@@ -192,7 +198,8 @@ PanelWindow {
     id: hoverTimer
     interval: 1000 // always overwritten by send() before it starts
     repeat: false
-    onTriggered: win.send({ type: "timer", hovered: hoverHandler.hovered })
+    onTriggered: win.send({ type: "timer", hovered: hoverHandler.hovered,
+                            moving: Intent.moving(win.motion, Date.now()) })
   }
 
   // IPC entry points (the root picks the window).
@@ -245,7 +252,14 @@ PanelWindow {
 
     HoverHandler {
       id: hoverHandler
-      onHoveredChanged: win.send(hovered ? "enter" : "leave")
+      onHoveredChanged: {
+        if (!hovered) win.motion = []
+        win.send(hovered ? "enter" : "leave")
+      }
+      // Motion samples only while arming: that is the one state whose timer
+      // reads them, so an open card costs nothing per pointer move.
+      onPointChanged: if (hovered && win.model.state === "arming")
+        win.motion = Intent.add(win.motion, point.position.x, point.position.y, Date.now())
     }
 
     // Window-sized and window-anchored: the visuals animate inside the

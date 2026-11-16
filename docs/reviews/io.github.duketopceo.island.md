@@ -125,3 +125,11 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1, Spotify playing a podcast
 | Settings page | Full height; "Load album art from the web" sits beside the delay fields |
 | Pause and resume | `act media toggle` twice: paused then playing again |
 | Hover check | Run 3 of 3 passes earlier in the session (two flaky runs while the owner used the pointer); stopped at the owner's request, not re-run on the final build |
+
+### Verification (calendar and hover intent 0.3.2)
+
+| Check | Result |
+|---|---|
+| Hover intent | Node tests only: `Intent.js` speed cases, the `Hover.js` open-timer gate, and a combined simulation of the hover check's stepped move (opens at enter + 140 ms, unchanged), a 1 px/ms pass (never opens) and a pointer that slows and stops (opens once it settles) |
+| Calendar helper | `bin/island-calendar` run by hand on omarchy-max: `{"source": "omarchy", "events": []}` (Omarchy's calendar file exists but holds no events; khal, gcalcli and evolution-data-server are not installed). khal, gcalcli and the allowlist are fixture-tested; the evolution-data-server path is untested (not installed) |
+| Not run live | At the owner's request no pointer was moved and `bin/island-hover-check` was not run. Not installed live either (another branch owns the live install): the calendar row and Join button render, the ten-toggle Settings page fit, and the hover check against this branch wait for install |

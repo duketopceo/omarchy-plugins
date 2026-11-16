@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""Island calendar reader: the next 24 hours of events as one JSON object.
+
+Prints {"source": name, "events": [{"title", "start", "end", "url"}]} with
+epoch-millisecond times, earliest first, at most five, timed events only (no
+all-day events). "url" is a Zoom, Google Meet or Microsoft Teams https link
+found in the event, or "".
+
+Sources, in order: Omarchy's calendar file
+(~/.local/state/omarchy/calendar-events.json, written by
+omarchy-calendar-sync-all), khal, gcalcli, evolution-data-server. The first
+one that exists and answers is used, even with no events due; a tool that
+fails falls through to the next. "none" when nothing is installed.
+
+Read-only: it never writes to a calendar or a file and makes no network call
+of its own (gcalcli, when it is the source, talks to Google as it always does).
+Errors go in an "error" field without event text. Always exits 0.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlsplit
+
+BACKSTOP_SECONDS = 40
+HORIZON_MS = 24 * 3600 * 1000
+DEFAULT_LENGTH_MS = 30 * 60 * 1000
+MAX_EVENTS = 5
+MAX_TITLE = 200
+MEETING_HOSTS = {"meet.google.com", "teams.microsoft.com", "teams.live.com", "zoom.us"}
+SUFFIX_HOSTS = {"zoom.us"}  # subdomains allowed too (us02web.zoom.us)
+URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+TRAILING = ".,;:!?)]}>'\""
+URL_FIELDS = ("url", "hangoutLink", "conferenceUrl", "meetingUrl", "conference", "location", "description", "notes")
+# The whole authority must be a plain hostname (and optional port): no
+# userinfo, no backslash (browsers read "a\.zoom.us" as host "a"), no
+# percent-escapes or other characters a URL parser might treat differently.
+NETLOC_RE = re.compile(r"[a-z0-9.-]+(?::[0-9]+)?", re.IGNORECASE)
+
+
+def meeting_url(*texts: object) -> str:
+    """First allowlisted https meeting link in the given texts, or ""."""
+    for text in texts:
+        if not isinstance(text, str):
+            continue
+        for m in URL_RE.finditer(text):
+            url = m.group(0).rstrip(TRAILING)
+            if "\\" in url:
+                continue
+            try:
+                parts = urlsplit(url)
+                host = (parts.hostname or "").lower()
+            except ValueError:
+                continue
+            if parts.scheme.lower() != "https" or not NETLOC_RE.fullmatch(parts.netloc):
+                continue
+            if host in MEETING_HOSTS or any(host.endswith("." + s) for s in SUFFIX_HOSTS):
+                return url
+    return ""
+
+
+# ---- time parsing ----
+
+DATE_FORMATS = ["%Y-%m-%d", "%d.%m.%Y", "%m/%d/%Y", "%d/%m/%Y", "%Y/%m/%d"]
+TIME_FORMATS = ["%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M%p", "%I:%M:%S %p"]
+
+
+def parse_time_of_day(text: str):
+    for f in TIME_FORMATS:
+        try:
+            return datetime.strptime(text.strip(), f).time()
+        except ValueError:
+            pass
+    return None
+
+
+def parse_moment(text: object, day: object = None):
+    """-> (epoch ms, all_day) or None. Naive times are local time."""
+    if isinstance(text, (int, float)) and not isinstance(text, bool):
+        return int(text if text > 1e11 else text * 1000), False
+    if not isinstance(text, str) or not text.strip():
+        if isinstance(day, str):
+            d = parse_date(day)
+            if d:
+                return int(datetime(d.year, d.month, d.day).timestamp() * 1000), True
+        return None
+    s = text.strip()
+    if isinstance(day, str) and day.strip():
+        t = parse_time_of_day(s)
+        d = parse_date(day)
+        if t and d:
+            return int(datetime.combine(d, t).timestamp() * 1000), False
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        all_day = len(s) <= 10
+        return int(dt.timestamp() * 1000), all_day
+    except ValueError:
+        pass
+    d = parse_date(s)
+    if d:
+        return int(datetime(d.year, d.month, d.day).timestamp() * 1000), True
+    for df in DATE_FORMATS:
+        for tf in TIME_FORMATS:
+            try:
+                return int(datetime.strptime(s, f"{df} {tf}").timestamp() * 1000), False
+            except ValueError:
+                pass
+    return None
+
+
+def parse_date(text: str):
+    for f in DATE_FORMATS:
+        try:
+            return datetime.strptime(text.strip(), f).date()
+        except ValueError:
+            pass
+    return None
+
+
+def truthy(v: object) -> bool:
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "yes", "1")
+    return v is True
+
+
+def normalize(raw: dict, now: int):
+    """One raw event dict -> output event, or None when it does not qualify."""
+    if not isinstance(raw, dict):
+        return None
+    title = raw.get("title") or raw.get("summary") or ""
+    title = " ".join(str(title).split())[:MAX_TITLE] or "Event"
+    day = raw.get("dateKey") or raw.get("date")
+    if truthy(raw.get("allDay")) or truthy(raw.get("all_day")) or truthy(raw.get("all-day")):
+        return None
+    start = parse_moment(raw.get("start"), day)
+    if not start or start[1]:
+        return None
+    end = parse_moment(raw.get("end"), raw.get("endDateKey") or day)
+    end_ms = end[0] if end and not end[1] and end[0] > start[0] else start[0] + DEFAULT_LENGTH_MS
+    if end_ms <= now or start[0] >= now + HORIZON_MS:
+        return None
+    url = meeting_url(*(raw.get(k) for k in URL_FIELDS))
+    return {"title": title, "start": start[0], "end": end_ms, "url": url}
+
+
+def finish(raws, now: int):
+    out = [e for e in (normalize(r, now) for r in raws) if e]
+    out.sort(key=lambda e: (e["start"], e["title"]))
+    return out[:MAX_EVENTS]
+
+
+# ---- sources: each returns a list of raw dicts, or None when unavailable ----
+
+class Unavailable(Exception):
+    pass
+
+
+def run_tool(argv: list[str], deadline: float) -> str:
+    try:
+        r = subprocess.run(argv, check=False, capture_output=True, text=True, timeout=deadline,
+                           stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"{argv[0]} timed out") from None
+    except OSError:
+        raise RuntimeError(f"{argv[0]} could not run") from None
+    if r.returncode != 0:
+        raise RuntimeError(f"{argv[0]} exited {r.returncode}")
+    return r.stdout
+
+
+def omarchy_source(now: int, deadline: float):
+    state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+    f = state / "omarchy" / "calendar-events.json"
+    if not f.is_file():
+        raise Unavailable
+    try:
+        doc = json.loads(f.read_text())
+    except (OSError, ValueError):
+        raise Unavailable from None
+    events = doc.get("events") if isinstance(doc, dict) else doc
+    if not isinstance(events, list):
+        raise Unavailable
+    return events
+
+
+KHAL_FIELDS = ["title", "start", "end", "location", "description", "url", "all-day"]
+
+
+def khal_source(now: int, deadline: float):
+    if not shutil.which("khal"):
+        raise Unavailable
+    argv = ["khal", "list"]
+    for k in KHAL_FIELDS:
+        argv += ["--json", k]
+    argv += ["today", "2d"]
+    events = []
+    for line in run_tool(argv, deadline).splitlines():
+        line = line.strip()
+        if not line.startswith("["):
+            continue
+        try:
+            chunk = json.loads(line)
+        except ValueError:
+            continue
+        events += [e for e in chunk if isinstance(e, dict)]
+    return events
+
+
+def gcalcli_source(now: int, deadline: float):
+    if not shutil.which("gcalcli"):
+        raise Unavailable
+    start = datetime.fromtimestamp(now / 1000).strftime("%Y-%m-%dT%H:%M")
+    end = datetime.fromtimestamp((now + HORIZON_MS) / 1000).strftime("%Y-%m-%dT%H:%M")
+    argv = ["gcalcli", "--nocolor", "agenda", "--tsv", "--details", "location", "--details", "description",
+            "--details", "conference", start, end]
+    lines = [ln for ln in run_tool(argv, deadline).splitlines() if ln.strip()]
+    if not lines:
+        return []
+    header = lines[0].split("\t")
+    if "start_date" in header:
+        cols, rows = header, lines[1:]
+    else:
+        cols, rows = ["start_date", "start_time", "end_date", "end_time", "title"], lines
+    events = []
+    for row in rows:
+        rec = dict(zip(cols, row.split("\t")))
+        st, et = rec.get("start_time", ""), rec.get("end_time", "")
+        events.append({
+            "title": rec.get("title", ""),
+            "dateKey": rec.get("start_date", ""), "start": st,
+            "endDateKey": rec.get("end_date", ""), "end": et,
+            "allDay": not st,
+            "location": rec.get("location", ""), "description": rec.get("description", ""),
+            "conference": " ".join(v for k, v in rec.items() if k.startswith("conference")),
+        })
+    return events
+
+
+def eds_source(now: int, deadline: float):
+    """evolution-data-server through GObject introspection, when installed."""
+    if os.environ.get("ISLAND_CALENDAR_NO_EDS"):
+        raise Unavailable
+    try:
+        import gi
+        gi.require_version("ECal", "2.0")
+        gi.require_version("EDataServer", "1.2")
+        gi.require_version("ICalGLib", "3.0")
+        from gi.repository import ECal, EDataServer, ICalGLib
+    except (ImportError, ValueError):
+        raise Unavailable from None
+    utc = ICalGLib.Timezone.get_utc_timezone()
+    start_s, end_s = now // 1000, (now + HORIZON_MS) // 1000
+    registry = EDataServer.SourceRegistry.new_sync(None)
+    events = []
+    for source in registry.list_enabled(EDataServer.SOURCE_EXTENSION_CALENDAR):
+        try:
+            client = ECal.Client.connect_sync(source, ECal.ClientSourceType.EVENTS, int(deadline), None)
+        except Exception:  # one broken account must not hide the rest
+            continue
+
+        def add(comp, istart, iend, *_):
+            summary = comp.get_summary()
+            desc = [d.get_value() for d in (comp.get_descriptions() or []) if d]
+            events.append({
+                "title": summary.get_value() if summary else "",
+                "start": istart.as_timet_with_zone(utc), "end": iend.as_timet_with_zone(utc),
+                "allDay": istart.is_date(),
+                "location": comp.get_location() or "", "description": " ".join(v for v in desc if v),
+                "url": comp.get_url() if hasattr(comp, "get_url") else "",
+            })
+            return True
+
+        try:
+            client.generate_instances_sync(start_s, end_s, None, add)
+        except Exception:
+            continue
+    return events
+
+
+SOURCES = [("omarchy", omarchy_source), ("khal", khal_source), ("gcalcli", gcalcli_source), ("eds", eds_source)]
+
+
+def read(now: int, deadline: float) -> dict:
+    """The first source that exists and answers is the calendar, even with
+    nothing due: later sources are not run on every poll (gcalcli would call
+    Google each minute). A source whose tool fails falls through to the next."""
+    first_error = None
+    for name, fn in SOURCES:
+        try:
+            raws = fn(now, deadline)
+        except Unavailable:
+            continue
+        except RuntimeError as e:
+            first_error = first_error or {"source": name, "events": [], "error": str(e)}
+            continue
+        return {"source": name, "events": finish(raws, now)}
+    return first_error or {"source": "none", "events": []}
+
+
+def on_backstop(signum, frame):
+    # Report the overrun as JSON; if a blocking C call (EDS) ignores the
+    # exception, the default action ends the process a few seconds later.
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(5)
+    raise TimeoutError("backstop")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--now", type=int, default=None, help="epoch ms (tests)")
+    ap.add_argument("--deadline", type=float, default=8.0, help="seconds per source tool")
+    args = ap.parse_args()
+    now = args.now if args.now is not None else int(time.time() * 1000)
+    try:
+        out = read(now, args.deadline)
+    except Exception as e:  # never crash the shell's poll
+        out = {"source": "none", "events": [], "error": type(e).__name__}
+    signal.alarm(0)
+    json.dump(out, sys.stdout, ensure_ascii=False)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    # Backstop under the Island's 60 s poll: every source tool at its full
+    # deadline still ends well before the next poll would start.
+    signal.signal(signal.SIGALRM, on_backstop)
+    signal.alarm(BACKSTOP_SECONDS)
+    sys.exit(main())

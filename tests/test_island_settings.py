@@ -32,7 +32,8 @@ def js(fn: str, *args):
 
 
 BOOLS = {"dictation": True, "media": True, "webArt": True, "charging": True, "hud": True,
-         "screenRecording": True, "privacy": True, "dnd": True, "bluetooth": True, "alerts": True}
+         "screenRecording": True, "privacy": True, "dnd": True, "bluetooth": True, "alerts": True,
+         "calendar": True}
 DEFAULTS = {"openDelay": 140, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
 
 

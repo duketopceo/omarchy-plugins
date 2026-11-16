@@ -90,6 +90,16 @@
       "export": "not applicable"
     },
     {
+      "id": "island_calendar",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "next calendar event title, start time and meeting link in the Island",
+      "egress": "none; reads the local Omarchy calendar file, khal, gcalcli or evolution-data-server read-only (gcalcli talks to Google as it always does)",
+      "retention": "in memory only, next 24 hours, replaced every minute; nothing written to disk",
+      "pause": true,
+      "delete": "nothing to delete; turning the calendar setting off clears the in-memory events",
+      "export": "not applicable"
+    },
+    {
       "id": "island_album_art",
       "owner": "io.github.duketopceo.island",
       "purpose": "album art display in the Island's Now Playing pill and card",
