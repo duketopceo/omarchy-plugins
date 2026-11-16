@@ -17,8 +17,15 @@ Scope {
   property string source: ""
   property var events: []
   property real now: Date.now()
-  readonly property var activity: src.enabled ? Calendar.activity(src.events, src.now)
-                                              : Calendar.activity([], src.now)
+  // Reassigned only when what it shows changes, so an idle poll or tick does
+  // not rebuild the Island's activity list.
+  property var activity: Calendar.activity([], Date.now())
+  function refresh() {
+    var next = Calendar.activity(src.events, src.now)
+    if (JSON.stringify(next) !== JSON.stringify(src.activity)) src.activity = next
+  }
+  onEventsChanged: src.refresh()
+  onNowChanged: src.refresh()
   readonly property string helperPath: decodeURIComponent(Qt.resolvedUrl("bin/island-calendar").toString().replace("file://", ""))
 
   onEnabledChanged: {
@@ -48,7 +55,8 @@ Scope {
         var r = null
         try { r = JSON.parse(text) } catch (e) { r = null }
         src.now = Date.now()
-        if (!r || !Array.isArray(r.events)) return
+        // A poll that finishes after the setting went off must not refill it.
+        if (!src.enabled || !r || !Array.isArray(r.events)) return
         src.source = String(r.source || "")
         src.events = r.events
       }

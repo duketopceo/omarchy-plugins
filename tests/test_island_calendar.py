@@ -10,7 +10,7 @@ MOD = Path(__file__).resolve().parents[1] / "plugins/io.github.duketopceo.island
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
 
 MIN = 60_000
-# Local midnight is irrelevant: times are rendered with TZ=UTC below.
+# js() runs node with TZ=UTC, so clock() output is deterministic.
 T0 = 1_794_820_920_000  # 2026-11-16 09:22:00 UTC
 
 

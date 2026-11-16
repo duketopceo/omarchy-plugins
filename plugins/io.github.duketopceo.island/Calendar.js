@@ -14,6 +14,8 @@
 var PRIORITY = 40
 var SOON_MS = 10 * 60 * 1000
 var MAX_TITLE = 80
+// Keep both lists in step with MEETING_HOSTS / SUFFIX_HOSTS in
+// bin/island-calendar. SUFFIX_HOSTS also allow subdomains (us02web.zoom.us).
 var HOSTS = ["meet.google.com", "teams.microsoft.com", "teams.live.com", "zoom.us"]
 var SUFFIX_HOSTS = ["zoom.us"]
 

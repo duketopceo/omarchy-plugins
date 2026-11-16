@@ -57,7 +57,7 @@ def test_vertical_motion_counts():
 
 def test_add_caps_and_trims():
     out = run(f"{feed(sweep(0, 400, 1000, 1400, 40))}")
-    assert len(out) <= I_MAX
+    assert len(out) == run("I.MAX_SAMPLES")
     # Only samples inside the keep window survive.
     assert all(s["t"] >= 1400 - 150 for s in out)
     assert out[-1]["x"] == 400 and out[-1]["t"] == 1400
@@ -72,8 +72,6 @@ def test_stale_samples_before_a_gap_are_dropped():
     pts = sweep(0, 200, 0, 100, 10) + [[200, 10, 5000]]
     assert run(f"I.moving({feed(pts)}, 5000)") is False
 
-
-I_MAX = 12
 
 HOVER = INTENT.with_name("Hover.js")
 
