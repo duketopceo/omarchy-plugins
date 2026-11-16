@@ -111,3 +111,11 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1 only (DP-3 not connected),
 | Not run live | Camera dot (observe-only rule: no capture was started; the watcher ran and reported not in use); Bluetooth activity and alert (no device connected; alert path checked with `preview bluetooth`); mic-mute alert (gated on `omarchy.osd` being disabled, which it is not here); clicks on the bubble, DND button and Stop (no click injector) |
 
 Code review (ce-code-review, six lenses on Sonnet, no cross-model peer by owner rule): one finding, the charging alert built before time to full was read, reported by three lenses and fixed (the alert now waits for the read). Residuals also fixed: a default-microphone switch no longer reads as a mute, Bluetooth devices already connected at shell start are a baseline, and a pid change during a recording status check is re-checked. After the fixes: no Island log lines on a shell restart, no startup alert, and `bin/island-hover-check --runs 5 --mode both --allow-skip` passed 5/5 again.
+
+### Verification (calendar and hover intent 0.3.2)
+
+| Check | Result |
+|---|---|
+| Hover intent | Node tests only: `Intent.js` speed cases, the `Hover.js` open-timer gate, and a combined simulation of the hover check's stepped move (opens at enter + 140 ms, unchanged), a 1 px/ms pass (never opens) and a pointer that slows and stops (opens once it settles) |
+| Calendar helper | `bin/island-calendar` run by hand on omarchy-max: `{"source": "omarchy", "events": []}` (Omarchy's calendar file exists but holds no events; khal, gcalcli and evolution-data-server are not installed). khal, gcalcli and the allowlist are fixture-tested; the evolution-data-server path is untested (not installed) |
+| Not run live | At the owner's request no pointer was moved and `bin/island-hover-check` was not run. Not installed live either (another branch owns the live install): the calendar row and Join button render, the ten-toggle Settings page fit, and the hover check against this branch wait for install |
