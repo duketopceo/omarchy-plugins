@@ -6,6 +6,8 @@ import "Settings.js" as Settings
 import "Entry.js" as Entry
 import "Screens.js" as Screens
 import "Fullscreen.js" as Fullscreen
+import "Timer.js" as IslandTimer
+import "Hud.js" as Hud
 
 // The Island's root: loads settings and the capability probe, creates one
 // IslandWindow per screen, watches fullscreen state, and owns the single
@@ -89,6 +91,108 @@ Item {
         try { root.probe = JSON.parse(text) } catch (e) { root.probe = ({}) }
       }
     }
+  }
+
+  // ---- live activities (P2) ----
+  readonly property var tools: root.probe && root.probe.tools ? root.probe.tools : ({})
+  readonly property var power: root.probe && root.probe.power ? root.probe.power : ({})
+
+  DictationSource {
+    id: dictation
+    enabled: root.settings.dictation === true && root.tools.wordink === true
+  }
+
+  MediaSource {
+    id: media
+    enabled: root.settings.media === true
+    cardShown: root.opened
+  }
+
+  ChargingSource {
+    id: charging
+    enabled: root.settings.charging === true
+    battery: root.power.batteries && root.power.batteries.length > 0 ? String(root.power.batteries[0]) : ""
+  }
+
+  readonly property bool hudEffective: Hud.effective(root.settings, root.shellText)
+
+  HudSource {
+    id: hud
+    effective: root.hudEffective
+    backlight: root.power.backlights && root.power.backlights.length > 0 ? String(root.power.backlights[0]) : ""
+  }
+
+  // The Island's own timer (KTD6): an end time, redrawn at each whole second.
+  property var timerModel: IslandTimer.initial()
+  property real timerNow: Date.now()
+  readonly property var timerActivity: IslandTimer.activity(root.timerModel, root.timerNow)
+
+  function timerUpdate(next) {
+    var t = Date.now()
+    var before = root.timerModel.state
+    root.timerModel = IslandTimer.tick(next, t)
+    root.timerNow = t
+    if (before !== "done" && root.timerModel.state === "done" && root.tools["notify-send"] === true)
+      Quickshell.execDetached(["/usr/bin/notify-send", "-a", "Island", "Timer done", "Your Island timer finished."])
+    var wait = IslandTimer.nextTickMs(root.timerModel, t)
+    if (wait > 0) { timerTick.interval = wait; timerTick.restart() }
+    else timerTick.stop()
+  }
+
+  // One-shot, re-armed to the next whole second while a timer shows.
+  Timer {
+    id: timerTick
+    interval: 1000 // always overwritten by timerUpdate() before it starts
+    onTriggered: root.timerUpdate(root.timerModel)
+  }
+
+  // "ok" | "invalid": starts (or restarts) the timer from a spec like 90s, 5m, 1h30m.
+  function startTimer(spec) {
+    var ms = IslandTimer.parse(String(spec || ""))
+    if (ms <= 0) return "invalid"
+    root.timerUpdate(IslandTimer.start(IslandTimer.initial(), ms, Date.now()))
+    return "ok"
+  }
+
+  // Every source's activity in one list; Activity.js lays it out per window.
+  readonly property var activities: [dictation.activity, hud.activity, root.timerActivity, media.activity, charging.activity]
+  // When the list last changed, for Activity.js's expiry check.
+  property real activityClock: Date.now()
+  onActivitiesChanged: root.activityClock = Date.now()
+
+  // One entry point for card controls and IPC (KTD11). Returns "ok" or "unknown".
+  function act(id, action, value) {
+    var now = Date.now()
+    if (id === "dictation" && action === "stop") {
+      // Release keyboard focus first so the paste lands where the owner dictated.
+      var list = windows.instances
+      for (var i = 0; i < list.length; i++) list[i].unfocus()
+      dictation.stop()
+      return "ok"
+    }
+    if (id === "media") {
+      if (action === "toggle") { media.toggle(); return "ok" }
+      if (action === "next") { media.next(); return "ok" }
+      if (action === "previous") { media.previous(); return "ok" }
+      if (action === "seek") { media.seek(Number(value)); return "ok" }
+    }
+    if (id === "timer") {
+      if (action === "pause") { root.timerUpdate(IslandTimer.pause(root.timerModel, now)); return "ok" }
+      if (action === "resume") { root.timerUpdate(IslandTimer.resume(root.timerModel, now)); return "ok" }
+      if (action === "add") { root.timerUpdate(IslandTimer.add(root.timerModel, 60000, now)); return "ok" }
+      if (action === "cancel") { root.timerUpdate(IslandTimer.cancel(root.timerModel)); return "ok" }
+    }
+    return "unknown"
+  }
+
+  function activitiesJson() {
+    var out = []
+    var list = root.activities
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i]
+      if (a && a.active) out.push({ id: a.id, priority: a.priority, text: a.text, card: a.card })
+    }
+    return out
   }
 
   // ---- the pointer position, read on demand ----
@@ -227,7 +331,11 @@ Item {
   function stateJson() {
     var out = []
     var list = windows.instances
-    for (var i = 0; i < list.length; i++) out.push(list[i].snapshot())
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i].snapshot()
+      s.activities = root.activitiesJson()
+      out.push(s)
+    }
     return JSON.stringify(out)
   }
 
@@ -239,5 +347,9 @@ Item {
     function close(): void { root.close() }
     function focus(): void { root.focusCard() }
     function state(): string { return root.stateJson() }
+    // Same actions as the card's controls, e.g. `act media toggle`, `act timer add`.
+    function act(id: string, action: string): string { return root.act(id, action, 0) }
+    // Starts the Island's timer: `timer 5m`, `timer 90s`, `timer 1h30m`.
+    function timer(spec: string): string { return root.startTimer(spec) }
   }
 }
