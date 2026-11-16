@@ -136,7 +136,7 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1, Spotify playing a podcast
 
 ### Live verification (Home dashboard, 0.4.0)
 
-Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, lid closed: HDMI-A-1 (Dell S2721NX, 1920x1080, scale 1) at x 0 and DP-3 (Samsung LS27A800U, 3840x2160, scale 1) at x 1920; eDP-1 off. Copy install, shell restarted. Actions through IPC and grim screenshots only; no pointer moves.
+Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, lid closed at the owner's work desk (work dock, ethernet, USB camera and mic; not the home Odyssey ultrawide): HDMI-A-1 (Dell S2721NX, 1920x1080, scale 1) at x 0 and DP-3 (Samsung LS27A800U, 3840x2160, scale 1) at x 1920; eDP-1 off. Copy install, shell restarted. Actions through IPC and grim screenshots only; no pointer moves.
 
 | Check | Result |
 |---|---|
