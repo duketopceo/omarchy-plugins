@@ -18,7 +18,7 @@ from pathlib import Path
 
 DEADLINE_SECONDS = 4
 TOOLS = ["wordink", "herdr-app", "snapdex-ctl", "blip", "cliphist", "wl-copy",
-         "wpctl", "tailscale", "nordvpn", "dayflow"]
+         "wpctl", "tailscale", "nordvpn", "dayflow", "notify-send"]
 CUTOUTS = "usr/share/omarchy-platform/display-cutouts.json"
 COMPATIBLE = "proc/device-tree/compatible"
 
@@ -52,6 +52,26 @@ def read_model(root: Path) -> str:
     return ""
 
 
+def read_power(root: Path) -> dict:
+    """Battery supplies (type == Battery) and backlight device names; names only."""
+    batteries: list[str] = []
+    try:
+        for name in os.listdir(root / "sys/class/power_supply"):
+            try:
+                kind = (root / "sys/class/power_supply" / name / "type").read_text().strip()
+            except OSError:
+                continue
+            if kind == "Battery":
+                batteries.append(name)
+    except OSError:
+        pass
+    try:
+        backlights = os.listdir(root / "sys/class/backlight")
+    except OSError:
+        backlights = []
+    return {"batteries": sorted(batteries), "backlights": sorted(backlights)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="")
@@ -69,6 +89,7 @@ def main() -> int:
         "tools": {t: on_path(t, dirs) for t in TOOLS},
         "cutouts": read_cutouts(root),
         "model": read_model(root),
+        "power": read_power(root),
     }
     sys.stdout.write(json.dumps(out) + "\n")
     return 0
