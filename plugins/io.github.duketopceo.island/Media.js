@@ -47,9 +47,23 @@ function pick(players, heldName, lastPlayedAt, now) {
   return best
 }
 
-// Art loads only from local sources: file: and data: (scheme is case-insensitive).
-function artUrl(url) {
-  return typeof url === "string" && /^(file|data):/i.test(url) ? url : ""
+var ART_MAX = 2048
+
+// Art URLs the card may load: local file: and data: always (scheme is
+// case-insensitive); https: only when allowWeb is true, and never with
+// credentials in the URL, an empty host, or a loopback or IP-literal host
+// (art is for display, not for probing the local network).
+function artUrl(url, allowWeb) {
+  if (typeof url !== "string" || url === "" || url.length > ART_MAX) return ""
+  if (/^(file|data):/i.test(url)) return url
+  if (allowWeb !== true) return ""
+  var m = /^https:\/\/([^\/?#]*)/i.exec(url)
+  if (!m) return ""
+  var auth = m[1]
+  if (auth === "" || auth.indexOf("@") >= 0) return ""
+  var host = auth.replace(/:\d*$/, "").toLowerCase()
+  if (host === "" || host === "localhost" || host.charAt(0) === "[" || /^\d+(\.\d+){3}$/.test(host)) return ""
+  return url
 }
 
 function fmt(seconds) {
@@ -61,12 +75,21 @@ function fmt(seconds) {
   return m + ":" + ss
 }
 
+// Time left as "-M:SS", or "" when the length is unknown.
+function fmtRemaining(position, length) {
+  var len = Number(length)
+  if (!(len > 0)) return ""
+  var left = Math.max(0, len - Math.max(0, Number(position) || 0))
+  return "-" + fmt(left)
+}
+
 function seekTarget(fraction, length) {
   if (!(length > 0)) return 0
   return Math.min(length, Math.max(0, fraction * length))
 }
 
-function activity(player, now) {
+// allowWeb: the owner's "Load album art from the web" setting.
+function activity(player, now, allowWeb) {
   if (!player) return { id: "media", active: false, priority: PRIORITY, text: "", glyph: "", card: "" }
   return {
     id: "media", active: true, priority: PRIORITY,
@@ -74,7 +97,10 @@ function activity(player, now) {
     glyph: player.playing ? GLYPHS.play : GLYPHS.pause,
     card: player.title || "",
     artist: player.artist || "",
-    art: artUrl(player.artUrl),
+    subtitle: player.artist || player.album || "",
+    identity: player.identity || "",
+    desktopEntry: player.desktopEntry || "",
+    art: artUrl(player.artUrl, allowWeb),
     playing: !!player.playing,
     position: player.position, length: player.length,
     canSeek: !!player.canSeek, canGoNext: !!player.canGoNext, canGoPrevious: !!player.canGoPrevious,
@@ -84,5 +110,5 @@ function activity(player, now) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  PAUSE_GRACE_MS: PAUSE_GRACE_MS, pick: pick, activity: activity, artUrl: artUrl, fmt: fmt, seekTarget: seekTarget
+  PAUSE_GRACE_MS: PAUSE_GRACE_MS, pick: pick, activity: activity, artUrl: artUrl, fmt: fmt, fmtRemaining: fmtRemaining, seekTarget: seekTarget
 }

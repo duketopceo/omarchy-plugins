@@ -59,17 +59,26 @@ activity takes a free row, never the top.
 | Charging | `/sys/class/power_supply` | percent and time to full, about 6 s | 30 |
 | Bluetooth audio | BlueZ through Quickshell | name and battery; card only, never the ear or bubble | 20 |
 
-- Media stays for 10 minutes after a player pauses. Album art shows only from
-  local `file:` or `data:` URLs; players that publish `https://` art (Spotify,
-  browsers) show a music glyph instead, because loading it would be network
-  egress.
+- Media stays for 10 minutes after a player pauses. The pill shows the album
+  art as a rounded thumbnail on the left and equalizer bars on the right (still
+  and dim when paused), with no title text, so it stays narrow: the camera plus
+  the two small ears on a notch screen, a tight pill elsewhere. The card is as
+  tall as the Now Playing block needs: large rounded art, the player's icon and
+  name, title, artist (or album, which is the show for podcasts), a progress bar
+  with elapsed and remaining time, and large previous, play or pause, next
+  glyphs, on a wash of the art's color.
+- Album art loads from `file:` and `data:` URLs always, and from the player's
+  `https:` URL (Spotify, browsers) when "Load album art from the web" is on
+  (default). That is one image request to the host in the URL, held in memory
+  only (see `docs/data-lifecycle.json`, `island_album_art`). URLs with
+  credentials, `http:`, loopback or IP-literal hosts are never loaded. While the
+  art loads, or if it fails or the setting is off, a music glyph stands in.
 - The charging notice shows when the battery starts charging. With a charge
   limit, plugging in at or above the limit reports "Not charging", so no
   notice shows.
-- While media plays, its ear glyph is a moving equalizer. When the track's
-  art is a local file, the equalizer, scrub bar and play button take a color
-  from the art; `data:` art (mpv) keeps the theme accent, because Quickshell's
-  color quantizer reads files only.
+- The equalizer and progress bar take a color from the loaded art (any art
+  that loads, including `https:` and `data:`); with no art they use the theme
+  accent.
 - A missing tool hides its activity and shows no error.
 
 ### Calendar
@@ -163,6 +172,7 @@ Island writes nothing else there.
 | `cameraWidth` | 0 | 0-4000 px | logical camera width override, 0 = auto |
 | `dictation` | true | true/false | show the WordInk dictation activity |
 | `media` | true | true/false | show the MPRIS media activity |
+| `webArt` | true | true/false | load album art from the web (the player's `https:` art URL) |
 | `charging` | true | true/false | show the charging notice |
 | `hud` | true | true/false | show the volume and brightness level once `omarchy.osd` is disabled |
 | `screenRecording` | true | true/false | show Omarchy's screen recording |
@@ -218,12 +228,13 @@ sample alert (`charging`, `timer`, `bluetooth`, `dnd`, `mic`) and returns `ok`,
 `open`, `toggle` and `focus` give the card keyboard focus. An IPC-opened card
 stays until the pointer has entered and left it, or 5 s pass untouched.
 `state` reports per screen: `screen`, `state`, `flags`, the hot-zone `rect`
-(and `pillRect`, `cardRect`, `origin`, `window`, `pinCenter`, `hidden`), the
+(and `pillRect`, `cardRect` (the open card's committed height), `origin`,
+`window`, `pinCenter`, `hidden`, `mediaTint`), the
 `top` and `second` activity ids, the card's `held` order, `activities`
 (every live activity's `id`, `priority`, `text` and `card`), `presentation`
 (`mode`: compact, split, alert or expanded; `surface`; pill and ear width;
 `bubble`), the shown `alert`, and `indicators` (`mic`, `camera`, `dnd`,
-`dndAvailable`, `recording`, `mediaTint`).
+`dndAvailable`, `recording`).
 
 ## Hover check
 

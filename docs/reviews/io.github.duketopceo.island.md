@@ -112,6 +112,20 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1 only (DP-3 not connected),
 
 Code review (ce-code-review, six lenses on Sonnet, no cross-model peer by owner rule): one finding, the charging alert built before time to full was read, reported by three lenses and fixed (the alert now waits for the read). Residuals also fixed: a default-microphone switch no longer reads as a mute, Bluetooth devices already connected at shell start are a baseline, and a pid change during a recording status check is re-checked. After the fixes: no Island log lines on a shell restart, no startup alert, and `bin/island-hover-check --runs 5 --mode both --allow-skip` passed 5/5 again.
 
+## Now Playing redesign (0.3.1) live check
+
+Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1, Spotify playing a podcast. Plugin linked from the branch worktree, shell restarted. Actions through IPC and grim screenshots only.
+
+| Check | Result |
+|---|---|
+| Compact pill | Time left; right ear a rounded art thumbnail and five equalizer bars; pill 298 px wide (camera 186 + two 56 px ears, was 426); no title text |
+| Remote art | `https:` art from the player's CDN loaded through Qt Image; the music glyph shows only while loading |
+| Art tint | A 24 px canvas feeds `Palette.dominant()` and `Tint.pick()`; works for `https:` art, which ColorQuantizer could not read (`mediaTint` in `state`) |
+| Open card | 266 px tall (was 380): time and date line, large rounded art, player icon and name, title, show, tinted progress with elapsed and remaining, borderless transport glyphs, compact page row; hot zone `cardRect` height matches the committed 266 |
+| Settings page | Full height; "Load album art from the web" sits beside the delay fields |
+| Pause and resume | `act media toggle` twice: paused then playing again |
+| Hover check | Run 3 of 3 passes earlier in the session (two flaky runs while the owner used the pointer); stopped at the owner's request, not re-run on the final build |
+
 ### Verification (calendar and hover intent 0.3.2)
 
 | Check | Result |

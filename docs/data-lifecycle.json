@@ -98,6 +98,16 @@
       "pause": true,
       "delete": "nothing to delete; turning the calendar setting off clears the in-memory events",
       "export": "not applicable"
+    },
+    {
+      "id": "island_album_art",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "album art display in the Island's Now Playing pill and card",
+      "egress": "one HTTPS image GET to the host in the art URL the playing MPRIS player publishes (for example the player's own image CDN); no credentials, no other data sent; off with the Load album art from the web setting",
+      "retention": "Qt image cache in memory only; nothing is written to disk and the cache is dropped when the shell restarts",
+      "pause": true,
+      "delete": "turn the setting off or restart the shell; nothing persists",
+      "export": "not applicable"
     }
   ]
 }

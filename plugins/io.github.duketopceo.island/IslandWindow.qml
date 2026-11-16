@@ -11,6 +11,7 @@ import "Screens.js" as Screens
 import "Activity.js" as Activity
 import "Presentation.js" as Presentation
 import "Alert.js" as Alert
+import "Tint.js" as Tint
 
 // One screen's island. The window is fixed at card size plus slop and never
 // resizes. The input mask is the hot zone: a separate, non-animating item whose
@@ -51,8 +52,31 @@ PanelWindow {
   onZoneChanged: win.motion = []
   onCardShownChanged: {
     if (!win.cardShown) win.hold.ids = []
+    else { win.zoneCardH = win.geom.card.height; win.zoneFresh = true }
     if (win.island) win.island.refreshOpened()
     win.refreshAlert()
+    if (win.cardShown) Qt.callLater(win.commitCard)
+  }
+  onPageChanged: if (win.cardShown) Qt.callLater(win.commitCard)
+
+  // ---- card size commit (KTD2) ----
+  // The card is as tall as its content, computed when it opens and when the
+  // page changes, then fixed while open. The hot zone follows this committed
+  // height and never shrinks while the card is open, so switching from the
+  // tall Settings page to a short Now page cannot leave the pointer outside
+  // the zone. Neither is bound to the live layout.
+  property int cardH: win.geom.card.height
+  property int cardRows: 2
+  property int zoneCardH: win.geom.card.height
+  property bool zoneFresh: true
+  function commitCard() {
+    if (!win.cardShown) return
+    var rows = card.rowIds.length
+    var h = Math.min(win.geom.card.height, card.heightFor(rows))
+    win.cardRows = rows
+    win.cardH = h
+    win.zoneCardH = win.zoneFresh ? h : Math.max(win.zoneCardH, h)
+    win.zoneFresh = false
   }
   // Set while this window is being destroyed, so the root's aggregate
   // `opened` stops counting a card that is going away with it (R17).
@@ -113,9 +137,21 @@ PanelWindow {
   // The compact target: a discrete size from the content, never the animating
   // width, so the hot zone only moves when content or state commits (KTD2).
   readonly property var target: Presentation.compact(win.geom, pill.wantEar,
-    { bubble: win.bubbleShown, dots: win.dotCount, screenWidth: win.screen ? win.screen.width : 0 })
+    { bubble: win.bubbleShown, dots: win.dotCount, media: win.mediaTop, screenWidth: win.screen ? win.screen.width : 0 })
   readonly property var alertSize: Presentation.alertSize(win.geom)
-  readonly property var zoneRect: Zone.rect(win.zone, win.geom, win.target)
+  readonly property var zoneRect: Zone.rect(win.zone, win.geom, win.target, win.zoneCardH)
+
+  // ---- media on top: album art tint (R13) ----
+  readonly property bool mediaTop: win.layout.top !== null && win.layout.top.id === "media"
+  readonly property string mediaArt: win.mediaTop ? String(win.layout.top.art || "") : ""
+  function pickTint(colors, surface, fallback) {
+    var c = Tint.pick(colors, { r: surface.r, g: surface.g, b: surface.b })
+    return c ? Qt.rgba(c.r, c.g, c.b, 1) : fallback
+  }
+  // Most saturated art color that reads on the card, else the theme accent;
+  // and the same pick against the black notch pill, else the pill's text color.
+  readonly property color mediaTint: win.pickTint(artTint.colors, Commons.Color.popups.background, Commons.Color.accent)
+  readonly property color mediaPillTint: win.pickTint(artTint.colors, Qt.rgba(0, 0, 0, 1), win.pillText)
   // Pill text on the black notch surface: the theme's popup text when it reads
   // on black, else the theme background (light themes).
   readonly property color pillText: !win.geom.hasCutout ? Commons.Color.popups.text
@@ -184,7 +220,8 @@ PanelWindow {
     s.origin = { x: win.screen.x + (win.screen.width - win.winSize.width) / 2, y: win.screen.y }
     s.window = win.winSize
     s.pillRect = Zone.rect("pill", win.geom)
-    s.cardRect = Zone.rect("card", win.geom)
+    s.cardRect = Zone.rect("card", win.geom, null, win.zoneCardH)
+    s.mediaTint = win.mediaTop ? String(win.mediaTint) : ""
     s.pinCenter = card.pinCenter()
     s.top = win.layout.top ? win.layout.top.id : ""
     s.second = win.layout.second ? win.layout.second.id : ""
@@ -246,7 +283,7 @@ PanelWindow {
         x: (stage.width - width) / 2
         y: 0
         width: win.mode === "expanded" ? win.geom.card.width : (win.mode === "alert" ? win.alertSize.width : win.target.width)
-        height: win.mode === "expanded" ? win.geom.card.height : (win.mode === "alert" ? win.alertSize.height : win.target.height)
+        height: win.mode === "expanded" ? win.cardH : (win.mode === "alert" ? win.alertSize.height : win.target.height)
 
         Behavior on width {
           NumberAnimation {
@@ -265,6 +302,12 @@ PanelWindow {
           }
         }
 
+        // Reads the track art's colors; hidden under the background below.
+        ArtTint {
+          id: artTint
+          source: win.mediaArt
+        }
+
         // Drawn taller than the shape and clipped at the top edge, so only
         // the bottom corners are rounded. Pure black on a notch screen's
         // compact pill so it merges with the camera cutout (KTD4).
@@ -277,6 +320,22 @@ PanelWindow {
           border.width: win.notch ? 0 : Commons.Style.normalBorderWidth
           border.color: Commons.Color.popups.border
           Behavior on color { ColorAnimation { duration: Commons.Style.duration(160) } }
+        }
+
+        // The open Now Playing card is washed with the art color, strongest at
+        // the top. Only when art colors were read, never the bare theme accent.
+        Rectangle {
+          y: -body.radius
+          width: parent.width
+          height: parent.height + body.radius
+          radius: body.radius
+          opacity: win.mode === "expanded" && win.mediaTop && artTint.colors.length > 0 ? 1 : 0
+          visible: opacity > 0.01
+          gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.alpha(win.mediaTint, 0.26) }
+            GradientStop { position: 1.0; color: Qt.alpha(win.mediaTint, 0.06) }
+          }
+          Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(240) } }
         }
 
         Pill {
@@ -294,8 +353,7 @@ PanelWindow {
           cameraWidth: win.geom.cameraWidth
           textColor: win.notch ? win.pillText : Commons.Color.popups.text
           // On the black notch pill the art color is picked against black.
-          tint: !win.island ? Commons.Color.accent
-            : (win.notch ? (win.island.mediaPillTint ? win.island.mediaPillTint : win.pillText) : win.island.mediaTint)
+          tint: win.notch ? win.mediaPillTint : win.mediaTint
           topActivity: win.layout.top
           dnd: win.island ? win.island.dndOn : false
           micInUse: win.island ? win.island.micInUse : false
@@ -318,7 +376,10 @@ PanelWindow {
           x: (body.width - width) / 2
           y: win.geom.compactHeight
           width: win.geom.card.width
-          height: win.geom.card.height - win.geom.compactHeight
+          height: win.cardH - win.geom.compactHeight
+          band: win.geom.compactHeight
+          maxHeight: win.geom.card.height
+          maxRows: win.cardRows
           opacity: win.cardShown ? 1 : 0
           visible: opacity > 0.01
           now: win.island ? win.island.now : new Date()
@@ -326,7 +387,7 @@ PanelWindow {
           pinned: win.model.pinned
           island: win.island
           layout: win.layout
-          tint: win.island ? win.island.mediaTint : Commons.Color.accent
+          tint: win.mediaTint
           onAct: function(id, action, value) { if (win.island) win.island.act(id, action, value) }
           onPageSelected: function(id) { win.page = id }
           onPinClicked: win.send(win.model.pinned ? "unpin" : "pin")
