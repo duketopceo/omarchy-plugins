@@ -1,5 +1,6 @@
 """Calendar.js: the next-event activity for the Island (node)."""
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -7,7 +8,8 @@ from pathlib import Path
 import pytest
 
 MOD = Path(__file__).resolve().parents[1] / "plugins/io.github.duketopceo.island/Calendar.js"
-pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+NODE = shutil.which("node")
+pytestmark = pytest.mark.skipif(NODE is None, reason="node not installed")
 
 MIN = 60_000
 # js() runs node with TZ=UTC, so clock() output is deterministic.
@@ -16,8 +18,8 @@ T0 = 1_794_820_920_000  # 2026-11-16 09:22:00 UTC
 
 def js(expr: str):
     script = f"const C=require({json.dumps(str(MOD))});console.log(JSON.stringify({expr}));"
-    r = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20, check=True,
-                       env={"TZ": "UTC", "PATH": "/usr/bin:/bin"})
+    r = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=20, check=True,
+                       env={**os.environ, "TZ": "UTC"})
     return json.loads(r.stdout)
 
 
