@@ -108,6 +108,14 @@ def test_null_reading_leaves_the_model_unchanged():
     assert act(r["model"], 2000)["active"] is False
 
 
+def test_unchanged_reading_returns_the_same_model():
+    # An idle battery is polled every 5 s; an identical reading must not
+    # produce a new model (that would redraw every window each poll).
+    r = run([["Discharging", "62", "0", 1000], ["Discharging", "62", "0", 6000],
+             ["Discharging", "61", "0", 11000]])
+    assert r["same"] == [False, True, False]
+
+
 def test_activity_with_time_to_full_over_an_hour():
     r = run([["Discharging", "62", "0", 1000], ["Charging", "62", "4320", 2000]])
     a = act(r["model"], 2000)

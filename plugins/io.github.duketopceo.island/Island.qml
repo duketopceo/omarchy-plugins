@@ -93,7 +93,7 @@ Item {
     }
   }
 
-  // ---- live activities (P2) ----
+  // ---- live activities ----
   readonly property var tools: root.probe && root.probe.tools ? root.probe.tools : ({})
   readonly property var power: root.probe && root.probe.power ? root.probe.power : ({})
 
@@ -331,9 +331,10 @@ Item {
   function stateJson() {
     var out = []
     var list = windows.instances
+    var activities = root.activitiesJson()
     for (var i = 0; i < list.length; i++) {
       var s = list[i].snapshot()
-      s.activities = root.activitiesJson()
+      s.activities = activities
       out.push(s)
     }
     return JSON.stringify(out)

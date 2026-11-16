@@ -19,7 +19,13 @@ Item {
   readonly property string kind: block.activity ? String(block.activity.id) : ""
   readonly property color textColor: Commons.Color.popups.text
   readonly property int artSize: Commons.Style.space(64)
+  readonly property int scrubHeight: Commons.Style.space(16)
+  // One fixed height for every kind, sized for the media layout: art, scrub
+  // bar and transport row (KTD9). The card reads it from here.
+  implicitHeight: block.artSize + block.scrubHeight + Commons.Style.spacing.controlHeight + Commons.Style.spacing.lg * 2
   readonly property bool scrubbable: block.kind === "media" && block.activity.canSeek === true && block.activity.length > 0
+  // The timer's first control: what a press does now.
+  readonly property string timerAction: block.kind === "timer" && block.activity.state === "paused" ? "resume" : "pause"
   // While dragging, the bar shows the drag position instead of the player's.
   property real dragFraction: -1
   property bool dragging: false
@@ -100,7 +106,7 @@ Item {
     anchors.topMargin: Commons.Style.spacing.lg
     anchors.left: parent.left
     anchors.right: parent.right
-    height: Commons.Style.space(16)
+    height: block.scrubHeight
 
     readonly property real fraction: block.dragging ? block.dragFraction
       : (block.scrubbable ? Math.max(0, Math.min(1, block.activity.position / block.activity.length)) : 0)
@@ -225,9 +231,9 @@ Item {
     // Timer
     ActivityButton {
       visible: block.kind === "timer" && block.activity.state !== "done"
-      label: Glyphs.controlLabel(block.kind === "timer" && block.activity.state === "paused" ? "resume" : "pause", block.activity)
+      label: Glyphs.controlLabel(block.timerAction, block.activity)
       emphasized: true
-      onClicked: block.send(block.activity.state === "paused" ? "resume" : "pause")
+      onClicked: block.send(block.timerAction)
     }
     ActivityButton {
       visible: block.kind === "timer" && block.activity.state !== "done"

@@ -25,9 +25,6 @@ Item {
 
   readonly property var topActivity: card.layout ? card.layout.top : null
   readonly property var rows: card.layout && card.layout.rows ? card.layout.rows : []
-  // Fits the media layout: art, scrub bar and transport row (KTD9).
-  readonly property int blockHeight: Commons.Style.space(64) + Commons.Style.space(16)
-    + Commons.Style.spacing.controlHeight + Commons.Style.spacing.lg * 2
 
   readonly property int pad: Commons.Style.spacing.huge
   readonly property int rowHeight: Math.max(Commons.Style.space(30), Commons.Style.spacing.controlHeight)
@@ -58,7 +55,7 @@ Item {
 
       ActivityBlock {
         width: parent.width
-        height: card.blockHeight
+        height: implicitHeight
         activity: card.topActivity
         onAct: function(id, action, value) { card.act(id, action, value) }
         onHoldStart: card.holdStart()

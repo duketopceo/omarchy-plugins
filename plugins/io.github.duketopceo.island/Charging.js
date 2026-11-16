@@ -19,7 +19,7 @@ var GLYPHS = {
 }
 
 function _int(text) {
-  var s = String(text === undefined || text === null ? "" : text).replace(/^\s+|\s+$/g, "")
+  var s = String(text === undefined || text === null ? "" : text).trim()
   if (!/^-?\d+$/.test(s)) return null
   return parseInt(s, 10)
 }
@@ -33,18 +33,22 @@ function parse(raw) {
   var ttf = _int(r.timeToFull)
   if (ttf === null || ttf < 0) ttf = 0
   var status = String(r.status === undefined || r.status === null ? "" : r.status)
-  return { status: status.replace(/^\s+|\s+$/g, ""), capacity: capacity, timeToFull: ttf }
+  return { status: status.trim(), capacity: capacity, timeToFull: ttf }
 }
 
 function initial() {
   return { seen: false, status: "", capacity: 0, timeToFull: 0, until: 0 }
 }
 
+// Returns the same object when the reading changes nothing, so an idle battery
+// polled every few seconds causes no redraw.
 function step(model, reading, now) {
   if (!reading) return model
   var until = model.until
   if (model.seen && reading.status === "Charging" && model.status !== "Charging")
     until = now + NOTICE_MS
+  if (model.seen && reading.status === model.status && reading.capacity === model.capacity &&
+      reading.timeToFull === model.timeToFull && until === model.until) return model
   return {
     seen: true, status: reading.status, capacity: reading.capacity,
     timeToFull: reading.timeToFull, until: until

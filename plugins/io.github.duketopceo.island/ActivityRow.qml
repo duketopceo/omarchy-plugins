@@ -10,7 +10,7 @@ Item {
   property var activity: null
   signal act(string id, string action)
 
-  readonly property string id_: row.activity ? String(row.activity.id) : ""
+  readonly property string activityId: row.activity ? String(row.activity.id) : ""
   readonly property string control: Glyphs.primaryControl(row.activity)
 
   implicitHeight: Commons.Style.spacing.controlHeight
@@ -49,6 +49,6 @@ Item {
     label: Glyphs.controlLabel(row.control, row.activity)
     anchors.right: parent.right
     anchors.verticalCenter: parent.verticalCenter
-    onClicked: row.act(row.id_, row.control)
+    onClicked: row.act(row.activityId, row.control)
   }
 }

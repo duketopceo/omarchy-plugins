@@ -29,10 +29,10 @@ Scope {
 
   onEffectiveChanged: if (!src.effective) src.model = Hud.initial()
 
-  // Redraw once the level has run out (1.6 s, one-shot).
+  // Redraw once the level has run out (one-shot).
   Timer {
     id: expire
-    interval: 1700
+    interval: Hud.FLASH_MS + 100
     onTriggered: src.now = Date.now()
   }
 

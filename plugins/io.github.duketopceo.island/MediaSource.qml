@@ -85,9 +85,10 @@ Scope {
       src.now = Date.now()
     }
   }
+  // With no players there is no paused-grace window to expire.
   Timer {
     interval: 30000
-    running: src.enabled
+    running: src.enabled && src.mprisPlayers.length > 0
     repeat: true
     onTriggered: src.now = Date.now()
   }

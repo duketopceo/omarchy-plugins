@@ -37,7 +37,12 @@ Scope {
       capacity: capacityFile.text(),
       timeToFull: src.charging ? fullFile.text() : ""
     })
-    src.model = Charging.step(src.model, reading, t)
+    var next = Charging.step(src.model, reading, t)
+    // An unchanged reading returns the same model: write nothing, so an idle
+    // battery polled every 5 s redraws nothing. The expire timer redraws when
+    // a notice runs out.
+    if (next === src.model) return
+    src.model = next
     src.now = t
     if (src.activity.until > t) expire.restart()
   }
@@ -64,10 +69,10 @@ Scope {
     }
   }
 
-  // Redraw once the notice has run out (6 s, one-shot).
+  // Redraw once the notice has run out (one-shot).
   Timer {
     id: expire
-    interval: 6100
+    interval: Charging.NOTICE_MS + 100
     onTriggered: src.now = Date.now()
   }
 }

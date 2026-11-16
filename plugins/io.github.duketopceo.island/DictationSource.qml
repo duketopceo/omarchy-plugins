@@ -22,10 +22,15 @@ Scope {
   // Bounded output: the status reply is a few kB; anything far larger is not WordInk.
   readonly property int maxText: 200000
 
+  // A repeated state (e.g. "off" every 5 s while WordInk is not running)
+  // returns the same model and writes nothing; the 1 s timer below keeps the
+  // elapsed time moving while recording.
   function apply(state) {
     if (!state) return
     var t = Date.now()
-    src.model = Dictation.step(src.model, state, t)
+    var next = Dictation.step(src.model, state, t)
+    if (next === src.model) return
+    src.model = next
     src.now = t
   }
 
