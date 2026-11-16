@@ -4,14 +4,16 @@ import "Privacy.js" as Privacy
 import "Dnd.js" as Dnd
 import "Presentation.js" as Presentation
 
-// The compact pill's content: the time in the left ear (with the Do Not
-// Disturb glyph beside it when on); in the right ear the top live activity
-// (glyph, or a moving equalizer for playing media, plus its short ear text),
-// or the short date when nothing is live. The second activity is not drawn
-// here: it is the window's detached bubble (KTD6). Mic and camera dots sit in
-// a reserved slot at the right ear's inner edge, beside the camera (R8). Every
-// label is single-line and elides; `wantEar` reports the natural width the
-// ears would like so the window can size the pill to its content (KTD5).
+// The compact pill's content. Left ear: the time (with the Do Not Disturb
+// glyph beside it when on). Right ear: the top live activity (glyph and short
+// ear text), or the short date when nothing is live. While media is the top
+// activity the right ear takes the Dynamic Island look instead: a rounded
+// album-art thumbnail and equalizer bars tinted from the art, with no title
+// text (the title is on the card). The time always stays left. The second activity
+// is not drawn here: it is the window's detached bubble (KTD6). Mic and camera
+// dots sit in a reserved slot at the right ear's inner edge, beside the camera
+// (R8). Every label is single-line and elides; `wantEar` reports the natural
+// width the ears would like so the window can size the pill to its content (KTD5).
 Item {
   id: pill
 
@@ -22,7 +24,7 @@ Item {
   property int dotSlot: 0
   property int cameraWidth: 160
   property color textColor: Commons.Color.popups.text
-  // Media accent from local album art, or the theme accent.
+  // Media accent from the album art, or the theme accent.
   property color tint: Commons.Color.accent
   // From Activity.layout(): the top live activity, or null.
   property var topActivity: null
@@ -31,14 +33,15 @@ Item {
   property bool cameraInUse: false
 
   readonly property int pad: Commons.Style.spacing.lg
-  readonly property bool mediaPlaying: pill.topActivity !== null && pill.topActivity.id === "media" && pill.topActivity.playing === true
+  readonly property bool mediaTop: pill.topActivity !== null && pill.topActivity.id === "media"
+  readonly property int thumbSize: Math.max(16, pill.height - Commons.Style.spacing.lg)
   readonly property string earText: pill.topActivity
-    ? (pill.mediaPlaying ? pill.topActivity.text : pill.topActivity.glyph + " " + pill.topActivity.text)
+    ? pill.topActivity.glyph + " " + pill.topActivity.text
     : Qt.formatDate(pill.now, "MMM d")
   // Natural width of the wider ear, padding included.
   readonly property int wantEar: Math.ceil(Math.max(
     timeText.implicitWidth + (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0),
-    earLabel.implicitWidth + (pill.mediaPlaying ? eq.width + Commons.Style.spacing.sm : 0)) + pill.pad * 1.5)
+    pill.mediaTop ? pill.thumbSize + Commons.Style.spacing.md + eq.width : earLabel.implicitWidth) + pill.pad * 1.5)
 
   Text {
     id: timeText
@@ -53,6 +56,21 @@ Item {
     width: Math.min(implicitWidth, Math.max(0, pill.earWidth - pill.pad - (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0)))
     anchors.left: parent.left
     anchors.leftMargin: pill.pad
+    anchors.verticalCenter: parent.verticalCenter
+  }
+
+  // The album art thumbnail, right ear while media is on top, left of the bars.
+  ArtImage {
+    id: thumb
+    visible: pill.mediaTop
+    width: pill.thumbSize
+    height: pill.thumbSize
+    radius: Math.round(pill.thumbSize * 0.24)
+    ink: pill.textColor
+    glyphSize: Commons.Style.font.bodySmall
+    source: pill.mediaTop ? String(pill.topActivity.art || "") : ""
+    anchors.right: eq.left
+    anchors.rightMargin: Commons.Style.spacing.md
     anchors.verticalCenter: parent.verticalCenter
   }
 
@@ -97,6 +115,7 @@ Item {
   // ---- right ear ----
   Text {
     id: earLabel
+    visible: !pill.mediaTop
     textFormat: Text.PlainText
     text: pill.earText
     color: pill.textColor
@@ -106,22 +125,25 @@ Item {
     font.features: { "tnum": 1 }
     maximumLineCount: 1
     elide: Text.ElideRight
-    width: Math.min(implicitWidth, Math.max(0, pill.textWidth - pill.pad - (pill.mediaPlaying ? eq.width + Commons.Style.spacing.sm : 0)))
+    width: Math.min(implicitWidth, Math.max(0, pill.textWidth - pill.pad))
     horizontalAlignment: Text.AlignRight
     anchors.right: parent.right
     anchors.rightMargin: pill.pad
     anchors.verticalCenter: parent.verticalCenter
   }
 
+  // Playing: moving bars. Paused: the same bars, still and dimmed.
   Equalizer {
     id: eq
-    visible: pill.mediaPlaying
-    playing: pill.mediaPlaying
+    visible: pill.mediaTop
+    levels: [0.5, 0.9, 0.6, 1.0, 0.7]
+    playing: pill.mediaTop && pill.topActivity.playing === true
     color: pill.tint
-    width: 12
-    height: 11
-    anchors.right: earLabel.left
-    anchors.rightMargin: Commons.Style.spacing.sm
+    opacity: eq.playing ? 1 : 0.5
+    width: 18
+    height: 14
+    anchors.right: parent.right
+    anchors.rightMargin: pill.pad
     anchors.verticalCenter: parent.verticalCenter
   }
 }

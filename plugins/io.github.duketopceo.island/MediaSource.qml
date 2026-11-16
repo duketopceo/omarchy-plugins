@@ -1,9 +1,7 @@
 import QtQuick 6.11
 import Quickshell
 import Quickshell.Services.Mpris
-import qs.Commons as Commons
 import "Media.js" as Media
-import "Tint.js" as Tint
 
 // MPRIS media for the Island (KTD5). Maps Quickshell's MprisPlayer objects to
 // plain records for Media.js, remembers when each player last played, and
@@ -12,6 +10,8 @@ Scope {
   id: src
 
   property bool enabled: false
+  // The owner's "Load album art from the web" setting (Media.artUrl).
+  property bool webArt: true
   // True while some window's card is shown; position is ticked only then.
   property bool cardShown: false
 
@@ -25,36 +25,8 @@ Scope {
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var records: src.toRecords(src.mprisPlayers, src.now)
   readonly property var chosen: src.enabled ? Media.pick(src.records, src.hold.name, src.lastPlayedAt, src.now) : null
-  readonly property var activity: Media.activity(src.chosen, src.now)
+  readonly property var activity: Media.activity(src.chosen, src.now, src.webArt)
   onChosenChanged: src.hold.name = src.chosen ? src.chosen.dbusName : ""
-
-  // Media accent from the track's art (R13, KTD14): only local file:/data:
-  // art (Media.artUrl drops remote URLs, so this never fetches), the most
-  // saturated art color that stays readable on the card, else the theme accent.
-  readonly property string localArt: src.activity.active ? String(src.activity.art || "") : ""
-  ColorQuantizer {
-    id: quantizer
-    source: src.localArt
-    depth: 3
-    rescaleSize: 64
-  }
-  readonly property color tint: {
-    var out = []
-    var list = src.localArt !== "" && quantizer.colors ? quantizer.colors : []
-    for (var i = 0; i < list.length; i++) out.push({ r: list[i].r, g: list[i].g, b: list[i].b })
-    var bg = Commons.Color.popups.background
-    var c = Tint.pick(out, { r: bg.r, g: bg.g, b: bg.b })
-    return c ? Qt.rgba(c.r, c.g, c.b, 1) : Commons.Color.accent
-  }
-  // The same pick against the black notch pill; null when no art color reads
-  // there (the window then uses the pill's text color).
-  readonly property var pillTint: {
-    var out = []
-    var list = src.localArt !== "" && quantizer.colors ? quantizer.colors : []
-    for (var i = 0; i < list.length; i++) out.push({ r: list[i].r, g: list[i].g, b: list[i].b })
-    var c = Tint.pick(out, { r: 0, g: 0, b: 0 })
-    return c ? Qt.rgba(c.r, c.g, c.b, 1) : null
-  }
 
   // Reads each player's properties inside the `records` binding, so a play,
   // pause or track change re-evaluates it. lastPlayedAt is mutated in place,
@@ -70,6 +42,8 @@ Scope {
       out.push({
         dbusName: name,
         identity: String(p.identity || ""),
+        desktopEntry: String(p.desktopEntry || ""),
+        album: String(p.trackAlbum || ""),
         title: String(p.trackTitle || ""),
         artist: String(p.trackArtist || ""),
         artUrl: String(p.trackArtUrl || ""),

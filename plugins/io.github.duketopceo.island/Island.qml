@@ -107,6 +107,7 @@ Item {
   MediaSource {
     id: media
     enabled: root.settings.media === true
+    webArt: root.settings.webArt === true
     cardShown: root.opened
   }
 
@@ -148,9 +149,6 @@ Item {
   }
   readonly property bool dndOn: dnd.on
   function toggleDnd() { dnd.toggle() }
-
-  readonly property color mediaTint: media.tint
-  readonly property var mediaPillTint: media.pillTint
 
   // ---- transient alerts (KTD7) ----
   // At most one; each window shows it, gates it and times its end (KTD7).
@@ -394,8 +392,7 @@ Item {
     var list = windows.instances
     var activities = root.activitiesJson()
     var indicators = { mic: root.micInUse, camera: root.cameraInUse, dnd: root.dndOn,
-                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true,
-                       mediaTint: String(root.mediaTint) }
+                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true }
     for (var i = 0; i < list.length; i++) {
       var s = list[i].snapshot()
       s.activities = activities

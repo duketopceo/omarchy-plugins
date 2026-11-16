@@ -49,18 +49,24 @@ function textOnBlack(text, background) {
   return contrast(text, { r: 0, g: 0, b: 0 }) >= 4.5 ? "text" : "background"
 }
 
+// A media pill shows only a thumbnail and equalizer bars, so on a screen with
+// no cutout the pill is tight: two ears and a small gap, not a camera's width.
+var MEDIA_EAR_MIN = 36
+var MEDIA_GAP = 16
+
 // wantEar: content width the widest ear needs, padding included.
-// opts = { bubble: bool, dots: int, screenWidth?: number }
+// opts = { bubble: bool, dots: int, media?: bool, screenWidth?: number }
 function compact(geom, wantEar, opts) {
   var o = opts || {}
   var dotSlot = o.dots > 0 ? DOT_SLOT : 0
   var cam = _num(geom.cameraWidth)
-  var ear = Math.max(EAR_MIN, Math.min(EAR_MAX, _num(wantEar) + dotSlot))
-  var width = Math.max(COMPACT_MIN_W, cam + 2 * ear)
+  var tight = o.media === true && !geom.hasCutout && !(o.dots > 0)
+  var ear = Math.max(tight ? MEDIA_EAR_MIN : EAR_MIN, Math.min(EAR_MAX, _num(wantEar) + dotSlot))
+  var width = tight ? 2 * ear + MEDIA_GAP : Math.max(COMPACT_MIN_W, cam + 2 * ear)
   if (o.screenWidth !== undefined && o.screenWidth !== null) {
     width = Math.max(0, Math.min(width, _num(o.screenWidth) - SCREEN_MARGIN))
   }
-  ear = Math.min(EAR_MAX, Math.floor((width - cam) / 2))
+  ear = Math.min(EAR_MAX, Math.floor((width - (tight ? MEDIA_GAP : cam)) / 2))
   var height = geom.compactHeight
   return {
     width: width,
@@ -70,6 +76,20 @@ function compact(geom, wantEar, opts) {
     dotSlot: dotSlot,
     bubble: o.bubble ? { offset: width + BUBBLE_GAP, size: height } : null
   }
+}
+
+// Height of the open card, computed once when it opens (and again when the page
+// changes), never while it is open, so the hot zone does not move under the
+// pointer. Only the Now page with media on top is shortened to its content;
+// everything else keeps the full height m.max.
+// m = { page, kind, band, pad, content, rows, rowH, gap, pageRowH, max }
+function cardHeight(m) {
+  var max = _num(m.max)
+  if (m.page !== "now" || m.kind !== "media") return max
+  var rows = Math.max(0, Math.floor(_num(m.rows)))
+  var h = _num(m.band) + _num(m.pad) + _num(m.content) + rows * (_num(m.rowH) + _num(m.gap)) +
+          _num(m.gap) + _num(m.pageRowH) + _num(m.pad)
+  return Math.min(max, Math.ceil(h))
 }
 
 function alertSize(geom) {
@@ -87,7 +107,7 @@ function bubbleVisible(hasSecond, alertShowing, cardShown) {
 
 if (typeof module !== "undefined") module.exports = {
   EAR_MIN: EAR_MIN, EAR_MAX: EAR_MAX, BUBBLE_GAP: BUBBLE_GAP, DOT_SIZE: DOT_SIZE,
-  DOT_GAP: DOT_GAP, DOT_PAD: DOT_PAD, DOT_SLOT: DOT_SLOT, ALERT_W: ALERT_W, ALERT_H: ALERT_H,
+  DOT_GAP: DOT_GAP, DOT_PAD: DOT_PAD, DOT_SLOT: DOT_SLOT, MEDIA_EAR_MIN: MEDIA_EAR_MIN, MEDIA_GAP: MEDIA_GAP, ALERT_W: ALERT_W, ALERT_H: ALERT_H,
   surface: surface, contrast: contrast, textOnBlack: textOnBlack,
-  compact: compact, alertSize: alertSize, showAlert: showAlert, bubbleVisible: bubbleVisible
+  compact: compact, cardHeight: cardHeight, alertSize: alertSize, showAlert: showAlert, bubbleVisible: bubbleVisible
 }

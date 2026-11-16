@@ -31,7 +31,7 @@ def js(fn: str, *args):
     return json.loads(out)
 
 
-BOOLS = {"dictation": True, "media": True, "charging": True, "hud": True,
+BOOLS = {"dictation": True, "media": True, "webArt": True, "charging": True, "hud": True,
          "screenRecording": True, "privacy": True, "dnd": True, "bluetooth": True, "alerts": True}
 DEFAULTS = {"openDelay": 140, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
 

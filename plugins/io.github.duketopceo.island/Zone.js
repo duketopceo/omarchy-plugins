@@ -32,11 +32,14 @@ function _clip(r, w) {
 // zone: "pill" | "card" (Hover.zoneFor). Hot-zone rectangle including slop.
 // target (optional, pill only): Presentation.compact() result. The pill zone
 // then follows its width and extends right to cover the bubble.
-function rect(zone, g, target) {
+// cardHeight (optional, card only): the committed card height when the open
+// card is shorter than the window's full card height.
+function rect(zone, g, target, cardHeight) {
   var w = windowSize(g)
   if (zone === "card") {
+    var h = cardHeight > 0 ? Math.min(_num(cardHeight), g.card.height) : g.card.height
     return _clip({ x: (w.width - g.card.width) / 2 - CARD_SLOP, y: 0,
-                   width: g.card.width + 2 * CARD_SLOP, height: g.card.height + CARD_SLOP }, w)
+                   width: g.card.width + 2 * CARD_SLOP, height: h + CARD_SLOP }, w)
   }
   if (target) {
     var extra = target.bubble ? target.bubble.offset - target.width + target.bubble.size : 0
