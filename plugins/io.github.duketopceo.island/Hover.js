@@ -207,6 +207,13 @@ function step(model, event, settings) {
       m.focused = true
       return { model: m, timer: KEEP }
 
+    case "unfocus":
+      // Drop keyboard focus but keep the card as it is (Stop on dictation must
+      // not paste into the Island).
+      if (!cardShown(m) || !m.focused) return { model: model, timer: KEEP }
+      m.focused = false
+      return { model: m, timer: KEEP }
+
     case "fullscreenOn":
       m.fullscreen = true
       m.pointerInside = false
