@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Island capability probe: one JSON object of existence checks.
+
+Reads only: tool presence on PATH, the display-cutouts table and the device
+model. No network, no writes. `--root DIR` prefixes the read paths (and
+confines the tool search to DIR/bin) so tests can use a fixture tree.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import signal
+import sys
+from pathlib import Path
+
+DEADLINE_SECONDS = 4
+TOOLS = ["wordink", "herdr-app", "snapdex-ctl", "blip", "cliphist", "wl-copy",
+         "wpctl", "tailscale", "nordvpn", "dayflow"]
+CUTOUTS = "usr/share/omarchy-platform/display-cutouts.json"
+COMPATIBLE = "proc/device-tree/compatible"
+
+
+def on_path(name: str, dirs: list[str]) -> bool:
+    for d in dirs:
+        p = os.path.join(d, name)
+        if os.path.isfile(p) and os.access(p, os.X_OK):
+            return True
+    return False
+
+
+def read_cutouts(root: Path) -> list[dict]:
+    try:
+        data = json.loads((root / CUTOUTS).read_text())
+    except (OSError, ValueError):
+        return []
+    panels = data.get("panels") if isinstance(data, dict) else None
+    return [p for p in panels if isinstance(p, dict)] if isinstance(panels, list) else []
+
+
+def read_model(root: Path) -> str:
+    try:
+        raw = (root / COMPATIBLE).read_bytes()
+    except OSError:
+        return ""
+    for entry in raw.split(b"\0"):
+        text = entry.decode("ascii", "ignore")
+        if text.startswith("apple,j"):
+            return text[len("apple,"):][:4]
+    return ""
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default="")
+    args = ap.parse_args()
+    root = Path(args.root) if args.root else Path("/")
+    if args.root:
+        dirs = [str(root / "bin")]
+    else:
+        dirs = [d for d in os.environ.get("PATH", "").split(os.pathsep) if d]
+        home = os.environ.get("HOME", "")
+        if home:
+            dirs.append(os.path.join(home, ".local", "bin"))
+    out = {
+        "platform": {"system": platform.system(), "machine": platform.machine()},
+        "tools": {t: on_path(t, dirs) for t in TOOLS},
+        "cutouts": read_cutouts(root),
+        "model": read_model(root),
+    }
+    sys.stdout.write(json.dumps(out) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    signal.alarm(DEADLINE_SECONDS)
+    sys.exit(main())

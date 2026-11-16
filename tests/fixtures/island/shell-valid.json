@@ -1,0 +1,7 @@
+{
+  "bar": { "layout": { "left": [], "center": [], "right": [] } },
+  "plugins": [
+    { "id": "other.plugin", "openDelay": 5 },
+    { "id": "io.github.duketopceo.island", "openDelay": 200, "extra": "keep" }
+  ]
+}

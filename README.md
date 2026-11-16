@@ -52,15 +52,22 @@ required. See `.env.example`.
 | `io.github.duketopceo.numbat` | AI-agent activity radar: live agent list and findings from Perplexity's numbat monitor |
 | `io.github.duketopceo.pplx` | Quick-ask UI for the Perplexity Search API (`pplx` CLI, bring your own key) |
 | `io.github.duketopceo.neo` | BrowserOS neo sidecar status and control: unit health, ports, MCP endpoint |
-| `io.github.duketopceo.notch` | Mac-style notch island (panel): clock, weather, stocks, hover-expand tabs. **Self-contained** — works alone after install; optional Wisp / WordInk / Blip / herdr / snapdex / fan integrations detect-and-degrade |
 | `io.github.duketopceo.wordink` | WordInk dictation: mic state icon, click to dictate, mic picker, recent dictations, weekly usage (local `wordink` CLI) |
 | `io.github.duketopceo.hotkey-tally` | Counts how often each wrapped Hyprland binding is used (aggregate counts only, local) |
+| `io.github.duketopceo.island` | Top-center Island pill per screen: opens on hover, closes when the pointer leaves; time, date, settings card; hides under fullscreen; `island` IPC target |
 
 ### Retired
 
 `lukedaduke.connections`, `lukedaduke.ticker` and `lukedaduke.agents` are retired in favour of
 Omarchy's built-in `omarchy.bluetooth` / `omarchy.network`, `mohamedmansour.finance`, and
 `akitaonrails.ai-usagebar`. Their folders hold a final notice-only stub release.
+
+### Archived
+
+`io.github.duketopceo.notch` (the tabbed notch, v0.4.1 on `main`, v0.5.0 at tag
+`archive/notch-v0.5.0`) and the `island-v02` prototype live in [`archive/`](archive/README.md).
+They are not built, tested or installed. The replacement is the Island, planned in
+[`docs/plans/2026-11-14-feat-island-plan.md`](docs/plans/2026-11-14-feat-island-plan.md).
 
 ## Deploy / visibility
 
@@ -80,9 +87,9 @@ Each plugin is also published as its own installable repo (`manifest.json` at ro
 | `io.github.duketopceo.numbat` | https://github.com/duketopceo/omarchy-numbat |
 | `io.github.duketopceo.pplx` | https://github.com/duketopceo/omarchy-pplx |
 | `io.github.duketopceo.neo` | https://github.com/duketopceo/omarchy-neo |
-| `io.github.duketopceo.notch` | https://github.com/duketopceo/omarchy-plugins (plugin path) |
 | `io.github.duketopceo.wordink` | https://github.com/duketopceo/omarchy-wordink (not yet published) |
 | `io.github.duketopceo.hotkey-tally` | https://github.com/duketopceo/omarchy-hotkey-tally (not yet published) |
+| `io.github.duketopceo.island` | https://github.com/duketopceo/omarchy-island (not yet published) |
 
 Install any of them with:
 
@@ -90,7 +97,7 @@ Install any of them with:
 omarchy plugin add https://github.com/duketopceo/omarchy-fan
 ```
 
-Until a mirror exists, install from this umbrella with `./scripts/install.sh --link` or `--copy` (covers notch and the other unpublished plugins).
+Until a mirror exists, install from this umbrella with `./scripts/install.sh --link` or `--copy` (covers the unpublished plugins).
 
 To list on the marketplace, submit the per-plugin repo at [plugins.omarchy.org/publish](https://plugins.omarchy.org/publish.html).
 

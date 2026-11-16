@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.duketopceo.island",
+  "name": "Island",
+  "version": "0.1.0",
+  "author": "duketopceo",
+  "license": "MIT",
+  "homepage": "https://github.com/duketopceo/omarchy-island",
+  "description": "A hover-to-open pill at the top center of every screen: time and live activity, opening on hover and closing when the pointer leaves",
+  "kinds": [
+    "panel"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "Island.qml"
+  }
+}

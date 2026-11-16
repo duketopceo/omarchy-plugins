@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+"""Live hover check for the Island (acceptance examples AE1, AE2, AE3, AE5).
+
+Moves the real pointer with Hyprland's Lua dispatcher
+(`hl.dsp.cursor.move`), reads `qs ipc call island state` after each step, and
+exits non-zero on the first mismatch. Each run walks every screen, once with
+single jumps and once with interpolated steps ~15 ms apart, and the whole walk
+repeats --runs times (default 20). The pointer is put back where it started.
+
+LIVE ONLY, never run from CI. It needs an unlocked session with the Island
+loaded; it refuses to run when it cannot read the island state or the session
+reports locked. AE3 and AE5 need real clicks and a key press (`ydotool`
+with ydotoold running, and `wtype`); without them those parts are reported as
+skipped and the exit status is 2 unless --allow-skip is given.
+
+Exit status: 0 all passed, 1 mismatch, 2 refused or skipped, 3 deadline hit.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+DEFAULT_QS_ARGS = "-p /usr/share/omarchy/shell"
+STEP_SECONDS = 0.015
+
+
+class Mismatch(Exception):
+    pass
+
+
+class Refused(Exception):
+    pass
+
+
+class Skip(Exception):
+    pass
+
+
+def sh(argv: list[str], timeout: float = 5.0) -> subprocess.CompletedProcess:
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+
+
+class Check:
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.qs = ["qs", *shlex.split(args.qs_args)]
+        self.open_delay = args.open_delay / 1000.0
+        self.close_delay = args.close_delay / 1000.0
+        self.pos = (0.0, 0.0)
+        self.skipped: set[str] = set()
+
+    # ---- plumbing ----
+
+    def state(self) -> list[dict]:
+        try:
+            r = sh([*self.qs, "ipc", "call", "island", "state"], timeout=4)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Refused(f"cannot read island state ({exc}); is the shell running and the screen unlocked?")
+        if r.returncode != 0:
+            raise Refused(f"qs ipc call island state failed: {r.stderr.strip() or r.returncode}")
+        try:
+            data = json.loads(r.stdout)
+        except ValueError:
+            raise Refused("island state is not JSON; refusing to run")
+        if not isinstance(data, list) or not data:
+            raise Refused("island reports no screens; refusing to run")
+        return data
+
+    def cursor(self) -> tuple[float, float]:
+        r = sh(["hyprctl", "cursorpos", "-j"])
+        try:
+            o = json.loads(r.stdout)
+            return float(o["x"]), float(o["y"])
+        except (ValueError, KeyError, TypeError):
+            raise Refused("cannot read the pointer position from hyprctl")
+
+    def jump(self, x: float, y: float) -> None:
+        r = sh(["hyprctl", "dispatch", f"hl.dsp.cursor.move({{ x = {round(x)}, y = {round(y)} }})"])
+        if r.returncode != 0:
+            raise Refused(f"pointer move failed: {r.stderr.strip() or r.stdout.strip()}")
+        self.pos = (float(round(x)), float(round(y)))
+
+    def move(self, x: float, y: float, steps: bool) -> None:
+        if not steps:
+            self.jump(x, y)
+            return
+        x0, y0 = self.pos
+        n = int(max(6, min(40, max(abs(x - x0), abs(y - y0)) / 25)))
+        for i in range(1, n + 1):
+            t = i / n
+            self.jump(x0 + (x - x0) * t, y0 + (y - y0) * t)
+            time.sleep(STEP_SECONDS)
+
+    def click(self) -> None:
+        if not shutil.which("ydotool"):
+            raise Skip("no ydotool")
+        r = sh(["ydotool", "click", "0xC0"])
+        if r.returncode != 0:
+            raise Skip(f"ydotool click failed (is ydotoold running?): {r.stderr.strip()}")
+
+    def escape(self) -> None:
+        if not shutil.which("wtype"):
+            raise Skip("no wtype")
+        r = sh(["wtype", "-k", "Escape"])
+        if r.returncode != 0:
+            raise Skip(f"wtype failed: {r.stderr.strip()}")
+
+    def screen(self, name: str) -> dict:
+        for s in self.state():
+            if s["screen"] == name:
+                return s
+        raise Mismatch(f"{name}: screen vanished from island state")
+
+    # ---- geometry helpers (global logical px) ----
+
+    @staticmethod
+    def pill_point(s: dict) -> tuple[float, float]:
+        o, r = s["origin"], s["pillRect"]
+        return o["x"] + r["x"] + r["width"] / 2, o["y"] + min(10.0, r["height"] / 2)
+
+    @staticmethod
+    def card_point(s: dict) -> tuple[float, float]:
+        o = s["origin"]
+        return o["x"] + s["window"]["width"] / 2, o["y"] + s["cardRect"]["height"] * 0.6
+
+    @staticmethod
+    def away_point(s: dict) -> tuple[float, float]:
+        o = s["origin"]
+        return o["x"] + s["window"]["width"] / 2, o["y"] + s["window"]["height"] + 150
+
+    @staticmethod
+    def pin_point(s: dict) -> tuple[float, float]:
+        p = s.get("pinCenter")
+        if not p:
+            raise Mismatch(f"{s['screen']}: state has no pinCenter")
+        return s["origin"]["x"] + p["x"], s["origin"]["y"] + p["y"]
+
+    # ---- assertions ----
+
+    def expect(self, name: str, what: str, want: str, pinned: bool | None = None, within: float = 0.0) -> dict:
+        deadline = time.monotonic() + within
+        while True:
+            s = self.screen(name)
+            ok = s["state"] == want and (pinned is None or s["flags"]["pinned"] == pinned)
+            if ok:
+                return s
+            if time.monotonic() >= deadline:
+                raise Mismatch(f"{name}: {what}: want state={want}"
+                               f"{'' if pinned is None else f' pinned={pinned}'}, got state={s['state']}"
+                               f" flags={s['flags']}")
+            time.sleep(0.03)
+
+    def others_quiet(self, name: str, what: str) -> None:
+        for s in self.state():
+            if s["screen"] != name and (s["state"] != "closed" or s["hidden"]):
+                raise Mismatch(f"{what}: {s['screen']} changed ({s['state']}, hidden={s['hidden']}) while testing {name}")
+
+    def settle_closed(self, name: str) -> dict:
+        """Start every scenario from a closed island with the pointer away."""
+        s = self.screen(name)
+        if s["state"] != "closed":
+            sh([*self.qs, "ipc", "call", "island", "close"])
+            time.sleep(0.2)
+        s = self.screen(name)
+        self.jump(*self.away_point(s))
+        time.sleep(self.close_delay + 0.3)
+        return self.expect(name, "precondition (closed, pointer away)", "closed", within=1.0)
+
+    # ---- scenarios ----
+
+    def ae1(self, name: str, steps: bool) -> None:
+        s = self.settle_closed(name)
+        self.move(*self.pill_point(s), steps)
+        time.sleep(self.open_delay + 0.06)
+        self.expect(name, "AE1 rest on pill opens", "open", within=0.4)
+        self.others_quiet(name, "AE1")
+        self.move(*self.away_point(s), steps)
+        time.sleep(self.close_delay + 0.1)
+        self.expect(name, "AE1 leave closes", "closed", within=0.5)
+        self.others_quiet(name, "AE1")
+
+    def ae2(self, name: str, steps: bool) -> None:
+        s = self.settle_closed(name)
+        self.move(*self.pill_point(s), steps)
+        time.sleep(self.open_delay + 0.03)  # card is opening or just opened
+        self.move(*self.card_point(s), steps)
+        time.sleep(self.close_delay + 0.4)
+        self.expect(name, "AE2 pointer on card keeps it open", "open")
+        self.move(*self.away_point(s), steps)
+        time.sleep(self.close_delay + 0.1)
+        self.expect(name, "AE2 leave closes", "closed", within=0.5)
+        self.others_quiet(name, "AE2")
+
+    def ae3(self, name: str, steps: bool) -> None:
+        s = self.settle_closed(name)
+        # Click-open without pinning, then leave: closes after the delay.
+        self.move(*self.pill_point(s), steps)
+        self.click()
+        self.expect(name, "AE3 click opens at once", "open", pinned=False, within=0.4)
+        self.move(*self.away_point(s), steps)
+        time.sleep(self.close_delay + 0.15)
+        self.expect(name, "AE3 click-opened card closes on leave", "closed", within=0.5)
+        # Pin: leaving does not close it; the pin control unpins and closes.
+        self.move(*self.pill_point(s), steps)
+        self.click()
+        self.expect(name, "AE3 click opens", "open", within=0.4)
+        time.sleep(0.4)  # let the morph finish so the pin control is where it reports
+        pin = self.pin_point(self.screen(name))
+        self.move(*pin, steps)
+        self.click()
+        self.expect(name, "AE3 pin control pins", "open", pinned=True, within=0.4)
+        self.move(*self.away_point(s), steps)
+        time.sleep(self.close_delay + 0.4)
+        self.expect(name, "AE3 pinned card stays open on leave", "open", pinned=True)
+        self.move(*pin, steps)
+        self.click()
+        self.expect(name, "AE3 unpin closes", "closed", pinned=False, within=0.5)
+        self.others_quiet(name, "AE3")
+
+    def ae5(self, name: str, steps: bool) -> None:
+        s = self.settle_closed(name)
+        self.move(*self.pill_point(s), steps)
+        time.sleep(self.open_delay + 0.06)
+        self.expect(name, "AE5 opens", "open", within=0.4)
+        self.move(*self.card_point(s), steps)
+        self.click()  # a click on the card body raises keyboard focus
+        got = self.expect(name, "AE5 card click focuses", "open", within=0.4)
+        if not got["flags"]["focused"]:
+            raise Mismatch(f"{name}: AE5 card click did not set focused: {got['flags']}")
+        time.sleep(0.3)
+        self.move(*self.pill_point(s), steps)  # pointer back inside the card, on the pill strip
+        time.sleep(0.1)
+        self.escape()
+        self.expect(name, "AE5 Esc closes", "closed", within=0.5)
+        time.sleep(self.open_delay + self.close_delay + 0.3)
+        self.expect(name, "AE5 stays closed while the pointer rests on the pill", "closed")
+        self.move(*self.away_point(s), steps)
+        time.sleep(0.25)
+        self.move(*self.pill_point(s), steps)
+        time.sleep(self.open_delay + 0.06)
+        self.expect(name, "AE5 leave and return reopens", "open", within=0.4)
+        self.move(*self.away_point(s), steps)
+        time.sleep(self.close_delay + 0.1)
+        self.expect(name, "AE5 final close", "closed", within=0.5)
+        self.others_quiet(name, "AE5")
+
+    # ---- driver ----
+
+    def preflight(self) -> list[str]:
+        session = os.environ.get("XDG_SESSION_ID")
+        if session:
+            r = sh(["loginctl", "show-session", session, "-p", "LockedHint", "--value"])
+            if r.stdout.strip() == "yes":
+                raise Refused("the session reports locked; unlock the screen first")
+        state = self.state()
+        if any(s.get("hidden") for s in state):
+            raise Refused("an island is hidden (fullscreen window or lock); close it and retry")
+        return [s["screen"] for s in state]
+
+    def scenario(self, label: str, fn, name: str, steps: bool) -> None:
+        try:
+            fn(name, steps)
+            print(f"  ok   {name} {label} ({'steps' if steps else 'jump'})")
+        except Skip as exc:
+            if label not in self.skipped:
+                print(f"  SKIP {label}: {exc}")
+            self.skipped.add(label)
+
+    def run(self, runs: int, modes: list[bool], only: list[str]) -> None:
+        names = [n for n in self.preflight() if not only or n in only]
+        if not names:
+            raise Refused(f"none of the requested screens exist: {only}")
+        for i in range(1, runs + 1):
+            print(f"run {i}/{runs}")
+            for name in names:
+                for steps in modes:
+                    for label, fn in (("AE1", self.ae1), ("AE2", self.ae2), ("AE3", self.ae3), ("AE5", self.ae5)):
+                        self.scenario(label, fn, name, steps)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    ap.add_argument("--runs", type=int, default=20)
+    ap.add_argument("--mode", choices=("both", "jump", "steps"), default="both")
+    ap.add_argument("--screens", default="", help="comma-separated screen names (default: all)")
+    ap.add_argument("--qs-args", default=DEFAULT_QS_ARGS, help="quickshell selector for the running shell")
+    ap.add_argument("--open-delay", type=int, default=140, help="the plugin's openDelay in ms")
+    ap.add_argument("--close-delay", type=int, default=450, help="the plugin's closeDelay in ms")
+    ap.add_argument("--deadline", type=int, default=1800, help="whole-run backstop in seconds")
+    ap.add_argument("--allow-skip", action="store_true", help="exit 0 even when click or key steps were skipped")
+    args = ap.parse_args()
+
+    def on_alarm(_sig, _frame):
+        raise TimeoutError("deadline hit")
+
+    signal.signal(signal.SIGALRM, on_alarm)
+    signal.alarm(args.deadline)
+
+    chk = Check(args)
+    modes = {"both": [False, True], "jump": [False], "steps": [True]}[args.mode]
+    only = [s for s in args.screens.split(",") if s]
+    original = None
+    code = 0
+    try:
+        original = chk.cursor()
+        chk.run(args.runs, modes, only)
+        print(f"PASS: {args.runs} run(s)" + (f", skipped: {', '.join(sorted(chk.skipped))}" if chk.skipped else ""))
+        if chk.skipped and not args.allow_skip:
+            print("exit 2: skipped steps are not a pass; install ydotool (with ydotoold) and wtype, or use --allow-skip")
+            code = 2
+    except Refused as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        code = 2
+    except Mismatch as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        code = 1
+    except TimeoutError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
+        code = 3
+    finally:
+        signal.alarm(0)
+        try:
+            if original is not None:
+                chk.jump(*original)
+            sh([*chk.qs, "ipc", "call", "island", "close"])
+        except (OSError, subprocess.SubprocessError, Refused):
+            pass
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
