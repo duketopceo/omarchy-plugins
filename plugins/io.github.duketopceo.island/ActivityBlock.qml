@@ -12,12 +12,15 @@ Item {
   id: block
 
   property var activity: null
+  // Media accent from local album art, or the theme accent (R13).
+  property color tint: Commons.Color.accent
   signal act(string id, string action, real value)
   signal holdStart()
   signal holdEnd()
 
   readonly property string kind: block.activity ? String(block.activity.id) : ""
   readonly property color textColor: Commons.Color.popups.text
+  readonly property color accent: block.kind === "media" ? block.tint : Commons.Color.accent
   readonly property int artSize: Commons.Style.space(64)
   readonly property int scrubHeight: Commons.Style.space(16)
   // One fixed height for every kind, sized for the media layout: art, scrub
@@ -147,7 +150,7 @@ Item {
         width: track.width * scrub.fraction
         height: parent.height
         radius: parent.radius
-        color: Commons.Color.accent
+        color: block.accent
       }
     }
 
@@ -199,9 +202,9 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     spacing: Commons.Style.spacing.lg
 
-    // Dictation
+    // Dictation and screen recording: Stop
     ActivityButton {
-      visible: block.kind === "dictation" && block.activity.state === "recording"
+      visible: (block.kind === "dictation" || block.kind === "screenrec") && block.activity.state === "recording"
       label: Glyphs.GLYPHS.stop + "  Stop"
       emphasized: true
       onClicked: block.send("stop")
@@ -219,6 +222,7 @@ Item {
       label: Glyphs.controlLabel("toggle", block.activity)
       available: block.kind === "media" && block.activity.canTogglePlaying === true
       emphasized: true
+      accent: block.accent
       onClicked: block.send("toggle")
     }
     ActivityButton {

@@ -10,6 +10,7 @@ Rectangle {
   property string label: ""
   property bool available: true
   property bool emphasized: false
+  property color accent: Commons.Color.accent
   signal clicked()
 
   implicitWidth: Math.max(Commons.Style.spacing.controlHeight, labelText.implicitWidth + Commons.Style.spacing.huge)
@@ -17,14 +18,14 @@ Rectangle {
   radius: Commons.Style.cornerRadius
   color: btn.emphasized ? Commons.Color.menu.selectedBackground : "transparent"
   border.width: Commons.Style.normalBorderWidth
-  border.color: btn.emphasized ? Commons.Color.accent : Commons.Color.menu.border
+  border.color: btn.emphasized ? btn.accent : Commons.Color.menu.border
   opacity: btn.available ? 1 : 0.35
 
   Text {
     id: labelText
     textFormat: Text.PlainText
     text: btn.label
-    color: btn.emphasized ? Commons.Color.accent : Commons.Color.popups.text
+    color: btn.emphasized ? btn.accent : Commons.Color.popups.text
     font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.body
     anchors.centerIn: parent

@@ -24,7 +24,12 @@ Item {
     { key: "dictation", label: "Dictation" },
     { key: "media", label: "Media" },
     { key: "charging", label: "Charging" },
-    { key: "hud", label: "Volume and brightness" }
+    { key: "hud", label: "Volume level" },
+    { key: "screenRecording", label: "Recording" },
+    { key: "privacy", label: "Mic, camera" },
+    { key: "dnd", label: "Do Not Disturb" },
+    { key: "bluetooth", label: "Bluetooth" },
+    { key: "alerts", label: "Alerts" }
   ]
   // The HUD only shows once the owner has turned off Omarchy's own OSD.
   readonly property bool hudWaiting: island && island.settings && island.settings.hud === true && !island.hudEffective
@@ -47,18 +52,11 @@ Item {
     page.lastResult = page.island.saveSettings(edit)
   }
 
+  // No heading: the selected Settings chip already names the page, and the
+  // nine toggles need the room.
   Column {
     anchors.fill: parent
-    spacing: Commons.Style.spacing.xxl
-
-    Text {
-      textFormat: Text.PlainText
-      text: "Settings"
-      color: Commons.Color.popups.text
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.heading
-      font.bold: true
-    }
+    spacing: Commons.Style.spacing.lg
 
     Row {
       spacing: Commons.Style.spacing.huge * 2
@@ -87,17 +85,18 @@ Item {
     }
 
     Grid {
-      columns: 2
+      columns: 3
       columnSpacing: Commons.Style.spacing.huge * 2
-      rowSpacing: Commons.Style.spacing.md
+      rowSpacing: Commons.Style.spacing.sm
 
       Repeater {
         model: page.toggles
 
         Toggle {
           required property var modelData
-          width: (page.width - Commons.Style.spacing.huge * 2) / 2
+          width: (page.width - Commons.Style.spacing.huge * 4) / 3
           label: modelData.label
+          titleSize: Commons.Style.font.body
           checked: page.island && page.island.settings ? page.island.settings[modelData.key] === true : true
           foreground: Commons.Color.popups.text
           onClicked: {

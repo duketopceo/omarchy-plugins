@@ -8,6 +8,8 @@ import "Screens.js" as Screens
 import "Fullscreen.js" as Fullscreen
 import "Timer.js" as IslandTimer
 import "Hud.js" as Hud
+import "Alert.js" as Alert
+import "Dnd.js" as Dnd
 
 // The Island's root: loads settings and the capability probe, creates one
 // IslandWindow per screen, watches fullscreen state, and owns the single
@@ -112,6 +114,59 @@ Item {
     id: charging
     enabled: root.settings.charging === true
     battery: root.power.batteries && root.power.batteries.length > 0 ? String(root.power.batteries[0]) : ""
+    onCharged: function(m) { root.pushAlert(Alert.charging(m.capacity, m.timeToFull)) }
+  }
+
+  ScreenRecordSource {
+    id: screenrec
+    enabled: root.settings.screenRecording === true && root.tools["omarchy-capture-screenrecording"] === true
+  }
+
+  BluetoothSource {
+    id: bluetooth
+    enabled: root.settings.bluetooth === true
+    onConnected: function(e) { root.pushAlert(Alert.bluetooth(e.name, e.battery)) }
+  }
+
+  // ---- indicators: mic and camera in use, Do Not Disturb (R8-R10) ----
+  PrivacySource {
+    id: privacy
+    enabled: root.settings.privacy === true
+    // Omarchy's OSD already shows mic mute unless the owner handed it over.
+    watchMute: root.hudEffective && root.settings.alerts === true
+    onMicMuteFlipped: function(muted) { root.pushAlert(Alert.mic(muted)) }
+  }
+  readonly property bool micInUse: privacy.micInUse
+  readonly property bool cameraInUse: privacy.cameraInUse
+
+  readonly property bool dndAvailable: root.settings.dnd === true && Dnd.available(root.shellText)
+  DndSource {
+    id: dnd
+    enabled: root.dndAvailable
+    canToggle: root.tools["omarchy-toggle-notification-silencing"] === true
+    onToggled: function(edge) { root.pushAlert(Alert.dnd(edge === "on")) }
+  }
+  readonly property bool dndOn: dnd.on
+  function toggleDnd() { dnd.toggle() }
+
+  readonly property color mediaTint: media.tint
+
+  // ---- transient alerts (KTD7) ----
+  // At most one; each window shows it, gates it and times its end (KTD7).
+  property var alertModel: Alert.initial()
+  function pushAlert(a) {
+    if (root.settings.alerts !== true || !a) return
+    root.alertModel = Alert.push(root.alertModel, a, Date.now())
+  }
+  // Sample alerts for live checks and previews: `preview charging`.
+  function previewAlert(kind) {
+    var samples = {
+      charging: Alert.charging(62, 4320), timer: Alert.timerDone(),
+      bluetooth: Alert.bluetooth("Headphones", 0.8), dnd: Alert.dnd(true), mic: Alert.mic(true)
+    }
+    if (!samples[kind]) return "unknown"
+    root.pushAlert(samples[kind])
+    return root.settings.alerts === true ? "ok" : "off"
   }
 
   readonly property bool hudEffective: Hud.effective(root.settings, root.shellText)
@@ -132,8 +187,11 @@ Item {
     var before = root.timerModel.state
     root.timerModel = IslandTimer.tick(next, t)
     root.timerNow = t
-    if (before !== "done" && root.timerModel.state === "done" && root.tools["notify-send"] === true)
-      Quickshell.execDetached(["/usr/bin/notify-send", "-a", "Island", "Timer done", "Your Island timer finished."])
+    if (before !== "done" && root.timerModel.state === "done") {
+      root.pushAlert(Alert.timerDone())
+      if (root.tools["notify-send"] === true)
+        Quickshell.execDetached(["/usr/bin/notify-send", "-a", "Island", "Timer done", "Your Island timer finished."])
+    }
     var wait = IslandTimer.nextTickMs(root.timerModel, t)
     if (wait > 0) { timerTick.interval = wait; timerTick.restart() }
     else timerTick.stop()
@@ -155,7 +213,8 @@ Item {
   }
 
   // Every source's activity in one list; Activity.js lays it out per window.
-  readonly property var activities: [dictation.activity, hud.activity, root.timerActivity, media.activity, charging.activity]
+  readonly property var activities: [dictation.activity, screenrec.activity, hud.activity, root.timerActivity,
+                                     media.activity, charging.activity, bluetooth.activity]
   // When the list last changed, for Activity.js's expiry check.
   property real activityClock: Date.now()
   onActivitiesChanged: root.activityClock = Date.now()
@@ -170,6 +229,7 @@ Item {
       dictation.stop()
       return "ok"
     }
+    if (id === "screenrec" && action === "stop") { screenrec.stop(); return "ok" }
     if (id === "media") {
       if (action === "toggle") { media.toggle(); return "ok" }
       if (action === "next") { media.next(); return "ok" }
@@ -265,7 +325,7 @@ Item {
   function refreshOpened() {
     var any = false
     var list = windows.instances
-    for (var i = 0; i < list.length; i++) if (list[i].cardShown) any = true
+    for (var i = 0; i < list.length; i++) if (list[i].cardShown && !list[i].destroying) any = true
     root.opened = any
   }
 
@@ -332,9 +392,13 @@ Item {
     var out = []
     var list = windows.instances
     var activities = root.activitiesJson()
+    var indicators = { mic: root.micInUse, camera: root.cameraInUse, dnd: root.dndOn,
+                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true,
+                       mediaTint: String(root.mediaTint) }
     for (var i = 0; i < list.length; i++) {
       var s = list[i].snapshot()
       s.activities = activities
+      s.indicators = indicators
       out.push(s)
     }
     return JSON.stringify(out)
@@ -357,5 +421,7 @@ Item {
     }
     // Starts the Island's timer: `timer 5m`, `timer 90s`, `timer 1h30m`.
     function timer(spec: string): string { return root.startTimer(spec) }
+    // Shows a sample alert: charging, timer, bluetooth, dnd or mic.
+    function preview(kind: string): string { return root.previewAlert(kind) }
   }
 }

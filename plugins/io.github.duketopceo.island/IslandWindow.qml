@@ -8,6 +8,8 @@ import "Geom.js" as Geom
 import "Zone.js" as Zone
 import "Screens.js" as Screens
 import "Activity.js" as Activity
+import "Presentation.js" as Presentation
+import "Alert.js" as Alert
 
 // One screen's island. The window is fixed at card size plus slop and never
 // resizes. The input mask is the hot zone: a separate, non-animating item whose
@@ -44,6 +46,14 @@ PanelWindow {
   onCardShownChanged: {
     if (!win.cardShown) win.hold.ids = []
     if (win.island) win.island.refreshOpened()
+    win.refreshAlert()
+  }
+  // Set while this window is being destroyed, so the root's aggregate
+  // `opened` stops counting a card that is going away with it (R17).
+  property bool destroying: false
+  Component.onDestruction: {
+    win.destroying = true
+    if (win.island) win.island.refreshOpened()
   }
 
   // ---- live activities (KTD3) ----
@@ -62,14 +72,68 @@ PanelWindow {
   readonly property var geom: Geom.compute(win.island ? win.island.probe : null, win.screenInfo,
                                           win.island ? win.island.cameraWidth : 0)
   readonly property var winSize: Zone.windowSize(win.geom)
-  readonly property var zoneRect: Zone.rect(win.zone, win.geom)
+
+  // ---- presentation (KTD2, KTD4-KTD7) ----
+  // The alert this window shows now, or null; gated per window so an alert
+  // seen while the card is open or under fullscreen never shows later.
+  property var alertShown: null
+  property int alertBlockedId: 0
+  function refreshAlert() {
+    if (!win.island) return
+    var blocked = !Presentation.showAlert({ cardShown: win.cardShown, fullscreen: win.fullscreenNow, state: win.model.state })
+    var g = Alert.gate(win.island.alertModel, win.alertBlockedId, blocked, Date.now())
+    win.alertBlockedId = g.blockedId
+    var a = g.show ? Alert.current(win.island.alertModel, Date.now()) : null
+    if (a !== win.alertShown) win.alertShown = a
+    if (a) { alertEnd.interval = Math.max(1, a.until - Date.now() + 20); alertEnd.restart() }
+  }
+  Connections {
+    target: win.island
+    function onAlertModelChanged() { win.refreshAlert() }
+  }
+  // One-shot, armed to the shown alert's end, so it collapses on time.
+  Timer {
+    id: alertEnd
+    interval: 3000 // always overwritten by refreshAlert() before it starts
+    onTriggered: win.refreshAlert()
+  }
+  onModelChanged: win.refreshAlert()
+
+  readonly property bool hasSecond: win.layout.second !== null
+  readonly property bool bubbleShown: Presentation.bubbleVisible(win.hasSecond, win.alertShown !== null, win.cardShown)
+  readonly property string mode: win.cardShown ? "expanded" : (win.alertShown !== null ? "alert" : (win.bubbleShown ? "split" : "compact"))
+  readonly property bool notch: Presentation.surface(win.geom.hasCutout, win.mode) === "notch"
+  readonly property int dotCount: (win.island && win.island.micInUse ? 1 : 0) + (win.island && win.island.cameraInUse ? 1 : 0)
+  // The compact target: a discrete size from the content, never the animating
+  // width, so the hot zone only moves when content or state commits (KTD2).
+  readonly property var target: Presentation.compact(win.geom, pill.wantEar,
+    { bubble: win.bubbleShown, dots: win.dotCount, screenWidth: win.screen ? win.screen.width : 0 })
+  readonly property var alertSize: Presentation.alertSize(win.geom)
+  readonly property var zoneRect: Zone.rect(win.zone, win.geom, win.target)
+  // Pill text on the black notch surface: the theme's popup text when it reads
+  // on black, else the theme background (light themes).
+  readonly property color pillText: !win.geom.hasCutout ? Commons.Color.popups.text
+    : (Presentation.textOnBlack(Commons.Color.popups.text, Commons.Color.popups.background) === "text"
+       ? Commons.Color.popups.text : Commons.Color.popups.background)
 
   implicitWidth: win.winSize.width
   implicitHeight: win.winSize.height
 
   // ---- fullscreen step-aside (KTD6) ----
-  readonly property bool fullscreenNow: win.island ? win.island.fullscreenOn(win.screen) : false
-  onFullscreenNowChanged: win.send(win.fullscreenNow ? "fullscreenOn" : "fullscreenOff")
+  // Re-read when the root's Hyprland snapshot settles, not bound: the binding
+  // looped through the window's own visibility (shell log, 2026-11-15).
+  property bool fullscreenNow: false
+  function refreshFullscreen() {
+    var on = win.island ? win.island.fullscreenOn(win.screen) : false
+    if (on === win.fullscreenNow) return
+    win.fullscreenNow = on
+    win.send(on ? "fullscreenOn" : "fullscreenOff")
+  }
+  Connections {
+    target: win.island
+    function onHyprRevisionChanged() { win.refreshFullscreen() }
+  }
+  Component.onCompleted: win.refreshFullscreen()
   visible: !win.fullscreenNow
 
   mask: Region { item: hotZone }
@@ -118,6 +182,9 @@ PanelWindow {
     s.top = win.layout.top ? win.layout.top.id : ""
     s.second = win.layout.second ? win.layout.second.id : ""
     s.held = win.hold.ids
+    s.presentation = { mode: win.mode, surface: win.notch ? "notch" : "theme", pillWidth: win.target.width,
+                       earWidth: win.target.earWidth, bubble: win.bubbleShown }
+    s.alert = win.alertShown ? { kind: win.alertShown.kind, title: win.alertShown.title } : null
     return s
   }
 
@@ -153,40 +220,81 @@ PanelWindow {
       width: win.winSize.width
       height: win.winSize.height
 
+      // Spring on growth (OutBack, slight overshoot) and a quick ease-out on
+      // shrink, both through Commons.Style.duration so reduced motion snaps
+      // (KTD3). Opening and alert growth spring; content changes and closing ease.
+      readonly property bool springing: win.cardShown || win.alertShown !== null
+
       Item {
         id: body
         clip: true
         readonly property int radius: Commons.Style.cornerRadius + Commons.Style.spacing.md
         x: (stage.width - width) / 2
         y: 0
-        width: win.cardShown ? win.geom.card.width : win.geom.compactWidth
-        height: win.cardShown ? win.geom.card.height : win.geom.compactHeight
+        width: win.cardShown ? win.geom.card.width : (win.alertShown !== null ? win.alertSize.width : win.target.width)
+        height: win.cardShown ? win.geom.card.height : (win.alertShown !== null ? win.alertSize.height : win.target.height)
 
-        Behavior on width { NumberAnimation { duration: Commons.Style.duration(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Commons.Style.easeOut } }
-        Behavior on height { NumberAnimation { duration: Commons.Style.duration(240); easing.type: Easing.BezierSpline; easing.bezierCurve: Commons.Style.easeOut } }
+        Behavior on width {
+          NumberAnimation {
+            duration: Commons.Style.duration(stage.springing ? 380 : 240)
+            easing.type: stage.springing ? Easing.OutBack : Easing.BezierSpline
+            easing.overshoot: 1.2
+            easing.bezierCurve: Commons.Style.easeOut
+          }
+        }
+        Behavior on height {
+          NumberAnimation {
+            duration: Commons.Style.duration(stage.springing ? 380 : 240)
+            easing.type: stage.springing ? Easing.OutBack : Easing.BezierSpline
+            easing.overshoot: 1.2
+            easing.bezierCurve: Commons.Style.easeOut
+          }
+        }
 
         // Drawn taller than the shape and clipped at the top edge, so only
-        // the bottom corners are rounded.
+        // the bottom corners are rounded. Pure black on a notch screen's
+        // compact pill so it merges with the camera cutout (KTD4).
         Rectangle {
           y: -body.radius
           width: parent.width
           height: parent.height + body.radius
           radius: body.radius
-          color: Commons.Color.popups.background
-          border.width: Commons.Style.normalBorderWidth
+          color: win.notch ? Qt.rgba(0, 0, 0, 1) : Commons.Color.popups.background
+          border.width: win.notch ? 0 : Commons.Style.normalBorderWidth
           border.color: Commons.Color.popups.border
+          Behavior on color { ColorAnimation { duration: Commons.Style.duration(160) } }
         }
 
         Pill {
+          id: pill
           x: (body.width - width) / 2
           y: 0
-          width: win.geom.compactWidth
-          height: win.geom.compactHeight
+          width: win.target.width
+          height: win.target.height
+          opacity: win.alertShown !== null ? 0 : 1
+          visible: opacity > 0.01
           now: win.island ? win.island.now : new Date()
-          earWidth: win.geom.earWidth
+          earWidth: win.target.earWidth
+          textWidth: win.target.textWidth
+          dotSlot: win.target.dotSlot
           cameraWidth: win.geom.cameraWidth
+          textColor: win.notch ? win.pillText : Commons.Color.popups.text
+          tint: win.island ? win.island.mediaTint : Commons.Color.accent
           topActivity: win.layout.top
-          secondActivity: win.layout.second
+          dnd: win.island ? win.island.dndOn : false
+          micInUse: win.island ? win.island.micInUse : false
+          cameraInUse: win.island ? win.island.cameraInUse : false
+          Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(120) } }
+        }
+
+        AlertView {
+          x: (body.width - width) / 2
+          width: win.alertSize.width
+          height: win.alertSize.height
+          opacity: win.alertShown !== null ? 1 : 0
+          visible: opacity > 0.01
+          alert: win.alertShown
+          Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160) } }
         }
 
         Card {
@@ -202,6 +310,7 @@ PanelWindow {
           pinned: win.model.pinned
           island: win.island
           layout: win.layout
+          tint: win.island ? win.island.mediaTint : Commons.Color.accent
           onAct: function(id, action, value) { if (win.island) win.island.act(id, action, value) }
           onPageSelected: function(id) { win.page = id }
           onPinClicked: win.send(win.model.pinned ? "unpin" : "pin")
@@ -217,6 +326,25 @@ PanelWindow {
         TapHandler {
           enabled: !win.cardShown
           onTapped: win.send("click")
+        }
+      }
+
+      // The split presentation's detached bubble (KTD6), right of the pill.
+      Bubble {
+        x: (stage.width - win.target.width) / 2 + (win.target.bubble ? win.target.bubble.offset : win.target.width)
+        y: 0
+        width: win.geom.compactHeight
+        height: win.geom.compactHeight
+        opacity: win.bubbleShown ? 1 : 0
+        visible: opacity > 0.01
+        activity: win.layout.second
+        notch: win.geom.hasCutout
+        textColor: win.pillText
+        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160) } }
+        onClicked: {
+          // Seed the held order so the card opens with this activity on top.
+          if (win.layout.second) win.hold.ids = [String(win.layout.second.id)]
+          win.send("click")
         }
       }
     }

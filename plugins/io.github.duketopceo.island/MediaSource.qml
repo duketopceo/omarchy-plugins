@@ -1,7 +1,9 @@
 import QtQuick 6.11
 import Quickshell
 import Quickshell.Services.Mpris
+import qs.Commons as Commons
 import "Media.js" as Media
+import "Tint.js" as Tint
 
 // MPRIS media for the Island (KTD5). Maps Quickshell's MprisPlayer objects to
 // plain records for Media.js, remembers when each player last played, and
@@ -25,6 +27,25 @@ Scope {
   readonly property var chosen: src.enabled ? Media.pick(src.records, src.hold.name, src.lastPlayedAt, src.now) : null
   readonly property var activity: Media.activity(src.chosen, src.now)
   onChosenChanged: src.hold.name = src.chosen ? src.chosen.dbusName : ""
+
+  // Media accent from the track's art (R13, KTD14): only local file:/data:
+  // art (Media.artUrl drops remote URLs, so this never fetches), the most
+  // saturated art color that stays readable on the card, else the theme accent.
+  readonly property string localArt: src.activity.active ? String(src.activity.art || "") : ""
+  ColorQuantizer {
+    id: quantizer
+    source: src.localArt
+    depth: 3
+    rescaleSize: 64
+  }
+  readonly property color tint: {
+    var out = []
+    var list = src.localArt !== "" && quantizer.colors ? quantizer.colors : []
+    for (var i = 0; i < list.length; i++) out.push({ r: list[i].r, g: list[i].g, b: list[i].b })
+    var bg = Commons.Color.popups.background
+    var c = Tint.pick(out, { r: bg.r, g: bg.g, b: bg.b })
+    return c ? Qt.rgba(c.r, c.g, c.b, 1) : Commons.Color.accent
+  }
 
   // Reads each player's properties inside the `records` binding, so a play,
   // pause or track change re-evaluates it. lastPlayedAt is mutated in place,
