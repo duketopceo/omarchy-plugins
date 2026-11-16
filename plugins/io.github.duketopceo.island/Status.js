@@ -20,6 +20,23 @@ function weather(text) {
   return { place: place, temp: m[1].replace(/\s+/g, "") }
 }
 
+// True when shell.json places Omarchy's weather widget in the bar and does not
+// disable it: the Island only reuses a weather service Omarchy already polls.
+function weatherInBar(shellJson) {
+  var o
+  try { o = JSON.parse(String(shellJson === null || shellJson === undefined ? "" : shellJson)) } catch (e) { return false }
+  if (!o || typeof o !== "object" || Array.isArray(o)) return false
+  if (Array.isArray(o.disabledPlugins) && o.disabledPlugins.indexOf("omarchy.weather") >= 0) return false
+  var layout = o.bar && typeof o.bar === "object" ? o.bar.layout : null
+  if (!layout || typeof layout !== "object") return false
+  for (var section in layout) {
+    var list = layout[section]
+    if (!Array.isArray(list)) continue
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === "omarchy.weather") return true
+  }
+  return false
+}
+
 function _tailscaleUp(t) { return !!t && t.state === "Running" && t.online === true }
 
 // -> [{ id, text, on }]: battery, Tailscale, and VPN only while one is up.
@@ -66,4 +83,4 @@ function systemRows(s) {
   return out
 }
 
-if (typeof module !== "undefined") module.exports = { weather: weather, homeDots: homeDots, systemRows: systemRows }
+if (typeof module !== "undefined") module.exports = { weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, systemRows: systemRows }

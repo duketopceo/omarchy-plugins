@@ -148,7 +148,7 @@ def s(source, sid, status, name="x", app="claude", address="", terminal=""):
     ("claude", "busy", "working"), ("claude", "idle", "idle"), ("claude", "weird", "idle"),
 ])
 def test_status_vocabulary(source, status, want):
-    assert js(f"A.normStatus({json.dumps(source)}, {json.dumps(status)})") == want
+    assert js(f"A.normStatus({json.dumps(status)})") == want
 
 
 def test_rows_needs_you_first_then_done_working_idle_then_name():

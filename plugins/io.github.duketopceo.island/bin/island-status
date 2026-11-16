@@ -64,6 +64,15 @@ def run(argv: list[str]) -> str | None:
     return r.stdout if r.returncode == 0 else None
 
 
+def json_dict(text: str | None) -> dict | None:
+    """The JSON object in text, or None for missing, junk or non-object output."""
+    try:
+        d = json.loads(text) if text else None
+    except ValueError:
+        return None
+    return d if isinstance(d, dict) else None
+
+
 def battery(root: Path) -> dict | None:
     base = root / "sys/class/power_supply"
     try:
@@ -121,10 +130,11 @@ def cpu_percent(before: str | None, after: str | None) -> int | None:
     return max(0, min(100, round(100 * (total - idle) / total)))
 
 
-def cpu(root: Path, sample: float) -> int | None:
-    before = read(root / "proc/stat")
-    if sample > 0:
-        time.sleep(sample)
+def cpu_end(root: Path, before: str | None, started: float, sample: float) -> int | None:
+    """CPU use since `before`, waiting until at least `sample` seconds have passed."""
+    left = sample - (time.monotonic() - started)
+    if left > 0:
+        time.sleep(left)
     return cpu_percent(before, read(root / "proc/stat"))
 
 
@@ -166,14 +176,8 @@ def network(root: Path) -> dict | None:
 
 
 def tailscale() -> dict | None:
-    out = run(["tailscale", "status", "--json"])
-    if not out:
-        return None
-    try:
-        d = json.loads(out)
-    except ValueError:
-        return None
-    if not isinstance(d, dict):
+    d = json_dict(run(["tailscale", "status", "--json"]))
+    if d is None:
         return None
     state = str(d.get("BackendState") or "")
     me = d.get("Self") if isinstance(d.get("Self"), dict) else {}
@@ -194,14 +198,8 @@ def vpn(root: Path) -> dict:
 
 
 def dayflow() -> dict | None:
-    out = run(["dayflow", "status", "--json"])
-    if not out:
-        return None
-    try:
-        d = json.loads(out)
-    except ValueError:
-        return None
-    if not isinstance(d, dict):
+    d = json_dict(run(["dayflow", "status", "--json"]))
+    if d is None:
         return None
     return {
         "state": str(d.get("capture_state") or ""),
@@ -236,9 +234,11 @@ def main() -> int:
     if args.section == "home":
         out = {"battery": battery(root), "tailscale": tailscale(), "vpn": vpn(root)}
     elif args.section == "system":
+        # The CPU window spans the other reads instead of a bare sleep.
+        started, before = time.monotonic(), read(root / "proc/stat")
         out = {"battery": battery(root), "profile": profile(), "fan": fan(), "fanPanel": fan_panel(),
-               "cpu": cpu(root, args.cpu_sample), "memory": memory(root), "network": network(root),
-               "tailscale": tailscale()}
+               "memory": memory(root), "network": network(root), "tailscale": tailscale()}
+        out["cpu"] = cpu_end(root, before, started, args.cpu_sample)
     else:
         out = {"dayflow": dayflow(), "shots": shots()}
     sys.stdout.write(json.dumps(out) + "\n")

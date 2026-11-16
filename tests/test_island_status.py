@@ -35,6 +35,30 @@ def test_weather_unavailable_is_null(text):
     assert js(f"S.weather({json.dumps(text)})") is None
 
 
+# ---- weather only while Omarchy's weather widget is in the bar ----
+def bar(entries, disabled=None):
+    return json.dumps({"bar": {"layout": {"left": [], "center": [{"id": "omarchy.clock"}], "right": entries}},
+                       "disabledPlugins": disabled or [], "plugins": [{"id": "x", "note": "omarchy.weather"}]})
+
+
+def test_weather_in_bar_when_widget_placed():
+    assert js(f"S.weatherInBar({json.dumps(bar([{'id': 'omarchy.weather'}]))})") is True
+
+
+def test_weather_not_in_bar_when_absent_or_only_mentioned_elsewhere():
+    assert js(f"S.weatherInBar({json.dumps(bar([]))})") is False
+
+
+def test_weather_not_in_bar_when_disabled():
+    text = bar([{"id": "omarchy.weather"}], ["omarchy.weather"])
+    assert js(f"S.weatherInBar({json.dumps(text)})") is False
+
+
+@pytest.mark.parametrize("text", ["", "{bad", "[]", None])
+def test_weather_in_bar_junk(text):
+    assert js(f"S.weatherInBar({json.dumps(text)})") is False
+
+
 # ---- Home status dots ----
 def home(**over):
     h = {"battery": {"capacity": 80, "status": "Discharging"},

@@ -37,7 +37,11 @@ Scope {
     command: src.command
     stdout: StdioCollector {
       onStreamFinished: {
-        src.text = String(text || "")
+        var out = String(text || "")
+        // An unchanged answer reassigns nothing, so polled pages do not
+        // re-evaluate every binding on each run.
+        if (out === src.text && (src.data !== null || !src.json)) { src.updated(); return }
+        src.text = out
         if (src.json) {
           var d = null
           try { d = JSON.parse(src.text) } catch (e) { d = null }

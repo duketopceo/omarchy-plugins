@@ -224,7 +224,6 @@ Item {
     return "ok"
   }
 
-  // Every source's activity in one list; Activity.js lays it out per window.
   // ---- pages (Pages.js): sources run only while their page needs them ----
   readonly property string helperDir: decodeURIComponent(Qt.resolvedUrl("bin").toString().replace("file://", ""))
   property real weatherAt: 0
@@ -239,7 +238,7 @@ Item {
 
   // Weather through Omarchy's own command, only when Omarchy's weather widget
   // is in the bar (its service is already polled), at most every 30 minutes.
-  readonly property bool weatherOn: root.settings.weather === true && root.shellText.indexOf('"omarchy.weather"') >= 0
+  readonly property bool weatherOn: root.settings.weather === true && Status.weatherInBar(root.shellText)
   PollSource {
     id: weatherSrc
     json: false
@@ -272,8 +271,9 @@ Item {
     command: ["/usr/bin/python3", root.helperDir + "/island-agents"]
     active: root.settings.agents === true && root.pageOpen("agents")
     interval: 3000
-    Component.onCompleted: agentsSrc.refresh()
+    Component.onCompleted: root.refreshAgents()
   }
+  function refreshAgents() { if (root.settings.agents === true) agentsSrc.refresh() }
   readonly property var agentRows: root.settings.agents === true ? Agents.rows(agentsSrc.data) : []
   function focusAgent(row) {
     var cmds = Agents.focusCommands(row)
@@ -284,9 +284,10 @@ Item {
   PollSource {
     id: moreStatus
     command: ["/usr/bin/python3", root.helperDir + "/island-status", "more"]
-    Component.onCompleted: moreStatus.refresh()
+    Component.onCompleted: root.refreshMore()
     onUpdated: root.shotsModel = More.shotsStep(root.shotsModel, moreStatus.data ? moreStatus.data.shots : null)
   }
+  function refreshMore() { if (root.settings.dayflow === true || root.settings.shots === true) moreStatus.refresh() }
   readonly property var dayflow: root.settings.dayflow === true && moreStatus.data ? moreStatus.data.dayflow : null
   readonly property var dayflowRows: More.dayflowRows(root.dayflow)
   readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
@@ -321,11 +322,12 @@ Item {
     if (root.micMuteAvailable) Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
   }
 
-  // The media activity whichever slot it holds, for the Music page.
-  readonly property var mediaActivity: media.activity
+  // The media activity whichever slot it holds, or null when nothing plays:
+  // the Music page and the window's art tint read it.
+  readonly property var mediaActivity: media.activity !== null && media.activity.active === true ? media.activity : null
 
   readonly property var pageAvail: ({
-    music: root.settings.media === true && media.activity !== null && media.activity.active === true,
+    music: root.settings.media === true && root.mediaActivity !== null,
     agents: root.settings.agents === true && agentsSrc.data !== null && (agentsSrc.data.herdr === true || agentsSrc.data.claude === true),
     messages: root.settings.messages === true && root.messages.ok,
     dayflow: root.dayflow !== null,
@@ -340,14 +342,15 @@ Item {
   onOpenedChanged: {
     if (!root.opened) return
     homeStatus.refresh()
-    moreStatus.refresh()
-    if (root.settings.agents === true) agentsSrc.refresh()
+    root.refreshMore()
+    root.refreshAgents()
   }
   onOpenPagesChanged: {
     if (root.pageOpen("home")) root.refreshWeather()
     if (root.pageOpen("shots")) root.markShotsSeen()
   }
 
+  // Every source's activity in one list; Activity.js lays it out per window.
   readonly property var activities: [dictation.activity, screenrec.activity, hud.activity, root.timerActivity,
                                      media.activity, charging.activity, bluetooth.activity,
                                      calendar.activity]

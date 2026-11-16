@@ -14,8 +14,7 @@ Item {
   signal holdStart()
   signal holdEnd()
 
-  readonly property var activity: page.island && page.island.mediaActivity && page.island.mediaActivity.active === true
-    ? page.island.mediaActivity : null
+  readonly property var activity: page.island ? page.island.mediaActivity : null
 
   function count() { return 0 }
   function heightFor(n) {

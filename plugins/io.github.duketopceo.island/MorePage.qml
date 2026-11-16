@@ -1,6 +1,7 @@
 import QtQuick 6.11
 import qs.Commons as Commons
 import "Pages.js" as Pages
+import "More.js" as More
 
 // More: the pages that are not in the chip row (Shots, Messages, Dayflow when
 // detected, and Settings), each with a one-line status. A live page also
@@ -22,8 +23,8 @@ Item {
   function detail(id) {
     var isl = page.island
     if (!isl) return ""
-    if (id === "messages") return isl.messages.unread > 0 ? isl.messages.unread + " unread" : "No unread messages"
-    if (id === "dayflow") return isl.dayflow ? (isl.dayflow.paused ? "Paused" : (isl.dayflow.state === "recording" ? "Recording" : "Not recording")) : ""
+    if (id === "messages") return More.unreadText(isl.messages.unread)
+    if (id === "dayflow") return More.dayflowState(isl.dayflow)
     if (id === "shots") return isl.pageLive.shots ? "New screenshot" : (isl.shots ? isl.shots.total + " captioned" : "")
     if (id === "settings") return "Island settings"
     return ""

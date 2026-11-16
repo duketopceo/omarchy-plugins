@@ -2,6 +2,7 @@ import QtQuick 6.11
 import qs.Commons as Commons
 import "Dnd.js" as Dnd
 import "Pages.js" as Pages
+import "More.js" as More
 import "Presentation.js" as Presentation
 
 // The expanded card's content: the active page, and a compact row with the
@@ -173,7 +174,7 @@ Item {
       width: parent.width
       height: parent.height
       maxRows: card.maxRows
-      summary: card.island && card.island.messages.unread > 0 ? card.island.messages.unread + " unread" : "No unread messages"
+      summary: More.unreadText(card.island ? card.island.messages.unread : 0)
       emptyText: "All caught up"
       actionLabel: "Open Blip"
       rows: card.island ? card.island.messages.rows : []

@@ -16,8 +16,9 @@ Item {
   // second, and a new model would rebuild its buttons mid-click.
   property var controls: []
   readonly property string controlKey: Glyphs.rowControls(row.activity).join(",")
-  onControlKeyChanged: row.controls = row.controlKey === "" ? [] : row.controlKey.split(",")
-  Component.onCompleted: row.controls = row.controlKey === "" ? [] : row.controlKey.split(",")
+  function syncControls() { row.controls = row.controlKey === "" ? [] : row.controlKey.split(",") }
+  onControlKeyChanged: row.syncControls()
+  Component.onCompleted: row.syncControls()
 
   implicitHeight: Commons.Style.spacing.controlHeight
 

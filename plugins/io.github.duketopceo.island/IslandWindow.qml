@@ -159,7 +159,7 @@ PanelWindow {
   // The art the tint reads: the top activity's, or on an open Music page the
   // media activity's wherever it sits in the layout.
   readonly property var mediaAct: win.island ? win.island.mediaActivity : null
-  readonly property bool musicOpen: win.cardShown && win.page === "music" && win.mediaAct !== null && win.mediaAct.active === true
+  readonly property bool musicOpen: win.cardShown && win.page === "music" && win.mediaAct !== null
   readonly property string mediaArt: win.mediaTop ? String(win.layout.top.art || "")
     : (win.musicOpen ? String(win.mediaAct.art || "") : "")
   function pickTint(colors, surface, fallback) {

@@ -10,7 +10,7 @@ var APPS = {
   grok: "Grok", antigravity: "Antigravity", cursor: "Cursor", devin: "Devin", droid: "Droid"
 }
 
-function normStatus(source, status) {
+function normStatus(status) {
   var s = String(status || "").toLowerCase()
   if (NEEDS[s] === true) return "needs"
   if (s === "done") return "done"
@@ -38,7 +38,7 @@ function rows(data) {
   for (var i = 0; i < list.length; i++) {
     var x = list[i]
     if (!x || typeof x !== "object" || !x.id) continue
-    var st = normStatus(x.source, x.status)
+    var st = normStatus(x.status)
     var address = _address(x.address)
     var terminal = x.source === "herdr" ? String(x.terminal || "") : ""
     out.push({

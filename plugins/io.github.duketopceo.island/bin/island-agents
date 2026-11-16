@@ -123,7 +123,10 @@ def claude_sessions(root: Path, by_pid: dict[int, str]) -> list[dict]:
     except OSError:
         return out
     for f in files:
-        d = _json(f.read_text(errors="replace")) if f.is_file() else None
+        try:
+            d = _json(f.read_text(errors="replace"))
+        except OSError:
+            continue
         if not isinstance(d, dict) or not isinstance(d.get("pid"), int) or isinstance(d.get("pid"), bool):
             continue
         pid = d["pid"]

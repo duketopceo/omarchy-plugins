@@ -43,12 +43,21 @@ function messages(text) {
   return out
 }
 
+// "Paused", "Recording", or Dayflow's own state word; "" without Dayflow.
+function dayflowState(d) {
+  if (!d) return ""
+  if (d.paused === true) return "Paused"
+  return d.state ? d.state.charAt(0).toUpperCase() + d.state.slice(1) : "Unknown"
+}
+
+// The Messages summary line: "3 unread" or "No unread messages".
+function unreadText(n) { return n > 0 ? n + " unread" : "No unread messages" }
+
 function dayflowLive(d) { return !!d && (d.state === "recording" || d.paused === true) }
 
 function dayflowRows(d) {
   if (!d) return []
-  var state = d.paused === true ? "Paused" : (d.state ? d.state.charAt(0).toUpperCase() + d.state.slice(1) : "Unknown")
-  var rows = [{ label: "Capture", value: state }, { label: "Frames today", value: String(d.framesToday || 0) }]
+  var rows = [{ label: "Capture", value: dayflowState(d) }, { label: "Frames today", value: String(d.framesToday || 0) }]
   if (d.lastFrame) rows.push({ label: "Last frame", value: String(d.lastFrame) })
   rows.push({ label: "Blocks pending", value: String(d.pending || 0) })
   if (d.storage) rows.push({ label: "Storage", value: String(d.storage) })
@@ -91,6 +100,6 @@ function shotsRows(shots) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  messages: messages, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
+  messages: messages, unreadText: unreadText, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
   shotsInitial: shotsInitial, shotsStep: shotsStep, shotsLive: shotsLive, shotsSeen: shotsSeen, shotsRows: shotsRows
 }
