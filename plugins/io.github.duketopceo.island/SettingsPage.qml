@@ -82,6 +82,17 @@ Item {
         foreground: Commons.Color.popups.text
         onModified: function(newValue) { page.commit({ closeDelay: newValue }) }
       }
+
+      // Beside the delays, where the row has room for the full label.
+      Toggle {
+        width: page.width - openField.width - closeField.width - Commons.Style.spacing.huge * 4
+        anchors.bottom: parent.bottom
+        label: "Load album art from the web"
+        titleSize: Commons.Style.font.body
+        checked: page.island && page.island.settings ? page.island.settings.webArt === true : true
+        foreground: Commons.Color.popups.text
+        onClicked: page.commit({ webArt: !checked })
+      }
     }
 
     Grid {

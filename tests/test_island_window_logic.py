@@ -158,7 +158,7 @@ def test_entry_find_returns_the_raw_entry_or_null():
 def test_save_merge_keeps_unknown_keys_and_skips_noop_write():
     # A complete entry (every known key present), so an unchanged save is a no-op.
     text = json.dumps({"plugins": [{"id": "me", "openDelay": 140, "closeDelay": 450, "cameraWidth": 0,
-                                    "dictation": True, "media": True, "charging": True, "hud": True,
+                                    "dictation": True, "media": True, "webArt": True, "charging": True, "hud": True,
                                     "screenRecording": True, "privacy": True, "dnd": True,
                                     "bluetooth": True, "alerts": True, "custom": [1]}]})
     out = run(
