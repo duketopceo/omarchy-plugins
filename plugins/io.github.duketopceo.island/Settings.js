@@ -6,11 +6,12 @@
 // returns false when there is no entry or nothing changed, so a write must
 // carry the full object: merge() builds it, changed() says whether to write.
 
-// The four booleans switch activity sources on or off (KTD12); a stored value
-// that is not a boolean resolves to the default.
+// The booleans switch activity sources, indicators and alerts on or off; a
+// stored value that is not a boolean resolves to the default.
 var DEFAULTS = {
   openDelay: 140, closeDelay: 450, cameraWidth: 0,
-  dictation: true, media: true, charging: true, hud: true
+  dictation: true, media: true, charging: true, hud: true,
+  screenRecording: true, privacy: true, dnd: true, bluetooth: true, alerts: true
 }
 var RANGES = {
   openDelay: [0, 600],
