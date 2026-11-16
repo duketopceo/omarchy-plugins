@@ -22,7 +22,7 @@ Scope {
   // The pid last read from the file; a change triggers a status check.
   property int seenPid: 0
 
-  onEnabledChanged: if (!src.enabled) { src.seenPid = 0; src.model = ScreenRec.initial() }
+  onEnabledChanged: if (!src.enabled) { src.seenPid = 0; src.readAgain = false; src.model = ScreenRec.initial() }
 
   function readPid(pid) {
     if (pid === src.seenPid) return
@@ -67,10 +67,15 @@ Scope {
       if (src.recheck) { src.recheck = false; statusProc.running = true; return }
       if (code !== 0) { src.model = ScreenRec.initial(); return }
       if (src.model.recording && src.model.pid === src.seenPid) return
+      // Never retag a read that is running: queue one for the new pid.
+      if (startProc.running) { src.readAgain = true; return }
       startProc.recPid = src.seenPid
-      if (!startProc.running) startProc.running = true
+      startProc.running = true
     }
   }
+
+  // A pid confirmed while a start-time read ran is read once that read ends.
+  property bool readAgain: false
 
   // One read of the recorder's /proc start time and the uptime, per recording.
   Process {
@@ -80,6 +85,8 @@ Scope {
     stderr: StdioCollector {}
     stdout: StdioCollector {
       onStreamFinished: {
+        // Stale: the setting went off or the recorder changed during the read.
+        if (!src.enabled || startProc.recPid !== src.seenPid) return
         var lines = String(text).split("\n")
         var secs = ScreenRec.elapsed(lines[0] || "", lines[1] || "")
         var t = Date.now()
@@ -87,6 +94,7 @@ Scope {
         src.now = t
       }
     }
+    onExited: if (src.readAgain) { src.readAgain = false; if (src.enabled && src.seenPid > 0) src.confirm() }
   }
 
   // Redraw the elapsed time each second while recording, and re-confirm every

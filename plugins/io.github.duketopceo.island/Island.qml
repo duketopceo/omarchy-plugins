@@ -150,6 +150,7 @@ Item {
   function toggleDnd() { dnd.toggle() }
 
   readonly property color mediaTint: media.tint
+  readonly property var mediaPillTint: media.pillTint
 
   // ---- transient alerts (KTD7) ----
   // At most one; each window shows it, gates it and times its end (KTD7).

@@ -279,7 +279,9 @@ PanelWindow {
           dotSlot: win.target.dotSlot
           cameraWidth: win.geom.cameraWidth
           textColor: win.notch ? win.pillText : Commons.Color.popups.text
-          tint: win.island ? win.island.mediaTint : Commons.Color.accent
+          // On the black notch pill the art color is picked against black.
+          tint: !win.island ? Commons.Color.accent
+            : (win.notch ? (win.island.mediaPillTint ? win.island.mediaPillTint : win.pillText) : win.island.mediaTint)
           topActivity: win.layout.top
           dnd: win.island ? win.island.dndOn : false
           micInUse: win.island ? win.island.micInUse : false

@@ -25,7 +25,6 @@ Scope {
   // A mute change after the first reading, for the Island's alert.
   signal micMuteFlipped(bool muted)
 
-  onEnabledChanged: if (!src.enabled) src.cameraInUse = false
 
   // ---- microphone in use ----
   readonly property var nodes: src.enabled && Pipewire.nodes ? Pipewire.nodes.values : []
@@ -73,17 +72,41 @@ Scope {
     if (src.lastMute >= 0 && src.lastMute !== src.muteState) src.micMuteFlipped(src.muteState === 1)
     src.lastMute = src.muteState
   }
+  // A switch between two sources in the same mute state changes no
+  // muteState, so the new source is baselined here directly.
+  onSourceChanged: {
+    src.lastSourceId = src.source ? src.source.id : -1
+    src.lastMute = src.muteState
+  }
   PwObjectTracker { objects: src.source ? [src.source] : [] }
 
   // ---- camera in use ----
   readonly property string cameraPath: decodeURIComponent(Qt.resolvedUrl("bin/island-camera").toString().replace("file://", ""))
+  // One long-running watcher, run by a fixed interpreter. If it exits while
+  // the dots are on, its last answer is dropped and it restarts after 5 s,
+  // doubling to at most 2 min, so a crash never leaves a stale dot.
+  property int cameraRetryMs: 5000
+  onEnabledChanged: if (!src.enabled) { src.cameraInUse = false; cameraRetry.stop(); src.cameraRetryMs = 5000 }
   Process {
+    id: cameraProc
     running: src.enabled
-    command: [src.cameraPath, "--watch", "2"]
+    command: ["/usr/bin/python3", src.cameraPath, "--watch", "2"]
     stdout: SplitParser {
       onRead: function(line) {
         src.cameraInUse = Privacy.parseCamera(line).inUse
+        src.cameraRetryMs = 5000
       }
     }
+    onExited: {
+      src.cameraInUse = false
+      if (!src.enabled) return
+      cameraRetry.interval = src.cameraRetryMs
+      src.cameraRetryMs = Math.min(120000, src.cameraRetryMs * 2)
+      cameraRetry.restart()
+    }
+  }
+  Timer {
+    id: cameraRetry
+    onTriggered: if (src.enabled && !cameraProc.running) cameraProc.running = true
   }
 }

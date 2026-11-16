@@ -74,6 +74,7 @@ def test_apps_sorted_unique(tmp_path):
     assert json.loads(run_once(tmp_path).stdout) == {"inUse": True, "apps": ["obs", "zoom"]}
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
 def test_unreadable_fd_dir_skipped(tmp_path):
     add_video(tmp_path, 10, "Cam")
     add_proc(tmp_path, 100, "locked", [10])

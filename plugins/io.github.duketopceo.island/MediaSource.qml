@@ -46,6 +46,15 @@ Scope {
     var c = Tint.pick(out, { r: bg.r, g: bg.g, b: bg.b })
     return c ? Qt.rgba(c.r, c.g, c.b, 1) : Commons.Color.accent
   }
+  // The same pick against the black notch pill; null when no art color reads
+  // there (the window then uses the pill's text color).
+  readonly property var pillTint: {
+    var out = []
+    var list = src.localArt !== "" && quantizer.colors ? quantizer.colors : []
+    for (var i = 0; i < list.length; i++) out.push({ r: list[i].r, g: list[i].g, b: list[i].b })
+    var c = Tint.pick(out, { r: 0, g: 0, b: 0 })
+    return c ? Qt.rgba(c.r, c.g, c.b, 1) : null
+  }
 
   // Reads each player's properties inside the `records` binding, so a play,
   // pause or track change re-evaluates it. lastPlayedAt is mutated in place,
