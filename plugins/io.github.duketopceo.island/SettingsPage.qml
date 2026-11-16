@@ -2,9 +2,10 @@ import QtQuick 6.11
 import qs.Commons as Commons
 import qs.Ui
 
-// P1 settings: both hover delays. Edits save once per commit (one spin step or
-// one finished text entry) into this plugin's own shell.json entry, through
-// the root's saveSettings(). Nothing is scrolled: the page fits the card.
+// Settings: both hover delays and one toggle per live-activity integration
+// (KTD12). Edits save once per commit (one spin step, one finished text entry
+// or one toggle) into this plugin's own shell.json entry, through the root's
+// saveSettings(). Nothing is scrolled: the page fits the card.
 Item {
   id: page
 
@@ -19,6 +20,14 @@ Item {
   readonly property int openDelay: island && island.settings ? island.settings.openDelay : 140
   readonly property int closeDelay: island && island.settings ? island.settings.closeDelay : 450
   readonly property bool needsEntry: (island && !island.entryExists) || page.lastResult === "noentry"
+  readonly property var toggles: [
+    { key: "dictation", label: "Dictation" },
+    { key: "media", label: "Media" },
+    { key: "charging", label: "Charging" },
+    { key: "hud", label: "Volume and brightness" }
+  ]
+  // The HUD only shows once the owner has turned off Omarchy's own OSD.
+  readonly property bool hudWaiting: island && island.settings && island.settings.hud === true && !island.hudEffective
 
   // A text field with focus keeps the card open (R10).
   readonly property bool editing: openField.field.activeFocus || closeField.field.activeFocus
@@ -75,6 +84,41 @@ Item {
         foreground: Commons.Color.popups.text
         onModified: function(newValue) { page.commit({ closeDelay: newValue }) }
       }
+    }
+
+    Grid {
+      columns: 2
+      columnSpacing: Commons.Style.spacing.huge * 2
+      rowSpacing: Commons.Style.spacing.md
+
+      Repeater {
+        model: page.toggles
+
+        Toggle {
+          required property var modelData
+          width: (page.width - Commons.Style.spacing.huge * 2) / 2
+          label: modelData.label
+          checked: page.island && page.island.settings ? page.island.settings[modelData.key] === true : true
+          foreground: Commons.Color.popups.text
+          onClicked: {
+            var edit = {}
+            edit[modelData.key] = !checked
+            page.commit(edit)
+          }
+        }
+      }
+    }
+
+    Text {
+      textFormat: Text.PlainText
+      visible: page.hudWaiting
+      text: "The volume and brightness level shows here only after Omarchy's OSD is turned off (omarchy-plugin-disable omarchy.osd)."
+      color: Commons.Color.popups.text
+      opacity: 0.7
+      font.family: Commons.Style.font.family
+      font.pixelSize: Commons.Style.font.bodySmall
+      wrapMode: Text.WordWrap
+      width: page.width
     }
 
     Text {

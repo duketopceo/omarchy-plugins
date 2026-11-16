@@ -7,6 +7,7 @@ import "Hover.js" as Hover
 import "Geom.js" as Geom
 import "Zone.js" as Zone
 import "Screens.js" as Screens
+import "Activity.js" as Activity
 
 // One screen's island. The window is fixed at card size plus slop and never
 // resizes. The input mask is the hot zone: a separate, non-animating item whose
@@ -40,7 +41,20 @@ PanelWindow {
   property string page: "now"
   readonly property bool cardShown: Hover.cardShown(win.model)
   readonly property string zone: Hover.zoneFor(win.model)
-  onCardShownChanged: if (win.island) win.island.refreshOpened()
+  onCardShownChanged: {
+    if (!win.cardShown) win.hold.ids = []
+    if (win.island) win.island.refreshOpened()
+  }
+
+  // ---- live activities (KTD3) ----
+  // Ids this window's card is showing, in slot order; empty while closed.
+  // Mutated in place, never reassigned: the layout only needs the hold the
+  // next time the activities or cardShown change, and a notifying write here
+  // would make `layout` depend on its own result (a binding loop).
+  property var hold: ({ ids: [] })
+  readonly property var layout: Activity.layout(win.island ? win.island.activities : [], win.hold.ids,
+                                                win.cardShown, win.island ? win.island.activityClock : 0)
+  onLayoutChanged: win.hold.ids = win.cardShown ? win.layout.held : []
 
   // ---- geometry ----
   readonly property var monitor: Hyprland.monitorFor(win.screen)
@@ -88,6 +102,9 @@ PanelWindow {
   }
   function closeByIpc() { win.send("ipcClose") }
   function focusCard() { win.send("focus") }
+  // Drop keyboard focus but keep the card open, so a dictation paste lands in
+  // the window the owner was typing in (KTD4).
+  function unfocus() { win.send("unfocus") }
 
   function snapshot() {
     var s = Zone.snapshot(win.screen.name, win.model, win.zoneRect)
@@ -98,6 +115,9 @@ PanelWindow {
     s.pillRect = Zone.rect("pill", win.geom)
     s.cardRect = Zone.rect("card", win.geom)
     s.pinCenter = card.pinCenter()
+    s.top = win.layout.top ? win.layout.top.id : ""
+    s.second = win.layout.second ? win.layout.second.id : ""
+    s.held = win.hold.ids
     return s
   }
 
@@ -165,6 +185,8 @@ PanelWindow {
           now: win.island ? win.island.now : new Date()
           earWidth: win.geom.earWidth
           cameraWidth: win.geom.cameraWidth
+          topActivity: win.layout.top
+          secondActivity: win.layout.second
         }
 
         Card {
@@ -179,6 +201,8 @@ PanelWindow {
           page: win.page
           pinned: win.model.pinned
           island: win.island
+          layout: win.layout
+          onAct: function(id, action, value) { if (win.island) win.island.act(id, action, value) }
           onPageSelected: function(id) { win.page = id }
           onPinClicked: win.send(win.model.pinned ? "unpin" : "pin")
           onCardClicked: win.send("cardClick")

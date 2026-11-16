@@ -165,3 +165,21 @@ def test_unknown_event_leaves_model_unchanged():
 def test_zone_for():
     assert run("['closed','arming','open','leaving'].map(s=>H.zoneFor({state:s}))") == [
         "pill", "pill", "card", "card"]
+
+
+def test_unfocus_clears_focus_keeps_card_open():
+    out = drive(["click", "cardClick", "unfocus"])
+    assert out[1]["model"]["focused"] is True
+    assert out[2]["state"] == "open" and out[2]["model"]["focused"] is False and out[2]["timer"] == KEEP
+
+
+def test_unfocus_while_leaving_keeps_leaving():
+    out = drive(["enter", T(True), "cardClick", "leave", "unfocus"])
+    assert out[3]["state"] == "leaving"
+    assert out[4]["state"] == "leaving" and out[4]["model"]["focused"] is False and out[4]["timer"] == KEEP
+
+
+def test_unfocus_when_closed_or_unfocused_is_unchanged():
+    out = drive(["unfocus", "click", "unfocus"])
+    assert out[0]["state"] == "closed" and out[0]["timer"] == KEEP
+    assert out[2]["model"] == out[1]["model"] and out[2]["timer"] == KEEP

@@ -1,9 +1,10 @@
 import QtQuick 6.11
 import qs.Commons as Commons
 
-// The expanded card's content at its one fixed size: an empty activity area
-// (P2 fills it), the active page, and a row with the Now and Settings chips
-// plus the pin control. The window clips it to the morphing shape.
+// The expanded card's content at its one fixed size: the active page, and a
+// row with the Now and Settings chips plus the pin control. The Now page shows
+// the top activity's block and up to two rows (KTD9), or the clock and date
+// when nothing is live. The window clips it to the morphing shape.
 Item {
   id: card
 
@@ -12,12 +13,32 @@ Item {
   property bool pinned: false
   // The Island root, handed to the Settings page.
   property var island: null
+  // Activity.layout() for this window: { top, second, rows, held }.
+  property var layout: null
 
   signal pageSelected(string id)
   signal pinClicked()
   signal cardClicked()
   signal holdStart()
   signal holdEnd()
+  signal act(string id, string action, real value)
+
+  readonly property var topActivity: card.layout ? card.layout.top : null
+  readonly property var rows: card.layout && card.layout.rows ? card.layout.rows : []
+  // The row Repeater is keyed on ids, reassigned only when the set or order
+  // changes: `rows` is a new array on every tick (a running timer redraws
+  // each second), and a new model would destroy each row and its button
+  // mid-click. Each row looks its activity up by id, so text still updates.
+  property var rowIds: []
+  onRowsChanged: {
+    var ids = []
+    for (var i = 0; i < card.rows.length; i++) ids.push(String(card.rows[i].id))
+    if (ids.join(",") !== card.rowIds.join(",")) card.rowIds = ids
+  }
+  function rowFor(id) {
+    for (var i = 0; i < card.rows.length; i++) if (String(card.rows[i].id) === id) return card.rows[i]
+    return null
+  }
 
   readonly property int pad: Commons.Style.spacing.huge
   readonly property int rowHeight: Math.max(Commons.Style.space(30), Commons.Style.spacing.controlHeight)
@@ -34,24 +55,42 @@ Item {
   // get their own clicks.
   TapHandler { onTapped: card.cardClicked() }
 
-  // Reserved for the top activity's controls (P2); empty in P1.
-  Item {
-    id: activityArea
-    x: card.pad
-    y: card.pad
-    width: card.width - card.pad * 2
-    height: Commons.Style.space(56)
-  }
-
   Item {
     id: pageArea
     x: card.pad
-    y: activityArea.y + activityArea.height + Commons.Style.spacing.lg
+    y: card.pad
     width: card.width - card.pad * 2
     height: pageRow.y - y - Commons.Style.spacing.lg
 
     Column {
-      visible: card.page === "now"
+      visible: card.page === "now" && card.topActivity !== null
+      width: parent.width
+      spacing: Commons.Style.spacing.lg
+
+      ActivityBlock {
+        width: parent.width
+        height: implicitHeight
+        activity: card.topActivity
+        onAct: function(id, action, value) { card.act(id, action, value) }
+        onHoldStart: card.holdStart()
+        onHoldEnd: card.holdEnd()
+      }
+
+      Repeater {
+        model: card.rowIds
+
+        ActivityRow {
+          required property string modelData
+          width: parent.width
+          height: Commons.Style.spacing.controlHeight
+          activity: card.rowFor(modelData)
+          onAct: function(id, action) { card.act(id, action, 0) }
+        }
+      }
+    }
+
+    Column {
+      visible: card.page === "now" && card.topActivity === null
       anchors.centerIn: parent
       spacing: Commons.Style.spacing.md
 

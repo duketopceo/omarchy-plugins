@@ -6,7 +6,12 @@
 // returns false when there is no entry or nothing changed, so a write must
 // carry the full object: merge() builds it, changed() says whether to write.
 
-var DEFAULTS = { openDelay: 140, closeDelay: 450, cameraWidth: 0 }
+// The four booleans switch activity sources on or off (KTD12); a stored value
+// that is not a boolean resolves to the default.
+var DEFAULTS = {
+  openDelay: 140, closeDelay: 450, cameraWidth: 0,
+  dictation: true, media: true, charging: true, hud: true
+}
 var RANGES = {
   openDelay: [0, 600],
   closeDelay: [150, 1500],
@@ -39,7 +44,11 @@ function _entry(shellJson, id) {
 
 function _withDefaults(obj) {
   var out = {}
-  for (var k in DEFAULTS) out[k] = clamp(k, obj && obj[k] !== undefined ? obj[k] : DEFAULTS[k])
+  for (var k in DEFAULTS) {
+    var v = obj && obj[k] !== undefined ? obj[k] : DEFAULTS[k]
+    if (typeof DEFAULTS[k] === "boolean") out[k] = typeof v === "boolean" ? v : DEFAULTS[k]
+    else out[k] = clamp(k, v)
+  }
   return out
 }
 

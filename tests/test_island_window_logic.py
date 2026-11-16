@@ -156,7 +156,10 @@ def test_entry_find_returns_the_raw_entry_or_null():
 
 
 def test_save_merge_keeps_unknown_keys_and_skips_noop_write():
-    text = json.dumps({"plugins": [{"id": "me", "openDelay": 140, "closeDelay": 450, "cameraWidth": 0, "custom": [1]}]})
+    # A complete entry (every known key present), so an unchanged save is a no-op.
+    text = json.dumps({"plugins": [{"id": "me", "openDelay": 140, "closeDelay": 450, "cameraWidth": 0,
+                                    "dictation": True, "media": True, "charging": True, "hud": True,
+                                    "custom": [1]}]})
     out = run(
         f"(()=>{{const S=require({json.dumps(str(PLUGIN / 'Settings.js'))});"
         f"const cur=Entry.find({json.dumps(text)},'me');"

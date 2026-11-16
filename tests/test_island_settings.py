@@ -31,7 +31,8 @@ def js(fn: str, *args):
     return json.loads(out)
 
 
-DEFAULTS = {"openDelay": 140, "closeDelay": 450, "cameraWidth": 0}
+BOOLS = {"dictation": True, "media": True, "charging": True, "hud": True}
+DEFAULTS = {"openDelay": 140, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
 
 
 def test_no_entry_gives_defaults():
@@ -74,17 +75,36 @@ def test_resolve_accepts_json_text():
 def test_merge_keeps_every_other_key_and_the_id():
     current = {"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 190, "extra": "keep"}
     merged = js("merge", current, {"closeDelay": 700}, ID)
-    assert merged == {"id": ID, "openDelay": 200, "closeDelay": 700, "cameraWidth": 190, "extra": "keep"}
+    assert merged == {"id": ID, "openDelay": 200, "closeDelay": 700, "cameraWidth": 190, "extra": "keep", **BOOLS}
 
 
 def test_merge_onto_nothing_fills_defaults_and_id_and_clamps_edit():
     merged = js("merge", None, {"openDelay": 9999}, ID)
-    assert merged == {"id": ID, "openDelay": 600, "closeDelay": 450, "cameraWidth": 0}
+    assert merged == {"id": ID, "openDelay": 600, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
 
 
 def test_changed_detects_difference_only():
-    cur = {"id": ID, "openDelay": 140, "closeDelay": 450, "cameraWidth": 0}
+    cur = {"id": ID, "openDelay": 140, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
     same = js("merge", cur, {"openDelay": 140}, ID)
     assert js("changed", cur, same) is False
     assert js("changed", cur, js("merge", cur, {"openDelay": 141}, ID)) is True
     assert js("changed", None, same) is True
+
+
+def test_four_toggles_default_true_with_no_entry():
+    shell = json.loads((FIX / "shell-noentry.json").read_text())
+    s = js("resolve", shell, ID)["settings"]
+    assert {k: s[k] for k in BOOLS} == {"dictation": True, "media": True, "charging": True, "hud": True}
+
+
+def test_stored_booleans_are_kept_and_non_booleans_fall_back_to_true():
+    shell = {"plugins": [{"id": ID, "hud": False, "media": "no", "charging": 0, "dictation": None}]}
+    s = js("resolve", shell, ID)["settings"]
+    assert (s["hud"], s["media"], s["charging"], s["dictation"]) == (False, True, True, True)
+
+
+def test_merge_hud_false_keeps_delays_and_id():
+    current = {"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 190}
+    merged = js("merge", current, {"hud": False}, ID)
+    assert merged == {"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 190,
+                      **BOOLS, "hud": False}

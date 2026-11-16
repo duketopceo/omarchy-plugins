@@ -14,7 +14,7 @@ PROBE = ROOT / "plugins/io.github.duketopceo.island/bin/island-probe"
 FIXROOT = ROOT / "tests/fixtures/island/root"
 
 TOOLS = ["wordink", "herdr-app", "snapdex-ctl", "blip", "cliphist", "wl-copy",
-         "wpctl", "tailscale", "nordvpn", "dayflow"]
+         "wpctl", "tailscale", "nordvpn", "dayflow", "notify-send"]
 
 
 def run_probe(*extra, root=FIXROOT):
@@ -38,7 +38,7 @@ def test_probe_prints_one_json_object_with_every_key():
     assert proc.returncode == 0, proc.stderr
     assert len(proc.stdout.strip().splitlines()) == 1
     data = json.loads(proc.stdout)
-    for key in ("platform", "tools", "cutouts", "model"):
+    for key in ("platform", "tools", "cutouts", "model", "power"):
         assert key in data
     assert set(data["platform"]) >= {"system", "machine"}
     assert set(data["tools"]) == set(TOOLS)
@@ -51,11 +51,17 @@ def test_probe_reads_cutouts_and_model_from_the_root():
     assert data["model"] == "j316"
 
 
+def test_power_lists_only_batteries_and_all_backlights():
+    power = json.loads(run_probe()[0].stdout)["power"]
+    assert power == {"batteries": ["BAT0"], "backlights": ["apple-panel-bl"]}
+
+
 def test_missing_tool_reports_false_and_present_reports_true():
     tools = json.loads(run_probe()[0].stdout)["tools"]
     assert tools["wordink"] is True
     assert tools["herdr-app"] is True
     assert tools["wpctl"] is True
+    assert tools["notify-send"] is True
     assert tools["nordvpn"] is False
     assert tools["blip"] is False
 
@@ -66,6 +72,7 @@ def test_empty_root_reports_empty_data_without_failing(tmp_path):
     data = json.loads(proc.stdout)
     assert data["cutouts"] == []
     assert data["model"] == ""
+    assert data["power"] == {"batteries": [], "backlights": []}
     assert not any(data["tools"].values())
 
 
