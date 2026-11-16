@@ -25,6 +25,20 @@ Item {
 
   readonly property var topActivity: card.layout ? card.layout.top : null
   readonly property var rows: card.layout && card.layout.rows ? card.layout.rows : []
+  // The row Repeater is keyed on ids, reassigned only when the set or order
+  // changes: `rows` is a new array on every tick (a running timer redraws
+  // each second), and a new model would destroy each row and its button
+  // mid-click. Each row looks its activity up by id, so text still updates.
+  property var rowIds: []
+  onRowsChanged: {
+    var ids = []
+    for (var i = 0; i < card.rows.length; i++) ids.push(String(card.rows[i].id))
+    if (ids.join(",") !== card.rowIds.join(",")) card.rowIds = ids
+  }
+  function rowFor(id) {
+    for (var i = 0; i < card.rows.length; i++) if (String(card.rows[i].id) === id) return card.rows[i]
+    return null
+  }
 
   readonly property int pad: Commons.Style.spacing.huge
   readonly property int rowHeight: Math.max(Commons.Style.space(30), Commons.Style.spacing.controlHeight)
@@ -63,13 +77,13 @@ Item {
       }
 
       Repeater {
-        model: card.rows
+        model: card.rowIds
 
         ActivityRow {
-          required property var modelData
+          required property string modelData
           width: parent.width
           height: Commons.Style.spacing.controlHeight
-          activity: modelData
+          activity: card.rowFor(modelData)
           onAct: function(id, action) { card.act(id, action, 0) }
         }
       }

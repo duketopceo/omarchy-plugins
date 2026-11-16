@@ -83,7 +83,13 @@ Scope {
     running: src.enabled
     repeat: true
     triggeredOnStart: true
-    onTriggered: if (!follow.running) src.poll()
+    // Also polls while a dictation is live: if WordInk dies mid-recording the
+    // log follow can outlive it without a final event, and the status call
+    // (exit 3 = not running) is what clears the pill then.
+    onTriggered: {
+      var live = src.model.state === "recording" || src.model.state === "transcribing"
+      if (!follow.running || live) src.poll()
+    }
   }
 
   // Elapsed-time redraw, only while recording.

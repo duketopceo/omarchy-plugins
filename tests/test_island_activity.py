@@ -128,6 +128,22 @@ def test_full_slots_a_fourth_activity_changes_nothing():
     assert ids(r["rows"]) == ["timer", "charging"]
 
 
+def test_held_top_leaves_and_nothing_refills_rows_close_up():
+    # Media (top) went inactive and nothing new is live: timer moves up rather
+    # than leaving an empty top slot above a row.
+    r = js("layout", [TIMER], ["media", "timer"], True, NOW)
+    assert r["top"]["id"] == "timer"
+    assert ids(r["rows"]) == []
+    assert r["held"] == ["timer"]
+
+
+def test_middle_row_leaves_and_nothing_refills_last_row_moves_up():
+    r = js("layout", [MEDIA, CHARGING], ["media", "timer", "charging"], True, NOW)
+    assert r["top"]["id"] == "media"
+    assert ids(r["rows"]) == ["charging"]
+    assert r["held"] == ["media", "charging"]
+
+
 def test_four_live_activities_card_closed_rows_capped_at_two():
     r = js("layout", [CHARGING, MEDIA, DICT, TIMER], [], False, NOW)
     assert r["top"]["id"] == "dictation"

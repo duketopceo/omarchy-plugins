@@ -349,7 +349,12 @@ Item {
     function focus(): void { root.focusCard() }
     function state(): string { return root.stateJson() }
     // Same actions as the card's controls, e.g. `act media toggle`, `act timer add`.
-    function act(id: string, action: string): string { return root.act(id, action, 0) }
+    // Seeking needs a position, which this call has no argument for, so it is
+    // card-only (a 0 here would silently rewind the track).
+    function act(id: string, action: string): string {
+      if (action === "seek") return "unknown"
+      return root.act(id, action, 0)
+    }
     // Starts the Island's timer: `timer 5m`, `timer 90s`, `timer 1h30m`.
     function timer(spec: string): string { return root.startTimer(spec) }
   }

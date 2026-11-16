@@ -42,9 +42,12 @@ Scope {
     // battery polled every 5 s redraws nothing. The expire timer redraws when
     // a notice runs out.
     if (next === src.model) return
+    // Re-arm the redraw only for a new notice: a later reading (time to full
+    // changes every poll) must not push the redraw past the notice's end.
+    var fresh = next.until !== src.model.until
     src.model = next
     src.now = t
-    if (src.activity.until > t) expire.restart()
+    if (fresh && next.until > t) expire.restart()
   }
 
   onLiveChanged: if (!src.live) src.model = Charging.initial()
