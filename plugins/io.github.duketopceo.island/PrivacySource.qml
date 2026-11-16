@@ -21,12 +21,11 @@ Scope {
 
   readonly property bool micInUse: src.enabled && Privacy.micInUse(src.micRecords)
   property bool cameraInUse: false
-  property var cameraApps: []
 
   // A mute change after the first reading, for the Island's alert.
   signal micMuteFlipped(bool muted)
 
-  onEnabledChanged: if (!src.enabled) { src.cameraInUse = false; src.cameraApps = [] }
+  onEnabledChanged: if (!src.enabled) src.cameraInUse = false
 
   // ---- microphone in use ----
   readonly property var nodes: src.enabled && Pipewire.nodes ? Pipewire.nodes.values : []
@@ -75,9 +74,7 @@ Scope {
     command: [src.cameraPath, "--watch", "2"]
     stdout: SplitParser {
       onRead: function(line) {
-        var r = Privacy.parseCamera(line)
-        src.cameraInUse = r.inUse
-        src.cameraApps = r.apps
+        src.cameraInUse = Privacy.parseCamera(line).inUse
       }
     }
   }

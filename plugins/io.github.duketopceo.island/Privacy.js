@@ -29,24 +29,6 @@ function micInUse(records) {
   return _counted(records).length > 0
 }
 
-function micApps(records) {
-  var counted = _counted(records)
-  var seen = {}
-  var apps = []
-  for (var i = 0; i < counted.length; i++) {
-    var p = counted[i].props
-    var name = p["application.name"] || p["node.name"]
-    if (name === undefined || name === null || name === "") continue
-    name = String(name)
-    if (!seen[name]) {
-      seen[name] = true
-      apps.push(name)
-    }
-  }
-  apps.sort()
-  return apps
-}
-
 // Tint a dot from the theme colour: fixed hue per kind, readable s and l.
 function dotColor(kind, base) {
   var b = base || {}
@@ -72,5 +54,5 @@ function parseCamera(line) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { micInUse: micInUse, micApps: micApps, dotColor: dotColor, parseCamera: parseCamera }
+  module.exports = { micInUse: micInUse, dotColor: dotColor, parseCamera: parseCamera }
 }

@@ -2,6 +2,7 @@ import QtQuick 6.11
 import qs.Commons as Commons
 import "Privacy.js" as Privacy
 import "Dnd.js" as Dnd
+import "Presentation.js" as Presentation
 
 // The compact pill's content: the time in the left ear (with the Do Not
 // Disturb glyph beside it when on); in the right ear the top live activity
@@ -73,21 +74,21 @@ Item {
   Row {
     id: dots
     visible: pill.dotSlot > 0
-    spacing: 4
-    x: pill.width / 2 + pill.cameraWidth / 2 + 6
+    spacing: Presentation.DOT_GAP
+    x: pill.width / 2 + pill.cameraWidth / 2 + Presentation.DOT_PAD
     anchors.verticalCenter: parent.verticalCenter
 
     readonly property var base: ({ h: Commons.Color.urgent.hslHue, s: Commons.Color.urgent.hslSaturation, l: Commons.Color.urgent.hslLightness })
 
     Rectangle {
       visible: pill.cameraInUse
-      width: 8; height: 8; radius: 4
+      width: Presentation.DOT_SIZE; height: Presentation.DOT_SIZE; radius: Presentation.DOT_SIZE / 2
       readonly property var hsl: Privacy.dotColor("camera", dots.base)
       color: Qt.hsla(hsl.h, hsl.s, hsl.l, 1)
     }
     Rectangle {
       visible: pill.micInUse
-      width: 8; height: 8; radius: 4
+      width: Presentation.DOT_SIZE; height: Presentation.DOT_SIZE; radius: Presentation.DOT_SIZE / 2
       readonly property var hsl: Privacy.dotColor("mic", dots.base)
       color: Qt.hsla(hsl.h, hsl.s, hsl.l, 1)
     }

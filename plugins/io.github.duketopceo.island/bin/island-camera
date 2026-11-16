@@ -12,13 +12,11 @@ import argparse
 import glob
 import json
 import os
-import re
 import signal
 import sys
 import time
 
 DEADLINE_SECONDS = 4
-VIDEO = re.compile(r"^/dev/video(\d+)$")
 CODEC_WORDS = ("decoder", "encoder", "m2m", "codec")
 
 
@@ -32,9 +30,25 @@ def is_camera(root: str, n: str) -> bool:
     return low != "avd" and not any(w in low for w in CODEC_WORDS)
 
 
+def camera_targets(root: str) -> set[str]:
+    """/dev/videoN paths whose node is a camera (codecs excluded)."""
+    try:
+        names = os.listdir(os.path.join(root, "sys/class/video4linux"))
+    except OSError:
+        return set()
+    out = set()
+    for name in names:
+        n = name[len("video"):] if name.startswith("video") else ""
+        if n.isdigit() and is_camera(root, n):
+            out.add(f"/dev/video{n}")
+    return out
+
+
 def scan(root: str) -> dict:
     apps = set()
-    cache: dict[str, bool] = {}
+    targets = camera_targets(root)
+    if not targets:
+        return {"inUse": False, "apps": []}
     for pid_dir in glob.glob(os.path.join(glob.escape(root), "proc", "[0-9]*")):
         try:
             fds = os.listdir(os.path.join(pid_dir, "fd"))
@@ -45,13 +59,7 @@ def scan(root: str) -> dict:
                 target = os.readlink(os.path.join(pid_dir, "fd", fd))
             except OSError:
                 continue
-            m = VIDEO.match(target)
-            if not m:
-                continue
-            n = m.group(1)
-            if n not in cache:
-                cache[n] = is_camera(root, n)
-            if cache[n]:
+            if target in targets:
                 try:
                     with open(os.path.join(pid_dir, "comm")) as f:
                         apps.add(f.read().strip())

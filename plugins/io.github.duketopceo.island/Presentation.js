@@ -8,7 +8,8 @@ var EAR_MAX = 120
 var BUBBLE_GAP = 6
 var DOT_SIZE = 8
 var DOT_GAP = 4
-var DOT_SLOT = 26   // two dots of 8, gap 4, plus 6 px spacing from the text
+var DOT_PAD = 6     // space between the camera cutout and the first dot
+var DOT_SLOT = 2 * DOT_SIZE + DOT_GAP + DOT_PAD   // 26: two dots, their gap, and the pad
 var ALERT_W = 360
 var ALERT_H = 76
 
@@ -86,7 +87,7 @@ function bubbleVisible(hasSecond, alertShowing, cardShown) {
 
 if (typeof module !== "undefined") module.exports = {
   EAR_MIN: EAR_MIN, EAR_MAX: EAR_MAX, BUBBLE_GAP: BUBBLE_GAP, DOT_SIZE: DOT_SIZE,
-  DOT_GAP: DOT_GAP, DOT_SLOT: DOT_SLOT, ALERT_W: ALERT_W, ALERT_H: ALERT_H,
+  DOT_GAP: DOT_GAP, DOT_PAD: DOT_PAD, DOT_SLOT: DOT_SLOT, ALERT_W: ALERT_W, ALERT_H: ALERT_H,
   surface: surface, contrast: contrast, textOnBlack: textOnBlack,
   compact: compact, alertSize: alertSize, showAlert: showAlert, bubbleVisible: bubbleVisible
 }

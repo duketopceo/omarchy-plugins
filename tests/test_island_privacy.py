@@ -43,12 +43,10 @@ PWREC = rec({"application.name": "pw-record", "media.class": "Stream/Input/Audio
 
 def test_host_records_not_counted():
     assert js("micInUse", [EFFECT, VIRTUAL, PEAK]) is False
-    assert js("micApps", [EFFECT, VIRTUAL, PEAK]) == []
 
 
 def test_real_capture_counted():
     assert js("micInUse", [EFFECT, PWREC]) is True
-    assert js("micApps", [EFFECT, PWREC]) == ["pw-record"]
 
 
 def test_string_booleans_and_other_exclusions():
@@ -61,19 +59,9 @@ def test_string_booleans_and_other_exclusions():
     assert js("micInUse", [rec({"media.class": "Stream/Input/Audio", "node.passive": "false"})]) is True
 
 
-def test_mic_apps_sorted_unique_with_node_name_fallback():
-    recs = [
-        rec({"media.class": "Stream/Input/Audio", "application.name": "zoom"}),
-        rec({"media.class": "Stream/Input/Audio", "node.name": "obs"}),
-        rec({"media.class": "Stream/Input/Audio", "application.name": "zoom"}),
-    ]
-    assert js("micApps", recs) == ["obs", "zoom"]
-
-
 def test_empty_and_bad_input():
     assert js("micInUse", []) is False
     assert js("micInUse", None) is False
-    assert js("micApps", None) == []
 
 
 def test_dot_color():
