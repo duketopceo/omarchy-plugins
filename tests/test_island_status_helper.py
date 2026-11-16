@@ -154,3 +154,26 @@ def test_cpu_percent_between_snapshots():
     assert m.cpu_percent(a, b) == 50
     assert m.cpu_percent(a, a) == 0
     assert m.cpu_percent("junk", b) is None
+
+
+def test_more_skips_sources_turned_off(tmp_path):
+    df = json.dumps({"capture_state": "recording"})
+    marker = tmp_path / "ran"
+    out = run_args(tmp_path, ["more", "--skip", "dayflow,shots"],
+                   tools={"dayflow": f"touch {marker}; echo '{df}'", "snapdex-ctl": "exit 0"})
+    assert out == {"dayflow": None, "shots": None}
+    assert not marker.exists()
+
+
+def run_args(tmp_path, argv, tools=None):
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    for name, body in (tools or {}).items():
+        fake(bindir, name, body)
+    r = subprocess.run([sys.executable, str(SCRIPT), *argv, "--root", str(tree(tmp_path)), "--cpu-sample", "0"],
+                       check=False, env={"HOME": str(home), "PATH": str(bindir)}, capture_output=True, text=True,
+                       timeout=30)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)

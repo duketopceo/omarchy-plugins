@@ -243,6 +243,7 @@ Item {
     id: weatherSrc
     json: false
     command: ["omarchy-weather-status"]
+    deadline: 8000
   }
   readonly property var weather: root.weatherOn ? Status.weather(weatherSrc.text) : null
   function refreshWeather() {
@@ -283,7 +284,8 @@ Item {
   // More: Dayflow status and Snapdex screenshots; at load and on every open.
   PollSource {
     id: moreStatus
-    command: ["/usr/bin/python3", root.helperDir + "/island-status", "more"]
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "more", "--skip",
+              (root.settings.dayflow === true ? "" : "dayflow,") + (root.settings.shots === true ? "" : "shots")]
     Component.onCompleted: root.refreshMore()
     onUpdated: root.shotsModel = More.shotsStep(root.shotsModel, moreStatus.data ? moreStatus.data.shots : null)
   }
@@ -516,7 +518,12 @@ Item {
     root.withTarget(function(win) { win.summon(page) })
   }
 
-  function open(payload) { root.openPage(root.pageOf(payload)) }
+  // A named page that does not exist opens Home; no page keeps the current one.
+  function requestedPage(payload) {
+    var p = root.pageOf(payload)
+    return p === "" && String(payload || "").replace(/^\s+|\s+$/g, "") !== "" ? "home" : p
+  }
+  function open(payload) { root.openPage(root.requestedPage(payload)) }
 
   function close() {
     var list = windows.instances
@@ -554,7 +561,7 @@ Item {
     target: "island"
 
     function toggle(): void { root.toggle() }
-    function open(page: string): void { root.openPage(root.pageOf(page)) }
+    function open(page: string): void { root.openPage(root.requestedPage(page)) }
     function close(): void { root.close() }
     function focus(): void { root.focusCard() }
     function state(): string { return root.stateJson() }

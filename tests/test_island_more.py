@@ -112,3 +112,9 @@ def test_more_labels():
 def test_messages_ignores_bad_counts_and_bad_muted_list():
     m = messages({"unreadCounts": {"a": -2, "b": "x", "c": "3"}, "mutedChats": "c"})
     assert m["unread"] == 3 and m["live"] is True
+
+
+def test_shots_unavailable_first_read_sets_no_baseline():
+    # Snapdex appears later: its existing screenshots are the baseline, not "new".
+    m = js(f"M.shotsStep(M.shotsStep(M.shotsInitial(), null), {json.dumps(SHOTS1)})")
+    assert js(f"M.shotsLive({json.dumps(m)})") is False

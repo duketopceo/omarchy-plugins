@@ -124,7 +124,7 @@
       "owner": "io.github.duketopceo.island",
       "purpose": "battery, power profile, fan mode, CPU, memory, network name and Tailscale state on the Home and System pages",
       "egress": "none; reads sysfs and procfs, powerprofilesctl, nmcli and tailscale status --json locally (only BackendState, Self.Online and the peer count are kept)",
-      "retention": "in memory only, replaced on each read; sampled only while the System page is open, once per open for Home",
+      "retention": "in memory only, replaced on each read; read once when the shell loads, then every 2 s only while the System page is open, and once per card open for Home",
       "pause": true,
       "delete": "nothing to delete; closing the card stops the reads",
       "export": "not applicable"

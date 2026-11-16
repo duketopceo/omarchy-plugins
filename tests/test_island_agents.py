@@ -83,8 +83,9 @@ def test_herdr_terminals_flattened_with_window(tmp_path):
     out = run(tmp_path, herdr_tool())
     assert out["herdr"] is True
     ids = [s["id"] for s in out["sessions"]]
-    assert ids == ["herdr:term-2", "herdr:term-3", "herdr:term-4", "herdr:term-5"]  # plain shell dropped
-    s3 = out["sessions"][1]
+    # plain shell dropped; needs-you first, then done, working, idle (the cap keeps that order)
+    assert ids == ["herdr:term-3", "herdr:term-4", "herdr:term-2", "herdr:term-5"]
+    s3 = out["sessions"][0]
     assert s3 == {"source": "herdr", "id": "herdr:term-3", "app": "claude-code", "name": "wisp", "where": "Home",
                   "status": "blocked", "terminal": "term-3", "address": "0xaaab73eb5d80"}
     assert out["sessions"][3]["where"] == "kimba @ cyberpowa"
@@ -202,3 +203,24 @@ def test_focus_commands_reject_odd_terminal_ids(terminal):
     rows = js(f"A.rows({json.dumps({'sessions': [s('herdr', 'k', 'busy', terminal=terminal)]})})")
     assert js(f"A.focusCommands({json.dumps(rows[0])})") == []
     assert rows[0]["focusable"] is False
+
+
+def test_malformed_herdr_shape_does_not_drop_claude_sessions(tmp_path):
+    root = tmp_path / "root"
+    proc(root, 900, 1)
+    session(tmp_path / "home", 900, status="busy")
+    bad = json.dumps({"spaces": [{"name": "x", "tabs": 1}, {"name": "y", "tabs": [{"terminals": 5}]},
+                                 {"name": "z", "tabs": [{"terminals": [{"terminal": "t", "app": "codex",
+                                                                         "sub_agents": "no"}]}]}]})
+    out = run(tmp_path, {"herdr-app": f"echo '{bad}'", "hyprctl": "echo '[]'"})
+    ids = [x["id"] for x in out["sessions"]]
+    assert "claude:900" in ids and "herdr:t" in ids
+
+
+def test_session_cap_keeps_needs_you_sessions(tmp_path):
+    many = {"spaces": [{"name": "s", "tabs": [{"name": "t", "terminals":
+            [{"terminal": f"w{i}", "status": "working", "app": "codex"} for i in range(45)]
+            + [{"terminal": "late", "status": "blocked", "app": "codex"}]}]}]}
+    out = run(tmp_path, {"herdr-app": f"echo '{json.dumps(many)}'", "hyprctl": "echo '[]'"})
+    assert len(out["sessions"]) == 40
+    assert "herdr:late" in [x["id"] for x in out["sessions"]]

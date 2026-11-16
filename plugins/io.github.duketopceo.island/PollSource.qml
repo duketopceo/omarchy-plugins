@@ -14,6 +14,9 @@ Scope {
   property bool active: false
   property int interval: 0
   property bool json: true
+  // A run still going after this long is stopped, so one stalled command
+  // cannot block every later refresh (single-flight).
+  property int deadline: 15000
 
   property var data: null
   property string text: ""
@@ -25,6 +28,7 @@ Scope {
     if (!src.command || src.command.length === 0) return
     if (proc.running) { src.pending = true; return }
     proc.running = true
+    stall.restart()
   }
 
   onActiveChanged: {
@@ -51,9 +55,16 @@ Scope {
       }
     }
     onExited: {
-      if (src.pending) { src.pending = false; proc.running = true; return }
+      stall.stop()
+      if (src.pending) { src.pending = false; proc.running = true; stall.restart(); return }
       if (src.active && src.interval > 0) again.restart()
     }
+  }
+
+  Timer {
+    id: stall
+    interval: Math.max(1000, src.deadline)
+    onTriggered: if (proc.running) proc.running = false
   }
 
   Timer {

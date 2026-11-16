@@ -81,8 +81,11 @@ PanelWindow {
   function commitCard() {
     if (!win.cardShown) return
     var avail = win.island ? win.island.pageAvail : ({})
-    win.chips = Pages.chips(avail, win.island ? win.island.pageLive : ({}), win.page)
-    var page = Pages.reachable(win.page, avail)
+    // A chip frozen in the row still opens its page (its empty state) after
+    // its backend goes away; IPC and stale pages fall back to Home.
+    var frozen = win.chips.chips.indexOf(win.page) >= 0 || win.chips.more.indexOf(win.page) >= 0
+    var page = frozen ? win.page : Pages.reachable(win.page, avail)
+    win.chips = Pages.chips(avail, win.island ? win.island.pageLive : ({}), page)
     if (page !== win.page) { win.page = page; return }   // onPageChanged commits again
     var rows = card.countFor(page)
     var h = Math.min(win.geom.card.height, card.heightFor(page, rows))

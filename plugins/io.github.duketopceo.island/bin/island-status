@@ -229,6 +229,7 @@ def main() -> int:
     ap.add_argument("section", choices=["home", "system", "more"])
     ap.add_argument("--root", default="/")
     ap.add_argument("--cpu-sample", type=float, default=CPU_SAMPLE_SECONDS)
+    ap.add_argument("--skip", default="", help="comma-separated sources not to read (more: dayflow, shots)")
     args = ap.parse_args()
     root = Path(args.root)
     if args.section == "home":
@@ -240,7 +241,8 @@ def main() -> int:
                "memory": memory(root), "network": network(root), "tailscale": tailscale()}
         out["cpu"] = cpu_end(root, before, started, args.cpu_sample)
     else:
-        out = {"dayflow": dayflow(), "shots": shots()}
+        skip = {x.strip() for x in args.skip.split(",") if x.strip()}
+        out = {"dayflow": None if "dayflow" in skip else dayflow(), "shots": None if "shots" in skip else shots()}
     sys.stdout.write(json.dumps(out) + "\n")
     return 0
 

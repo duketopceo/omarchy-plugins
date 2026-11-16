@@ -18,7 +18,8 @@ Item {
 
   function count() { return 0 }
   function heightFor(n) {
-    return header.implicitHeight + Commons.Style.spacing.lg + (page.activity ? mediaBlock.implicitHeight : empty.implicitHeight)
+    // Media can start while the page is open, so its block always has room.
+    return header.implicitHeight + Commons.Style.spacing.lg + mediaBlock.implicitHeight
   }
 
   Column {

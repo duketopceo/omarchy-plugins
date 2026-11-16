@@ -74,7 +74,9 @@ function _newest(shots) {
 
 function shotsStep(model, shots) {
   var newest = _newest(shots)
-  if (!model || model.seen === null) return { seen: newest, newest: newest }
+  // No inventory yet (Snapdex missing or the read failed): no baseline either,
+  // so screenshots that already exist never read as new once it appears.
+  if (!model || model.seen === null) return shots ? { seen: newest, newest: newest } : shotsInitial()
   return { seen: model.seen, newest: newest }
 }
 

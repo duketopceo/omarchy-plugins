@@ -40,7 +40,9 @@ Item {
     Text {
       id: summary
       textFormat: Text.PlainText
-      text: page.keys.length === 0 ? "No agent sessions" : (Agents.countsText(page.rows) || (page.keys.length + " idle"))
+      readonly property int hidden: Math.max(0, page.keys.length - page.maxRows)
+      text: (page.keys.length === 0 ? "No agent sessions" : (Agents.countsText(page.rows) || (page.keys.length + " idle")))
+            + (hidden > 0 ? "  \u00b7  " + hidden + " more not shown" : "")
       color: Commons.Color.popups.text
       opacity: 0.75
       font.family: Commons.Style.font.family

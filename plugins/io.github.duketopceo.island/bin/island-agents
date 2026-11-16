@@ -29,6 +29,9 @@ BACKSTOP_SECONDS = 10
 TOOL_TIMEOUT = 4
 MAX_SESSIONS = 40
 MAX_DEPTH = 40
+# Sessions that need the user survive the cap first (the same order Agents.js uses).
+STATUS_RANK = {"blocked": 0, "waiting": 0, "needs_input": 0, "awaiting_input": 0, "permission": 0,
+               "done": 1, "working": 2, "busy": 2}
 
 
 def which(name: str) -> str | None:
@@ -63,6 +66,10 @@ def clients() -> list[dict]:
     return [c for c in data if isinstance(c, dict)] if isinstance(data, list) else []
 
 
+def _list(v) -> list:
+    return v if isinstance(v, list) else []
+
+
 def _s(v) -> str:
     return str(v) if isinstance(v, (str, int)) and not isinstance(v, bool) else ""
 
@@ -81,7 +88,7 @@ def herdr_sessions(window: str) -> list[dict]:
             out.append({"source": "herdr", "id": "herdr:" + _s(t["terminal"]), "app": _s(t.get("app")),
                         "name": _s(t.get("name")) or tab_name, "where": where, "status": _s(t.get("status")),
                         "terminal": _s(t["terminal"]), "address": window})
-        for sub in t.get("sub_agents") or []:
+        for sub in _list(t.get("sub_agents")):
             add(sub, tab_name, where)
 
     for sp in spaces:
@@ -90,10 +97,10 @@ def herdr_sessions(window: str) -> list[dict]:
         where = _s(sp.get("name")) or "Space"
         if sp.get("machine"):
             where += " @ " + _s(sp["machine"])
-        for tab in sp.get("tabs") or []:
+        for tab in _list(sp.get("tabs")):
             if not isinstance(tab, dict):
                 continue
-            for t in tab.get("terminals") or []:
+            for t in _list(tab.get("terminals")):
                 add(t, _s(tab.get("name")), where)
     return out
 
@@ -155,6 +162,7 @@ def main() -> int:
             sessions += herdr_sessions(herdr_win)
         if has_claude:
             sessions += claude_sessions(root, by_pid)
+    sessions.sort(key=lambda x: STATUS_RANK.get(x["status"].lower(), 3))  # stable: source order within a rank
     out = {"ok": True, "herdr": has_herdr, "claude": has_claude, "sessions": sessions[:MAX_SESSIONS]}
     sys.stdout.write(json.dumps(out) + "\n")
     return 0
