@@ -40,11 +40,19 @@ function chips(avail, live, current) {
   var out = []
   for (var i = 0; i < BASE.length; i++) if (exists(BASE[i], avail)) out.push(BASE[i])
   // Promoted pages go before More; More always takes the last slot.
+  // Candidates keep PROMOTE_ORDER, so opening one never reorders the row;
+  // when the row is full the open page keeps its slot over a later one.
   var cur = normalize(current)
-  if (PROMOTE_ORDER.indexOf(cur) >= 0 && exists(cur, avail)) out.push(cur)
-  for (var j = 0; j < PROMOTE_ORDER.length && out.length < MAX_CHIPS - 1; j++) {
+  var promos = []
+  for (var j = 0; j < PROMOTE_ORDER.length; j++) {
     var id = PROMOTE_ORDER[j]
-    if (id !== cur && exists(id, avail) && live && live[id] === true) out.push(id)
+    if (exists(id, avail) && (id === cur || (live && live[id] === true))) promos.push(id)
+  }
+  var room = MAX_CHIPS - 1 - out.length
+  var others = room - (promos.indexOf(cur) >= 0 ? 1 : 0)
+  for (var k = 0; k < promos.length; k++) {
+    if (promos[k] === cur) out.push(cur)
+    else if (others > 0) { out.push(promos[k]); others-- }
   }
   out.push("more")
   var more = []

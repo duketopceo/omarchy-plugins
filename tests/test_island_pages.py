@@ -122,3 +122,11 @@ def test_promotion_bound_with_a_base_page_absent():
     r = js(f"P.chips({json.dumps({'shots': True, 'messages': True, 'dayflow': True, 'agents': True})}, "
            f"{{messages: true, shots: true, dayflow: true}})")
     assert r["chips"] == ["home", "agents", "system", "messages", "shots", "more"]
+
+
+def test_opening_a_promoted_page_does_not_reorder_chips():
+    avail = {"agents": True, "messages": True, "dayflow": True}
+    live = "{messages: true, dayflow: true}"
+    home = js(f"P.chips({json.dumps(avail)}, {live}, 'home')")["chips"]
+    day = js(f"P.chips({json.dumps(avail)}, {live}, 'dayflow')")["chips"]
+    assert home == day == ["home", "agents", "system", "messages", "dayflow", "more"]
