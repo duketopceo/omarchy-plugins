@@ -34,8 +34,9 @@ Scope {
   // A pid that changes while a check runs is checked again when it ends.
   property bool recheck: false
   function confirm() {
-    if (statusProc.running) src.recheck = true
-    else statusProc.running = true
+    if (statusProc.running) { src.recheck = true; return }
+    statusProc.checkPid = src.seenPid
+    statusProc.running = true
   }
 
   function stop() {
@@ -62,9 +63,12 @@ Scope {
   // by a recording that ended without a stop, so nothing is recording.
   Process {
     id: statusProc
+    // The pid this check was started for; a result for any other is stale.
+    property int checkPid: 0
     command: ["omarchy-capture-screenrecording", "--status"]
     onExited: function(code) {
-      if (src.recheck) { src.recheck = false; statusProc.running = true; return }
+      if (src.recheck) { src.recheck = false; src.confirm(); return }
+      if (!ScreenRec.current(statusProc.checkPid, src.seenPid, src.enabled)) return
       if (code !== 0) { src.model = ScreenRec.initial(); return }
       if (src.model.recording && src.model.pid === src.seenPid) return
       // Never retag a read that is running: queue one for the new pid.
@@ -86,7 +90,7 @@ Scope {
     stdout: StdioCollector {
       onStreamFinished: {
         // Stale: the setting went off or the recorder changed during the read.
-        if (!src.enabled || startProc.recPid !== src.seenPid) return
+        if (!ScreenRec.current(startProc.recPid, src.seenPid, src.enabled)) return
         var lines = String(text).split("\n")
         var secs = ScreenRec.elapsed(lines[0] || "", lines[1] || "")
         var t = Date.now()

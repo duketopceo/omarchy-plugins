@@ -85,21 +85,34 @@ Scope {
   // One long-running watcher, run by a fixed interpreter. If it exits while
   // the dots are on, its last answer is dropped and it restarts after 5 s,
   // doubling to at most 2 min, so a crash never leaves a stale dot.
+  // Started and stopped explicitly (not bound): a restart after an exit
+  // assigns `running`, which would silently drop a `running: enabled` binding
+  // and leave the watcher on after the dots are turned off. The backoff resets
+  // only after a run that lasted a minute.
   property int cameraRetryMs: 5000
-  onEnabledChanged: if (!src.enabled) { src.cameraInUse = false; cameraRetry.stop(); src.cameraRetryMs = 5000 }
+  property real cameraStartedAt: 0
+  function cameraStart() {
+    if (!src.enabled || cameraProc.running) return
+    src.cameraStartedAt = Date.now()
+    cameraProc.running = true
+  }
+  onEnabledChanged: {
+    if (src.enabled) { src.cameraRetryMs = 5000; src.cameraStart(); return }
+    src.cameraInUse = false
+    cameraRetry.stop()
+    cameraProc.running = false
+  }
+  Component.onCompleted: src.cameraStart()
   Process {
     id: cameraProc
-    running: src.enabled
     command: ["/usr/bin/python3", src.cameraPath, "--watch", "2"]
     stdout: SplitParser {
-      onRead: function(line) {
-        src.cameraInUse = Privacy.parseCamera(line).inUse
-        src.cameraRetryMs = 5000
-      }
+      onRead: function(line) { src.cameraInUse = Privacy.parseCamera(line).inUse }
     }
     onExited: {
       src.cameraInUse = false
       if (!src.enabled) return
+      if (Date.now() - src.cameraStartedAt >= 60000) src.cameraRetryMs = 5000
       cameraRetry.interval = src.cameraRetryMs
       src.cameraRetryMs = Math.min(120000, src.cameraRetryMs * 2)
       cameraRetry.restart()
@@ -107,6 +120,6 @@ Scope {
   }
   Timer {
     id: cameraRetry
-    onTriggered: if (src.enabled && !cameraProc.running) cameraProc.running = true
+    onTriggered: src.cameraStart()
   }
 }

@@ -76,3 +76,14 @@ def test_active_activity_text():
     assert a["glyph"] == cp(0xF044A) and a["state"] == "recording"
     assert js("activity", m, 1000 + 3725000)["text"] == "1:02:05"
     assert js("activity", m, 1000)["text"] == "0:00"
+
+
+def test_current_accepts_only_the_live_pid_while_enabled():
+    # A status check or start-time read counts only for the pid it began with,
+    # while the source is on and that pid is still the one in the pid file.
+    assert js("current", 1234, 1234, True) is True
+    assert js("current", 1234, 1234, False) is False
+    assert js("current", 1234, 5678, True) is False
+    # The pid file vanished during the check: nothing is recording.
+    assert js("current", 0, 0, True) is False
+    assert js("current", 1234, 0, True) is False

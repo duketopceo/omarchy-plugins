@@ -55,7 +55,14 @@ function activity(model, now) {
            glyph: GLYPH, card: "Recording " + text, state: "recording" }
 }
 
+// A status check or start-time read that began for `pid` still counts only
+// while the source is on and `pid` is the pid file's current, real pid. A pid
+// file that vanished mid-check (seenPid 0) means nothing is recording.
+function current(pid, seenPid, enabled) {
+  return enabled === true && pid > 0 && pid === seenPid
+}
+
 if (typeof module !== "undefined") module.exports = {
   PRIORITY: PRIORITY, parsePid: parsePid, elapsed: elapsed, initial: initial,
-  activity: activity
+  activity: activity, current: current
 }
