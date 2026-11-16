@@ -157,3 +157,47 @@ def test_empty_or_non_array_input_is_empty():
         assert r == {"top": None, "second": None, "rows": [], "held": []}
     r = js("layout", [None, MEDIA, None], None, True, NOW)
     assert r["top"]["id"] == "media"
+
+
+BT = act("bluetooth", 20, cardOnly=True)
+BT2 = act("bt2", 10, cardOnly=True)
+
+
+def test_card_only_is_excluded_while_card_closed():
+    r = js("layout", [BT], [], False, NOW)
+    assert r == {"top": None, "second": None, "rows": [], "held": []}
+    r = js("layout", [BT, MEDIA, CHARGING], [], False, NOW)
+    assert r["top"]["id"] == "media" and r["second"]["id"] == "charging"
+    assert ids(r["rows"]) == ["charging"]
+
+
+def test_card_only_alone_shown_sits_in_rows_with_empty_top_held():
+    r = js("layout", [BT, BT2], [], True, NOW)
+    assert r["top"] is None and r["second"] is None
+    assert ids(r["rows"]) == ["bluetooth", "bt2"]
+    assert r["held"] == ["", "bluetooth", "bt2"]
+
+
+def test_card_only_row_does_not_move_when_media_arrives():
+    r = js("layout", [BT], [], True, NOW)
+    r = js("layout", [BT, MEDIA], r["held"], True, NOW)
+    assert r["top"]["id"] == "media"
+    assert ids(r["rows"]) == ["bluetooth"]
+    assert r["second"] is None
+    assert r["held"] == ["media", "bluetooth"]
+
+
+def test_card_only_never_takes_top_even_with_higher_priority():
+    hi = act("bluetooth", 99, cardOnly=True)
+    r = js("layout", [hi, MEDIA], [], True, NOW)
+    assert r["top"]["id"] == "media"
+    assert ids(r["rows"]) == ["bluetooth"]
+    r = js("layout", [hi, MEDIA], ["bluetooth"], True, NOW)
+    assert r["top"]["id"] == "media"
+
+
+def test_held_top_leaves_card_only_stays_in_row():
+    r = js("layout", [BT], ["media", "bluetooth"], True, NOW)
+    assert r["top"] is None
+    assert ids(r["rows"]) == ["bluetooth"]
+    assert r["held"] == ["", "bluetooth"]

@@ -1,5 +1,6 @@
 import QtQuick 6.11
 import qs.Commons as Commons
+import "Dnd.js" as Dnd
 
 // The expanded card's content at its one fixed size: the active page, and a
 // row with the Now and Settings chips plus the pin control. The Now page shows
@@ -15,6 +16,8 @@ Item {
   property var island: null
   // Activity.layout() for this window: { top, second, rows, held }.
   property var layout: null
+  // Media accent from local album art, or the theme accent.
+  property color tint: Commons.Color.accent
 
   signal pageSelected(string id)
   signal pinClicked()
@@ -62,18 +65,50 @@ Item {
     width: card.width - card.pad * 2
     height: pageRow.y - y - Commons.Style.spacing.lg
 
+    // The top activity's block, or the clock and date when no activity may
+    // take the top (nothing live, or only card-only ones such as Bluetooth
+    // audio), then up to two rows (KTD9, KTD13).
     Column {
-      visible: card.page === "now" && card.topActivity !== null
+      visible: card.page === "now"
       width: parent.width
       spacing: Commons.Style.spacing.lg
 
       ActivityBlock {
+        visible: card.topActivity !== null
         width: parent.width
-        height: implicitHeight
+        height: visible ? implicitHeight : 0
         activity: card.topActivity
+        tint: card.tint
         onAct: function(id, action, value) { card.act(id, action, value) }
         onHoldStart: card.holdStart()
         onHoldEnd: card.holdEnd()
+      }
+
+      Column {
+        visible: card.topActivity === null
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: Commons.Style.spacing.md
+        topPadding: card.rowIds.length > 0 ? 0 : Math.max(0, (pageArea.height - implicitHeight) / 2 - Commons.Style.spacing.lg)
+
+        Text {
+          textFormat: Text.PlainText
+          text: Qt.formatTime(card.now, Qt.locale().timeFormat(Locale.ShortFormat))
+          color: card.textColor
+          font.family: Commons.Style.font.family
+          font.pixelSize: Commons.Style.font.displayLarge * 2
+          font.bold: true
+          anchors.horizontalCenter: parent.horizontalCenter
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          text: Qt.formatDate(card.now, "dddd, MMMM d")
+          color: card.textColor
+          opacity: 0.8
+          font.family: Commons.Style.font.family
+          font.pixelSize: Commons.Style.font.heading
+          anchors.horizontalCenter: parent.horizontalCenter
+        }
       }
 
       Repeater {
@@ -86,32 +121,6 @@ Item {
           activity: card.rowFor(modelData)
           onAct: function(id, action) { card.act(id, action, 0) }
         }
-      }
-    }
-
-    Column {
-      visible: card.page === "now" && card.topActivity === null
-      anchors.centerIn: parent
-      spacing: Commons.Style.spacing.md
-
-      Text {
-        textFormat: Text.PlainText
-        text: Qt.formatTime(card.now, Qt.locale().timeFormat(Locale.ShortFormat))
-        color: card.textColor
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.displayLarge * 2
-        font.bold: true
-        anchors.horizontalCenter: parent.horizontalCenter
-      }
-
-      Text {
-        textFormat: Text.PlainText
-        text: Qt.formatDate(card.now, "dddd, MMMM d")
-        color: card.textColor
-        opacity: 0.8
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.heading
-        anchors.horizontalCenter: parent.horizontalCenter
       }
     }
 
@@ -166,6 +175,36 @@ Item {
             }
           }
         }
+      }
+    }
+
+    // Omarchy's Do Not Disturb, toggled through Omarchy's own command (R10).
+    Rectangle {
+      id: dndToggle
+      visible: card.island !== null && card.island.dndAvailable === true
+      readonly property bool on: card.island !== null && card.island.dndOn === true
+      anchors.right: pin.left
+      anchors.rightMargin: Commons.Style.spacing.lg
+      width: dndText.implicitWidth + Commons.Style.spacing.huge * 2
+      height: card.rowHeight
+      radius: Commons.Style.cornerRadius
+      color: dndToggle.on ? Commons.Color.menu.selectedBackground : "transparent"
+      border.width: Commons.Style.normalBorderWidth
+      border.color: dndToggle.on ? Commons.Color.accent : Commons.Color.menu.border
+
+      Text {
+        id: dndText
+        textFormat: Text.PlainText
+        text: Dnd.GLYPH + "  Do Not Disturb"
+        color: dndToggle.on ? Commons.Color.accent : card.textColor
+        font.family: Commons.Style.font.family
+        font.pixelSize: Commons.Style.font.body
+        anchors.centerIn: parent
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        onClicked: if (card.island) card.island.toggleDnd()
       }
     }
 

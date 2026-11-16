@@ -87,3 +87,27 @@ Findings fixed during the run:
 - WordInk reports `listening` as its ready state after every dictation; only `dictating` is recording. The ear showed "Recording" forever until `Dictation.js` stopped mapping `listening` to recording.
 - `FileView.reload()` is asynchronous; reading `text()` right after it returned the previous contents, so the brightness level lagged one change behind. Brightness and charging now read in `onLoaded`.
 - `time_to_full_now` refuses reads unless the battery is charging; it is now read only then, which stopped a warning every 5 s.
+
+### Live verification (Mac parity 0.3.0, eDP-1)
+
+Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1 only (DP-3 not connected), screen unlocked. Plan: `docs/plans/2026-11-16-0053-feat-island-mac-parity-plan.md`. The plugin was linked from the branch worktree and the shell restarted with `omarchy-restart-shell` (a keepLoaded panel survives the plugin hot reload, so a restart is needed to load new code). Actions went through IPC, the same path as the card's controls; no click injector runs here.
+
+| Check | Result |
+|---|---|
+| Plugin loads | No Island warnings in the shell log after each restart; the old `fullscreenNow` binding-loop warning is gone |
+| AE1 black surface | Closed pill on eDP-1 drawn pure black (`presentation.surface: notch`); the open card uses the theme popup colors |
+| Content width | Idle pill 298 px (ears 56); with a media title it grew to 426 px (ears capped at 120) |
+| AE2 split bubble | Timer + mpv: ear shows the timer, a circular bubble right of the pill shows the media glyph; hot zone grew from 310 to 344 px to cover it |
+| Equalizer | Four consecutive 130 ms captures of the ear differ while mpv plays |
+| Art tint | `file:` art quantizes (`#e76f18` from an orange cover in a standalone Quickshell probe); mpv publishes `data:` art, which Quickshell's ColorQuantizer does not read, so mpv keeps the theme accent |
+| AE3 alert | `preview charging` grew the island to the alert (ring, "Charging", "62% · 1h 12m to full") and it collapsed after about 3 s |
+| AE3 fullscreen gate | Scratch `foot` fullscreen: island hidden, a `preview bluetooth` pushed then showed nothing then or after leaving fullscreen |
+| AE4 hover wins | During a DND alert, resting the pointer on the pill ended the alert and opened the card; leaving closed it |
+| AE5 screen recording | `omarchy-capture-screenrecording --fullscreen` showed the record glyph and `0:05` in the ear (media moved to the bubble); `act screenrec stop` stopped it through Omarchy's command (`--status` exit 1 after); the test file was deleted |
+| AE6 mic dot | A scratch `pw-record` to /dev/null showed the orange dot right of the camera within 1.5 s and it cleared after exit; the always-on Asahi DSP capture streams did not count |
+| DND | `omarchy-shell notifications setDnd on` showed the bell-off glyph and an alert; set back off (as found) |
+| Settings page | Nine toggles in three columns plus both delays and the OSD hint fit the card without overlap |
+| Hover regression | `bin/island-hover-check --runs 5 --mode both --allow-skip` with a timer and media live: first batch failed once in run 3 (the failing step was not captured: stderr was cut by `tail`); then 5/5, 5/5 and 10/10 consecutive passes |
+| Not run live | Camera dot (observe-only rule: no capture was started; the watcher ran and reported not in use); Bluetooth activity and alert (no device connected; alert path checked with `preview bluetooth`); mic-mute alert (gated on `omarchy.osd` being disabled, which it is not here); clicks on the bubble, DND button and Stop (no click injector) |
+
+Code review (ce-code-review, six lenses on Sonnet, no cross-model peer by owner rule): one finding, the charging alert built before time to full was read, reported by three lenses and fixed (the alert now waits for the read). Residuals also fixed: a default-microphone switch no longer reads as a mute, Bluetooth devices already connected at shell start are a baseline, and a pid change during a recording status check is re-checked. After the fixes: no Island log lines on a shell restart, no startup alert, and `bin/island-hover-check --runs 5 --mode both --allow-skip` passed 5/5 again.

@@ -44,6 +44,10 @@ class Skip(Exception):
     pass
 
 
+class DeadlineHit(Exception):
+    """Not an OSError, so state()'s except clause cannot turn it into Refused."""
+
+
 def sh(argv: list[str], timeout: float = 5.0) -> subprocess.CompletedProcess:
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
 
@@ -298,7 +302,7 @@ def main() -> int:
     args = ap.parse_args()
 
     def on_alarm(_sig, _frame):
-        raise TimeoutError("deadline hit")
+        raise DeadlineHit("deadline hit")
 
     signal.signal(signal.SIGALRM, on_alarm)
     signal.alarm(args.deadline)
@@ -321,7 +325,7 @@ def main() -> int:
     except Mismatch as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         code = 1
-    except TimeoutError as exc:
+    except DeadlineHit as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         code = 3
     finally:

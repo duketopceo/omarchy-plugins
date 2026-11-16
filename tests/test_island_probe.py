@@ -14,7 +14,8 @@ PROBE = ROOT / "plugins/io.github.duketopceo.island/bin/island-probe"
 FIXROOT = ROOT / "tests/fixtures/island/root"
 
 TOOLS = ["wordink", "herdr-app", "snapdex-ctl", "blip", "cliphist", "wl-copy",
-         "wpctl", "tailscale", "nordvpn", "dayflow", "notify-send"]
+         "wpctl", "tailscale", "nordvpn", "dayflow", "notify-send",
+         "omarchy-capture-screenrecording", "omarchy-toggle-notification-silencing"]
 
 
 def run_probe(*extra, root=FIXROOT):
@@ -62,6 +63,9 @@ def test_missing_tool_reports_false_and_present_reports_true():
     assert tools["herdr-app"] is True
     assert tools["wpctl"] is True
     assert tools["notify-send"] is True
+    # Omarchy commands live in usr/share/omarchy/bin under the root.
+    assert tools["omarchy-capture-screenrecording"] is True
+    assert tools["omarchy-toggle-notification-silencing"] is False
     assert tools["nordvpn"] is False
     assert tools["blip"] is False
 

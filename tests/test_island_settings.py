@@ -31,7 +31,8 @@ def js(fn: str, *args):
     return json.loads(out)
 
 
-BOOLS = {"dictation": True, "media": True, "charging": True, "hud": True}
+BOOLS = {"dictation": True, "media": True, "charging": True, "hud": True,
+         "screenRecording": True, "privacy": True, "dnd": True, "bluetooth": True, "alerts": True}
 DEFAULTS = {"openDelay": 140, "closeDelay": 450, "cameraWidth": 0, **BOOLS}
 
 
@@ -94,7 +95,7 @@ def test_changed_detects_difference_only():
 def test_four_toggles_default_true_with_no_entry():
     shell = json.loads((FIX / "shell-noentry.json").read_text())
     s = js("resolve", shell, ID)["settings"]
-    assert {k: s[k] for k in BOOLS} == {"dictation": True, "media": True, "charging": True, "hud": True}
+    assert {k: s[k] for k in BOOLS} == BOOLS
 
 
 def test_stored_booleans_are_kept_and_non_booleans_fall_back_to_true():
@@ -108,3 +109,17 @@ def test_merge_hud_false_keeps_delays_and_id():
     merged = js("merge", current, {"hud": False}, ID)
     assert merged == {"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 190,
                       **BOOLS, "hud": False}
+
+
+def test_mac_parity_toggles_keep_booleans_and_fall_back_to_true():
+    shell = {"plugins": [{"id": ID, "privacy": "no", "alerts": False, "dnd": 1, "bluetooth": None,
+                          "screenRecording": False}]}
+    s = js("resolve", shell, ID)["settings"]
+    assert (s["privacy"], s["alerts"], s["dnd"], s["bluetooth"], s["screenRecording"]) == (True, False, True, True, False)
+
+
+def test_merge_alerts_false_keeps_delays_p2_toggles_and_id():
+    current = {"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 0, "media": False}
+    merged = js("merge", current, {"alerts": False}, ID)
+    assert merged == {**{"id": ID, "openDelay": 200, "closeDelay": 500, "cameraWidth": 0},
+                      **BOOLS, "media": False, "alerts": False}
