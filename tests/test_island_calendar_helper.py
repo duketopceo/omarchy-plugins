@@ -1,8 +1,10 @@
 """bin/island-calendar: source detection, normalization and meeting-URL allowlist."""
 import json
+import shutil
 import stat
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -90,12 +92,14 @@ def test_meeting_url_allowlist(tmp_path):
         "userinfo": ("https://zoom.us@evil.example/j/1", ""),
         "suffix": ("https://evilzoom.us/j/1", ""),
         "other": ("https://example.com/meet", ""),
+        "backslash": ("https://evil.example\\.zoom.us/j/1", ""),
     }
     evs = [{"title": k, "start": f"2026-11-16T10:{i:02d}:00Z", "end": "2026-11-16T11:00:00Z", "description": text}
            for i, (k, (text, _)) in enumerate(cases.items())]
-    # Five per run: check in two batches.
+    # Five per run: check in batches.
     got = {}
     for batch in (evs[:5], evs[5:]):
+        assert len(batch) <= 5
         for e in run(tmp_path, omarchy=wrap(batch))["events"]:
             got[e["title"]] = e["url"]
     assert got == {k: want for k, (_, want) in cases.items()}
@@ -123,8 +127,17 @@ KHAL = ('echo \'[{"title": "Planning", "start": "2026-11-16 10:00", "end": "2026
         '"description": "", "url": "", "all-day": "True"}]\'')
 
 
-def test_empty_omarchy_falls_through_to_khal(tmp_path):
-    out = run(tmp_path, omarchy=wrap([]), tools={"khal": KHAL})
+def test_empty_omarchy_file_is_authoritative(tmp_path):
+    # A readable Omarchy file is the owner's calendar even with nothing due:
+    # later sources (gcalcli talks to Google) are not run on every poll.
+    log = tmp_path / "called"
+    out = run(tmp_path, omarchy=wrap([]), tools={"khal": f"touch {log}\n" + KHAL})
+    assert out == {"source": "omarchy", "events": []}
+    assert not log.exists()
+
+
+def test_khal_when_no_omarchy_file(tmp_path):
+    out = run(tmp_path, tools={"khal": KHAL})
     assert out["source"] == "khal"
     assert out["events"] == [{"title": "Planning", "start": ms(10, 0), "end": ms(10, 30), "url": "https://zoom.us/j/42"}]
 
@@ -152,8 +165,12 @@ def test_khal_wins_over_gcalcli_when_both_have_events(tmp_path):
 
 
 def test_hanging_tool_hits_deadline(tmp_path):
-    out = run(tmp_path, tools={"khal": "sleep 30"}, extra=("--deadline", "1"))
-    assert out["source"] == "khal" and out["events"] == [] and "error" in out
+    # run() keeps PATH to the fake bin dir only, so name sleep by absolute path.
+    sleep = shutil.which("sleep")
+    t0 = time.monotonic()
+    out = run(tmp_path, tools={"khal": f"exec {sleep} 30"}, extra=("--deadline", "1"))
+    assert time.monotonic() - t0 < 10
+    assert out == {"source": "khal", "events": [], "error": "khal timed out"}
 
 
 def test_failing_tool_reports_available_but_empty(tmp_path):

@@ -82,8 +82,39 @@ def test_url_only_when_allowlisted_https():
     assert activity([ev("x", 5, url="https://meet.google.com/abc-defg-hij")])["url"] == "https://meet.google.com/abc-defg-hij"
     assert activity([ev("x", 5, url="https://us02web.zoom.us/j/1")])["url"] == "https://us02web.zoom.us/j/1"
     for bad in ["http://meet.google.com/a", "https://meet.google.com.evil.example/a",
-                "https://zoom.us@evil.example/j/1", "https://evilzoom.us/j/1", "javascript:alert(1)", ""]:
+                "https://zoom.us@evil.example/j/1", "https://evilzoom.us/j/1", "javascript:alert(1)", "",
+                "https://evil.example\\.zoom.us/j/1", "https://evil.example%2f.zoom.us/j/1"]:
         assert activity([ev("x", 5, url=bad)])["url"] == "", bad
+
+
+def test_long_running_event_does_not_hide_upcoming_meeting():
+    # A 3 h block that started 110 min ago plus a meeting in 5 min.
+    a = activity([ev("Focus block", -110, 180), ev("Standup", 5, url="https://meet.google.com/abc-defg-hij")])
+    assert a["text"] == "in 5m" and a["card"].startswith("Standup")
+    assert a["url"] == "https://meet.google.com/abc-defg-hij"
+
+
+def test_long_running_event_shown_when_nothing_else():
+    a = activity([ev("Focus block", -110, 180)])
+    assert a["active"] is True and a["cardOnly"] is True and a["card"].startswith("Focus block")
+
+
+def test_just_started_event_beats_later_one():
+    a = activity([ev("Started", -3), ev("Later", 30)])
+    assert a["text"] == "now" and a["card"].startswith("Started")
+
+
+def test_allowlist_matches_helper():
+    # Calendar.js re-checks the helper's links; the two host lists must agree.
+    import ast
+    helper = MOD.parent / "bin/island-calendar"
+    tree = ast.parse(helper.read_text())
+    py = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name) \
+                and node.targets[0].id in ("MEETING_HOSTS", "SUFFIX_HOSTS"):
+            py[node.targets[0].id] = sorted(ast.literal_eval(node.value))
+    assert py == {"MEETING_HOSTS": sorted(js("C.HOSTS")), "SUFFIX_HOSTS": sorted(js("C.SUFFIX_HOSTS"))}
 
 
 def test_next_event_is_earliest_by_start():

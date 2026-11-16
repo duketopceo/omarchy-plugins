@@ -75,19 +75,25 @@ activity takes a free row, never the top.
 ### Calendar
 
 `bin/island-calendar` reads the next 24 hours of timed events (all-day events
-are skipped) from the first source that has one, in this order: Omarchy's
+are skipped) from the first source that exists, in this order: Omarchy's
 calendar file (`~/.local/state/omarchy/calendar-events.json`, written by
 `omarchy-calendar-sync-all`), `khal`, `gcalcli`, then evolution-data-server.
-It is read-only and makes no network call of its own; `gcalcli` talks to
-Google as it always does. The Island runs it once a minute, or every 10
-minutes while no source exists.
+That source is used even when nothing is due, so later sources are not run
+on every poll; only a tool that fails falls through to the next. It is
+read-only and makes no network call of its own; `gcalcli` talks to Google as
+it always does. The Island runs it once a minute, or every 10 minutes while
+no source exists.
+
+- When a long event is already under way, the next meeting still gets its
+  countdown and Join; the long event shows only when nothing else is coming.
 
 - Within 10 minutes of the start the ear counts down (`in 8m`), then shows
   `now` for the event's first 10 minutes. Otherwise the event is a card row
   only: `Title · 09:30`.
 - **Join** shows when the event's link, location or notes hold an https
   Zoom (`zoom.us` and its subdomains), Google Meet or Microsoft Teams link,
-  matched on the exact host. It opens the link with `xdg-open`.
+  matched on the exact host (a plain hostname only: no user part, backslash
+  or escapes). It opens the link with `xdg-open`.
 - With no calendar source the activity never shows.
 
 ### Indicators

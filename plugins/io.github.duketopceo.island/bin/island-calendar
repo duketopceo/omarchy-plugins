@@ -9,8 +9,8 @@ found in the event, or "".
 Sources, in order: Omarchy's calendar file
 (~/.local/state/omarchy/calendar-events.json, written by
 omarchy-calendar-sync-all), khal, gcalcli, evolution-data-server. The first
-source with an upcoming event wins; when none has one, the first available
-source is named with no events, and "none" when nothing is installed.
+one that exists and answers is used, even with no events due; a tool that
+fails falls through to the next. "none" when nothing is installed.
 
 Read-only: it never writes to a calendar or a file and makes no network call
 of its own (gcalcli, when it is the source, talks to Google as it always does).
@@ -42,6 +42,10 @@ SUFFIX_HOSTS = {"zoom.us"}  # subdomains allowed too (us02web.zoom.us)
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 TRAILING = ".,;:!?)]}>'\""
 URL_FIELDS = ("url", "hangoutLink", "conferenceUrl", "meetingUrl", "conference", "location", "description", "notes")
+# The whole authority must be a plain hostname (and optional port): no
+# userinfo, no backslash (browsers read "a\.zoom.us" as host "a"), no
+# percent-escapes or other characters a URL parser might treat differently.
+NETLOC_RE = re.compile(r"[a-z0-9.-]+(?::[0-9]+)?", re.IGNORECASE)
 
 
 def meeting_url(*texts: object) -> str:
@@ -51,12 +55,14 @@ def meeting_url(*texts: object) -> str:
             continue
         for m in URL_RE.finditer(text):
             url = m.group(0).rstrip(TRAILING)
+            if "\\" in url:
+                continue
             try:
                 parts = urlsplit(url)
                 host = (parts.hostname or "").lower()
             except ValueError:
                 continue
-            if parts.scheme.lower() != "https" or parts.username or parts.password or "@" in parts.netloc:
+            if parts.scheme.lower() != "https" or not NETLOC_RE.fullmatch(parts.netloc):
                 continue
             if host in MEETING_HOSTS or any(host.endswith("." + s) for s in SUFFIX_HOSTS):
                 return url
@@ -285,20 +291,28 @@ SOURCES = [("omarchy", omarchy_source), ("khal", khal_source), ("gcalcli", gcalc
 
 
 def read(now: int, deadline: float) -> dict:
-    first = None
+    """The first source that exists and answers is the calendar, even with
+    nothing due: later sources are not run on every poll (gcalcli would call
+    Google each minute). A source whose tool fails falls through to the next."""
+    first_error = None
     for name, fn in SOURCES:
         try:
             raws = fn(now, deadline)
         except Unavailable:
             continue
         except RuntimeError as e:
-            first = first or {"source": name, "events": [], "error": str(e)}
+            first_error = first_error or {"source": name, "events": [], "error": str(e)}
             continue
-        events = finish(raws, now)
-        if events:
-            return {"source": name, "events": events}
-        first = first or {"source": name, "events": []}
-    return first or {"source": "none", "events": []}
+        return {"source": name, "events": finish(raws, now)}
+    return first_error or {"source": "none", "events": []}
+
+
+def on_backstop(signum, frame):
+    # Report the overrun as JSON; if a blocking C call (EDS) ignores the
+    # exception, the default action ends the process a few seconds later.
+    signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    signal.alarm(5)
+    raise TimeoutError("backstop")
 
 
 def main() -> int:
@@ -311,6 +325,7 @@ def main() -> int:
         out = read(now, args.deadline)
     except Exception as e:  # never crash the shell's poll
         out = {"source": "none", "events": [], "error": type(e).__name__}
+    signal.alarm(0)
     json.dump(out, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
@@ -319,5 +334,6 @@ def main() -> int:
 if __name__ == "__main__":
     # Backstop under the Island's 60 s poll: every source tool at its full
     # deadline still ends well before the next poll would start.
+    signal.signal(signal.SIGALRM, on_backstop)
     signal.alarm(BACKSTOP_SECONDS)
     sys.exit(main())

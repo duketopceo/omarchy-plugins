@@ -31,9 +31,11 @@ var GLYPHS = {
 function meetingUrl(url) {
   if (typeof url !== "string") return ""
   var m = /^https:\/\/([^\/?#]+)(?:[\/?#]|$)/i.exec(url)
-  if (!m || /\s/.test(url)) return ""
+  // The authority must be a plain hostname (and optional port): no userinfo,
+  // no backslash (browsers read "a\.zoom.us" as host "a"), no escapes.
+  if (!m || /[\s\\]/.test(url)) return ""
   var authority = m[1].toLowerCase()
-  if (authority.indexOf("@") !== -1) return ""
+  if (!/^[a-z0-9.-]+(:[0-9]+)?$/.test(authority)) return ""
   var host = authority.replace(/:\d+$/, "")
   for (var i = 0; i < HOSTS.length; i++) if (host === HOSTS[i]) return url
   for (var j = 0; j < SUFFIX_HOSTS.length; j++) {
@@ -59,17 +61,25 @@ function _title(t) {
   return s.length > MAX_TITLE ? s.slice(0, MAX_TITLE - 1) + "…" : s
 }
 
-// The next event whose end is after `now`, earliest start first, or null.
+// The event to show: the earliest one that starts in the future or started
+// less than 10 minutes ago, so a long block already under way never hides
+// the next meeting. Only when there is none, the earliest event still under
+// way. null when nothing has an end after `now`.
 function next(events, now) {
   if (!Array.isArray(events)) return null
-  var best = null
+  var fresh = null
+  var running = null
   for (var i = 0; i < events.length; i++) {
     var e = events[i]
     if (!e || typeof e.start !== "number" || typeof e.end !== "number") continue
     if (!(e.end > now)) continue
-    if (best === null || e.start < best.start) best = e
+    if (now - e.start < SOON_MS) {
+      if (fresh === null || e.start < fresh.start) fresh = e
+    } else if (running === null || e.start < running.start) {
+      running = e
+    }
   }
-  return best
+  return fresh !== null ? fresh : running
 }
 
 function activity(events, now) {
@@ -91,5 +101,6 @@ function activity(events, now) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  PRIORITY: PRIORITY, GLYPHS: GLYPHS, meetingUrl: meetingUrl, clock: clock, next: next, activity: activity
+  PRIORITY: PRIORITY, GLYPHS: GLYPHS, HOSTS: HOSTS, SUFFIX_HOSTS: SUFFIX_HOSTS,
+  meetingUrl: meetingUrl, clock: clock, next: next, activity: activity
 }
