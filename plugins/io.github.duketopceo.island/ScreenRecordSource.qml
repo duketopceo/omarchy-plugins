@@ -31,7 +31,12 @@ Scope {
     src.confirm()
   }
 
-  function confirm() { if (!statusProc.running) statusProc.running = true }
+  // A pid that changes while a check runs is checked again when it ends.
+  property bool recheck: false
+  function confirm() {
+    if (statusProc.running) src.recheck = true
+    else statusProc.running = true
+  }
 
   function stop() {
     if (!src.model.recording) return
@@ -59,6 +64,7 @@ Scope {
     id: statusProc
     command: ["omarchy-capture-screenrecording", "--status"]
     onExited: function(code) {
+      if (src.recheck) { src.recheck = false; statusProc.running = true; return }
       if (code !== 0) { src.model = ScreenRec.initial(); return }
       if (src.model.recording && src.model.pid === src.seenPid) return
       startProc.recPid = src.seenPid

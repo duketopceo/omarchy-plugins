@@ -60,8 +60,16 @@ Scope {
     : (src.viaWpctl ? (Commons.UntypedInput.known ? (Commons.UntypedInput.muted ? 1 : 0) : -1)
                     : (src.source.audio ? (src.source.audio.muted ? 1 : 0) : -1))
   property int lastMute: -1
+  // The baseline belongs to one source: switching the default microphone (a
+  // headset or dock) starts a new baseline instead of reading as a mute.
+  property int lastSourceId: -1
   onMuteStateChanged: {
-    if (src.muteState < 0) { src.lastMute = -1; return }
+    var id = src.source ? src.source.id : -1
+    if (src.muteState < 0 || id !== src.lastSourceId) {
+      src.lastSourceId = id
+      src.lastMute = src.muteState
+      return
+    }
     if (src.lastMute >= 0 && src.lastMute !== src.muteState) src.micMuteFlipped(src.muteState === 1)
     src.lastMute = src.muteState
   }

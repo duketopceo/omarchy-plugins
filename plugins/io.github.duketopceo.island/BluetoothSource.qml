@@ -19,12 +19,27 @@ Scope {
   // One per newly connected audio device: { address, name, battery }.
   signal connected(var edge)
 
-  onEnabledChanged: if (!src.enabled) { src.list = []; src.model = BluetoothModel.initial() }
+  onEnabledChanged: {
+    src.settled = false
+    if (src.enabled) settle.restart()
+    else { src.list = []; src.model = BluetoothModel.initial() }
+  }
+  Component.onCompleted: if (src.enabled) settle.restart()
+
+  // BlueZ fills its device list after the reader loads, so readings during a
+  // short settle only set the baseline: headphones already connected at
+  // shell start are not announced as newly connected.
+  property bool settled: false
+  Timer {
+    id: settle
+    interval: 2000
+    onTriggered: src.settled = true
+  }
 
   function ingest(devices) {
     var audio = BluetoothModel.audio(devices)
     src.list = audio
-    var r = BluetoothModel.step(src.model, audio)
+    var r = BluetoothModel.step(src.settled ? src.model : BluetoothModel.initial(), audio)
     if (r.model !== src.model) src.model = r.model
     for (var i = 0; i < r.edges.length; i++) src.connected(r.edges[i])
   }

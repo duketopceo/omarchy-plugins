@@ -231,8 +231,8 @@ PanelWindow {
         readonly property int radius: Commons.Style.cornerRadius + Commons.Style.spacing.md
         x: (stage.width - width) / 2
         y: 0
-        width: win.cardShown ? win.geom.card.width : (win.alertShown !== null ? win.alertSize.width : win.target.width)
-        height: win.cardShown ? win.geom.card.height : (win.alertShown !== null ? win.alertSize.height : win.target.height)
+        width: win.mode === "expanded" ? win.geom.card.width : (win.mode === "alert" ? win.alertSize.width : win.target.width)
+        height: win.mode === "expanded" ? win.geom.card.height : (win.mode === "alert" ? win.alertSize.height : win.target.height)
 
         Behavior on width {
           NumberAnimation {

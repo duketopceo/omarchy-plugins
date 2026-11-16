@@ -91,3 +91,21 @@ def test_builders():
     assert js("dnd", True)["title"] == "Do Not Disturb"
     assert js("mic", True)["detail"] == "Muted" and js("mic", False)["detail"] == "On"
     assert js("mic", True)["title"] == "Microphone"
+
+
+def test_alert_glyphs_match_the_modules_that_own_them():
+    # Each .js module is imported standalone by QML, so the alert keeps its own
+    # copy of these glyphs; this keeps the copies from drifting.
+    d = MOD.parent
+    script = f"""
+    const A = require({json.dumps(str(d / "Alert.js"))});
+    const C = require({json.dumps(str(d / "Charging.js"))});
+    const B = require({json.dumps(str(d / "Bluetooth.js"))});
+    const D = require({json.dumps(str(d / "Dnd.js"))});
+    process.stdout.write(JSON.stringify([
+      !!A.GLYPHS.charging && A.GLYPHS.charging === C.GLYPHS.charging,
+      !!A.GLYPHS.bluetooth && A.GLYPHS.bluetooth === B.GLYPHS.headphones,
+      !!A.GLYPHS.dnd && A.GLYPHS.dnd === D.GLYPH]));
+    """
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20, check=True).stdout
+    assert json.loads(out) == [True, True, True]

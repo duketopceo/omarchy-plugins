@@ -46,13 +46,21 @@ Scope {
     src.now = t
     if (fresh && next.until > t) {
       expire.restart()
-      src.charged(next)
+      // The alert waits for the time-to-full read so it can say "to full";
+      // fullProc emits it once, whether the read succeeds or not.
+      src.alertPending = true
       if (!fullProc.running) fullProc.running = true
     }
   }
 
   // A fresh plug-in notice, for the Island's charging alert.
   signal charged(var model)
+  property bool alertPending: false
+  function emitPending() {
+    if (!src.alertPending) return
+    src.alertPending = false
+    src.charged(src.model)
+  }
 
   onLiveChanged: if (!src.live) src.model = Charging.initial()
 
@@ -75,8 +83,11 @@ Scope {
           status: src.model.status, capacity: String(src.model.capacity), timeToFull: src.timeToFull
         }), Date.now())
         if (next !== src.model) src.model = next
+        src.emitPending()
       }
     }
+    // A refused or failed read still sends the alert, with the percent only.
+    onExited: src.emitPending()
   }
 
   Timer {
