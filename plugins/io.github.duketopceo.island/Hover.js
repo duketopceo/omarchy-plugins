@@ -12,11 +12,15 @@
 // model.timerKind says what the pending timer is for: "open", "close",
 // "summon" or "" (none). The shortest real delay is 1 ms.
 //
-// Events are strings or objects { type, hovered }. `timer` events should carry
-// the current hover snapshot as `hovered`; without it the last enter/leave is used.
+// Events are strings or objects { type, hovered, moving }. `timer` events should
+// carry the current hover snapshot as `hovered`; without it the last enter/leave
+// is used. `moving: true` on the open timer means the pointer is still passing
+// (Intent.js), so the card waits instead of opening.
 
 var DEFAULTS = { openDelay: 140, closeDelay: 450, summonTimeout: 5000 }
 var KEEP = -1
+// How soon the open timer looks again while the pointer is still moving.
+var INTENT_RECHECK = 40
 
 function num(v, def, lo, hi) {
   var n = Number(v)
@@ -80,6 +84,7 @@ function step(model, event, settings) {
   var cfg = clampSettings(settings)
   var type = event && typeof event === "object" ? event.type : event
   var hovered = event && typeof event === "object" && event.hovered !== undefined ? !!event.hovered : undefined
+  var moving = !!(event && typeof event === "object" && event.moving === true)
   var m = copy(model)
   var summonPending = m.summoned && !m.enteredSinceSummon
 
@@ -115,6 +120,9 @@ function step(model, event, settings) {
     case "timer":
       if (hovered !== undefined) m.pointerInside = hovered
       if (m.timerKind === "open" && m.state === "arming") {
+        // Hover intent: a pointer still travelling fast is passing, not
+        // arriving; look again shortly instead of opening (Intent.js).
+        if (m.pointerInside && moving) return startTimer(m, "open", INTENT_RECHECK)
         if (m.pointerInside) { m.state = "open"; return stopTimer(m) }
         m.state = "closed"
         return stopTimer(m)
