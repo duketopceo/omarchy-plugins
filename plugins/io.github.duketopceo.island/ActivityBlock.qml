@@ -210,6 +210,14 @@ Item {
       onClicked: block.send("stop")
     }
 
+    // Calendar: Join the next meeting's link
+    ActivityButton {
+      visible: block.kind === "calendar" && Glyphs.primaryControl(block.activity) === "join"
+      label: Glyphs.controlLabel("join", block.activity)
+      emphasized: true
+      onClicked: block.send("join")
+    }
+
     // Media
     ActivityButton {
       visible: block.kind === "media"

@@ -29,6 +29,7 @@ Item {
     { key: "privacy", label: "Mic, camera" },
     { key: "dnd", label: "Do Not Disturb" },
     { key: "bluetooth", label: "Bluetooth" },
+    { key: "calendar", label: "Calendar" },
     { key: "alerts", label: "Alerts" }
   ]
   // The HUD only shows once the owner has turned off Omarchy's own OSD.
@@ -53,7 +54,7 @@ Item {
   }
 
   // No heading: the selected Settings chip already names the page, and the
-  // nine toggles need the room.
+  // ten toggles need the room.
   Column {
     anchors.fill: parent
     spacing: Commons.Style.spacing.lg

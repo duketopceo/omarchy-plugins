@@ -35,10 +35,17 @@ def js(fn: str, *args):
     ({"id": "charging", "active": True}, ""),
     ({"id": "hud", "active": True}, ""),
     ({"id": "media", "active": False, "canTogglePlaying": True}, ""),
+    ({"id": "calendar", "active": True, "url": "https://meet.google.com/abc-defg-hij"}, "join"),
+    ({"id": "calendar", "active": True, "url": ""}, ""),
+    ({"id": "calendar", "active": False, "url": "https://meet.google.com/abc-defg-hij"}, ""),
     (None, ""),
 ])
 def test_primary_control(activity, control):
     assert js("primaryControl", activity) == control
+
+
+def test_join_label():
+    assert js("controlLabel", "join", {"id": "calendar"}) == "Join"
 
 
 def test_screenrec_gets_a_stop_control():

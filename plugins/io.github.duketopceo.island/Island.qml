@@ -128,6 +128,11 @@ Item {
     onConnected: function(e) { root.pushAlert(Alert.bluetooth(e.name, e.battery)) }
   }
 
+  CalendarSource {
+    id: calendar
+    enabled: root.settings.calendar === true
+  }
+
   // ---- indicators: mic and camera in use, Do Not Disturb (R8-R10) ----
   PrivacySource {
     id: privacy
@@ -215,7 +220,8 @@ Item {
 
   // Every source's activity in one list; Activity.js lays it out per window.
   readonly property var activities: [dictation.activity, screenrec.activity, hud.activity, root.timerActivity,
-                                     media.activity, charging.activity, bluetooth.activity]
+                                     media.activity, charging.activity, bluetooth.activity,
+                                     calendar.activity]
   // When the list last changed, for Activity.js's expiry check.
   property real activityClock: Date.now()
   onActivitiesChanged: root.activityClock = Date.now()
@@ -243,6 +249,7 @@ Item {
       if (action === "add") { root.timerUpdate(IslandTimer.add(root.timerModel, 60000, now)); return "ok" }
       if (action === "cancel") { root.timerUpdate(IslandTimer.cancel(root.timerModel)); return "ok" }
     }
+    if (id === "calendar" && action === "join") { calendar.join(); return "ok" }
     return "unknown"
   }
 

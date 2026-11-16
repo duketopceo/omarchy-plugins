@@ -30,6 +30,7 @@ function primaryControl(a) {
     if (a.state === "paused") return "resume"
     return ""
   }
+  if (a.id === "calendar") return typeof a.url === "string" && a.url !== "" ? "join" : ""
   return ""
 }
 
@@ -44,6 +45,7 @@ function controlLabel(action, a) {
     case "previous": return GLYPHS.previous
     case "cancel": return GLYPHS.cancel
     case "add": return "+1 min"
+    case "join": return "Join"
     default: return ""
   }
 }
