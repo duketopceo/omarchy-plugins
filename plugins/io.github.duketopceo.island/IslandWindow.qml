@@ -81,7 +81,7 @@ PanelWindow {
   function commitCard() {
     if (!win.cardShown) return
     var avail = win.island ? win.island.pageAvail : ({})
-    win.chips = Pages.chips(avail, win.island ? win.island.pageLive : ({}))
+    win.chips = Pages.chips(avail, win.island ? win.island.pageLive : ({}), win.page)
     var page = Pages.reachable(win.page, avail)
     if (page !== win.page) { win.page = page; return }   // onPageChanged commits again
     var rows = card.countFor(page)
@@ -225,6 +225,8 @@ PanelWindow {
     var p = Pages.normalize(pageId)
     if (p !== "") win.page = p
     win.send("summon")
+    // A refused summon (fullscreen) must not leave the next open on that page.
+    if (!win.cardShown) win.page = "home"
   }
   function closeByIpc() { win.send("ipcClose") }
   function focusCard() { win.send("focus") }

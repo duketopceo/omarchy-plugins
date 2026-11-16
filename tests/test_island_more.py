@@ -89,3 +89,26 @@ def test_shots_rows_caption_and_time():
         {"label": "new one", "value": "Nov 16 09:00", "name": "2026-11-16_09-00-00_b.png"},
         {"label": "old one", "value": "Nov 1 10:00", "name": "2026-11-01_10-00-00_a.png"}]
     assert js("M.shotsRows(null)") == []
+
+
+def test_shots_empty_first_read_then_first_screenshot_is_live():
+    m = js(f"M.shotsStep(M.shotsStep(M.shotsInitial(), {{items: []}}), {json.dumps(SHOTS1)})")
+    assert js(f"M.shotsLive({json.dumps(m)})") is True
+
+
+def test_shots_missing_read_keeps_baseline_and_is_not_live():
+    m = js(f"M.shotsStep(M.shotsStep(M.shotsInitial(), {json.dumps(SHOTS1)}), null)")
+    assert m["seen"] == SHOTS1["items"][0]["name"]
+    assert js(f"M.shotsLive({json.dumps(m)})") is False
+
+
+def test_more_labels():
+    assert js("M.unreadText(0)") == "No unread messages"
+    assert js("M.unreadText(2)") == "2 unread"
+    assert js('M.dayflowState({state: "", paused: false})') == "Unknown"
+    assert js("M.dayflowState(null)") == ""
+
+
+def test_messages_ignores_bad_counts_and_bad_muted_list():
+    m = messages({"unreadCounts": {"a": -2, "b": "x", "c": "3"}, "mutedChats": "c"})
+    assert m["unread"] == 3 and m["live"] is True

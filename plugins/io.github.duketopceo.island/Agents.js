@@ -31,6 +31,13 @@ function _address(a) {
   return s.indexOf("0x") === 0 ? s : "0x" + s
 }
 
+// A herdr terminal id passed as one argv element: no leading "-" (it would
+// read as an option) and no whitespace; "" when invalid.
+function _terminal(t) {
+  var s = String(t || "")
+  return /^[A-Za-z0-9_.:\/@][A-Za-z0-9_.:\/@-]*$/.test(s) ? s : ""
+}
+
 // -> [{ key, source, app, title, where, status, statusLabel, terminal, address, focusable }]
 function rows(data) {
   var list = data && Array.isArray(data.sessions) ? data.sessions : []
@@ -40,7 +47,7 @@ function rows(data) {
     if (!x || typeof x !== "object" || !x.id) continue
     var st = normStatus(x.status)
     var address = _address(x.address)
-    var terminal = x.source === "herdr" ? String(x.terminal || "") : ""
+    var terminal = x.source === "herdr" ? _terminal(x.terminal) : ""
     out.push({
       key: String(x.id), source: String(x.source || ""), app: appName(x.app), title: String(x.name || ""),
       where: String(x.where || ""), status: st, statusLabel: LABEL[st], terminal: terminal,
@@ -69,7 +76,8 @@ function countsText(list) {
 function focusCommands(row) {
   var out = []
   if (!row) return out
-  if (row.source === "herdr" && row.terminal) out.push(["herdr-app", "do", "agent.focus", "--terminal", String(row.terminal)])
+  var terminal = row.source === "herdr" ? _terminal(row.terminal) : ""
+  if (terminal) out.push(["herdr-app", "do", "agent.focus", "--terminal", terminal])
   var address = _address(row.address)
   if (address) out.push(["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:' + address + '" })'])
   return out

@@ -95,3 +95,30 @@ def test_reachable_falls_back_to_home():
     assert js(f'P.reachable("settings", {json.dumps(avail)})') == "settings"
     assert js(f'P.reachable("now", {json.dumps(avail)})') == "home"
     assert js(f'P.reachable("", {json.dumps(avail)})') == "home"
+
+
+def test_open_promoted_page_keeps_its_chip_after_it_stops_being_live():
+    # Opening Shots marks it seen; the chip it was opened from must stay put.
+    r = js(f"P.chips({json.dumps(ALL)}, {{}}, 'shots')")
+    assert r["chips"] == ["home", "music", "agents", "system", "shots", "more"]
+
+
+def test_current_base_page_does_not_duplicate():
+    r = js(f"P.chips({json.dumps(ALL)}, {{}}, 'system')")
+    assert r["chips"] == ["home", "music", "agents", "system", "more"]
+
+
+def test_current_page_counts_toward_the_six_chip_cap():
+    r = js(f"P.chips({json.dumps(ALL)}, {{messages: true}}, 'dayflow')")
+    assert len(r["chips"]) == 6 and "dayflow" in r["chips"] and "messages" not in r["chips"]
+
+
+def test_current_settings_is_never_promoted():
+    r = js(f"P.chips({json.dumps(ALL)}, {{}}, 'settings')")
+    assert "settings" not in r["chips"]
+
+
+def test_promotion_bound_with_a_base_page_absent():
+    r = js(f"P.chips({json.dumps({'shots': True, 'messages': True, 'dayflow': True, 'agents': True})}, "
+           f"{{messages: true, shots: true, dayflow: true}})")
+    assert r["chips"] == ["home", "agents", "system", "messages", "shots", "more"]

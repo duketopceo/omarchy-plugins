@@ -195,3 +195,10 @@ def test_focus_commands_reject_bad_address_and_none_without_target():
     assert row["focusable"] is False
     row2 = js(f"A.rows({json.dumps({'sessions': [s('claude', 'k', 'busy')]})})[0]")
     assert js(f"A.focusCommands({json.dumps(row2)})") == []
+
+
+@pytest.mark.parametrize("terminal", ["-rf", "--terminal", "a b", ""])
+def test_focus_commands_reject_odd_terminal_ids(terminal):
+    rows = js(f"A.rows({json.dumps({'sessions': [s('herdr', 'k', 'busy', terminal=terminal)]})})")
+    assert js(f"A.focusCommands({json.dumps(rows[0])})") == []
+    assert rows[0]["focusable"] is False

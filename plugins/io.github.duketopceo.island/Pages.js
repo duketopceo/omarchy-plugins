@@ -32,14 +32,19 @@ function normalize(id) {
 
 function label(id) { return LABELS[id] || "" }
 
-// -> { chips: [id], more: [id] }
-function chips(avail, live) {
+// -> { chips: [id], more: [id] }. `current` is the page the card is showing:
+// a promoted page keeps its chip while open even after it stops being live
+// (opening Shots marks its screenshot seen), so the chip under the pointer
+// does not vanish at the next commit.
+function chips(avail, live, current) {
   var out = []
   for (var i = 0; i < BASE.length; i++) if (exists(BASE[i], avail)) out.push(BASE[i])
   // Promoted pages go before More; More always takes the last slot.
+  var cur = normalize(current)
+  if (PROMOTE_ORDER.indexOf(cur) >= 0 && exists(cur, avail)) out.push(cur)
   for (var j = 0; j < PROMOTE_ORDER.length && out.length < MAX_CHIPS - 1; j++) {
     var id = PROMOTE_ORDER[j]
-    if (exists(id, avail) && live && live[id] === true) out.push(id)
+    if (id !== cur && exists(id, avail) && live && live[id] === true) out.push(id)
   }
   out.push("more")
   var more = []
