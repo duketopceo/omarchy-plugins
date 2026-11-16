@@ -6,6 +6,9 @@
 // (shown as a small icon in the ear) and up to two card rows.
 //
 // Card closed: plain priority order, ties keep list order.
+// An activity with cardOnly === true never takes the top or second slot: it
+// shows only as a card row (and not at all while the card is closed).
+//
 // Card shown: the window holds the ids it is showing (slot 0 = top, slots 1-2
 // = rows). A held id keeps its slot while it stays live, so a control never
 // moves under the pointer; a newly live activity only fills a free slot.
@@ -36,14 +39,17 @@ function _sorted(list, now) {
   return out
 }
 
-function _result(slots) {
-  var ids = []
-  for (var i = 0; i < slots.length; i++) ids.push(slots[i].id)
+function _result(top, rows) {
+  var held = []
+  if (top || rows.length > 0) {
+    held.push(top ? top.id : "")
+    for (var i = 0; i < rows.length; i++) held.push(rows[i].id)
+  }
   return {
-    top: slots[0] || null,
-    second: slots[1] || null,
-    rows: slots.slice(1, 3),
-    held: ids
+    top: top || null,
+    second: rows[0] && rows[0].cardOnly !== true ? rows[0] : null,
+    rows: rows,
+    held: held
   }
 }
 
@@ -51,7 +57,10 @@ function layout(list, held, cardShown, now) {
   var sorted = _sorted(list, now)
 
   if (!cardShown) {
-    var r = _result(sorted.slice(0, MAX_SLOTS))
+    var shown = []
+    for (var c = 0; c < sorted.length && shown.length < MAX_SLOTS; c++)
+      if (sorted[c].cardOnly !== true) shown.push(sorted[c])
+    var r = _result(shown[0] || null, shown.slice(1))
     r.held = []
     return r
   }
@@ -59,31 +68,44 @@ function layout(list, held, cardShown, now) {
   var byId = {}
   for (var i = 0; i < sorted.length; i++) byId[sorted[i].id] = sorted[i]
 
-  // Survivors keep their slot index; ids that left become gaps (null).
+  // Survivors keep their slot index; ids that left become gaps (null). A
+  // cardOnly activity never holds the top slot.
   var slots = [null, null, null]
   var used = {}
   var prev = Array.isArray(held) ? held : []
   for (var h = 0; h < prev.length && h < MAX_SLOTS; h++) {
     var a = byId[prev[h]]
-    if (a && !used[a.id]) {
+    if (a && !used[a.id] && !(h === 0 && a.cardOnly === true)) {
       slots[h] = a
       used[a.id] = true
     }
   }
-  // Fill gaps, top slot first, with live activities not already held.
-  var next = 0
+  // Fill gaps, top slot first, with live activities not already held. The top
+  // slot takes only a non-cardOnly activity.
   for (var s = 0; s < MAX_SLOTS; s++) {
     if (slots[s]) continue
-    while (next < sorted.length && used[sorted[next].id]) next++
-    if (next >= sorted.length) break
-    slots[s] = sorted[next]
-    used[sorted[next].id] = true
+    for (var n = 0; n < sorted.length; n++) {
+      if (used[sorted[n].id] || (s === 0 && sorted[n].cardOnly === true)) continue
+      slots[s] = sorted[n]
+      used[sorted[n].id] = true
+      break
+    }
   }
-  // A gap that could not be filled would leave the top slot empty above a
-  // row, so close it up.
-  var packed = []
-  for (var p = 0; p < MAX_SLOTS; p++) if (slots[p]) packed.push(slots[p])
-  return _result(packed)
+  // An empty top slot above rows closes up when a row holds a non-cardOnly
+  // activity; otherwise it stays empty and the rows are cardOnly only.
+  var rows = []
+  for (var p = 1; p < MAX_SLOTS; p++) if (slots[p]) rows.push(slots[p])
+  var top = slots[0]
+  if (!top) {
+    for (var q = 0; q < rows.length; q++) {
+      if (rows[q].cardOnly !== true) {
+        top = rows[q]
+        rows.splice(q, 1)
+        break
+      }
+    }
+  }
+  return _result(top, rows)
 }
 
 if (typeof module !== "undefined") module.exports = { isLive: isLive, layout: layout }

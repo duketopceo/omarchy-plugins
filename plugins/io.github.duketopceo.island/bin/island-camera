@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""island-camera: print a JSON line saying whether a process holds a camera open.
+
+Reads /proc/<pid>/fd links and /sys/class/video4linux names only. Codec nodes
+(avd, decoders, encoders, m2m) do not count. `--root DIR` prefixes the read
+paths so tests can use a fixture tree.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import signal
+import sys
+import time
+
+DEADLINE_SECONDS = 4
+VIDEO = re.compile(r"^/dev/video(\d+)$")
+CODEC_WORDS = ("decoder", "encoder", "m2m", "codec")
+
+
+def is_camera(root: str, n: str) -> bool:
+    try:
+        with open(os.path.join(root, "sys/class/video4linux", f"video{n}", "name")) as f:
+            name = f.read().strip()
+    except OSError:
+        return False
+    low = name.lower()
+    return low != "avd" and not any(w in low for w in CODEC_WORDS)
+
+
+def scan(root: str) -> dict:
+    apps = set()
+    cache: dict[str, bool] = {}
+    for pid_dir in glob.glob(os.path.join(glob.escape(root), "proc", "[0-9]*")):
+        try:
+            fds = os.listdir(os.path.join(pid_dir, "fd"))
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                target = os.readlink(os.path.join(pid_dir, "fd", fd))
+            except OSError:
+                continue
+            m = VIDEO.match(target)
+            if not m:
+                continue
+            n = m.group(1)
+            if n not in cache:
+                cache[n] = is_camera(root, n)
+            if cache[n]:
+                try:
+                    with open(os.path.join(pid_dir, "comm")) as f:
+                        apps.add(f.read().strip())
+                except OSError:
+                    pass
+    return {"inUse": bool(apps), "apps": sorted(apps)}
+
+
+def emit(result: dict) -> bool:
+    try:
+        print(json.dumps(result), flush=True)
+    except BrokenPipeError:
+        return False
+    return True
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--root", default="/")
+    ap.add_argument("--once", action="store_true")
+    ap.add_argument("--watch", type=float, default=2.0, metavar="SECONDS")
+    args = ap.parse_args()
+
+    if args.once:
+        signal.alarm(DEADLINE_SECONDS)
+        emit(scan(args.root))
+        return 0
+
+    parent = os.getppid()
+    last = None
+    while True:
+        result = scan(args.root)
+        if result != last:
+            if not emit(result):
+                return 0
+            last = result
+        time.sleep(args.watch)
+        if os.getppid() != parent:
+            return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
