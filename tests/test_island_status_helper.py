@@ -75,6 +75,12 @@ def test_home_reads_battery_vpn_and_tailscale(tmp_path):
     assert out["tailscale"] == {"state": "Running", "online": True, "peers": 2}
 
 
+def test_home_also_reads_cpu_and_memory(tmp_path):
+    out = run(tmp_path, "home")
+    assert out["memory"]["usedPct"] == 75
+    assert "cpu" in out
+
+
 def test_tailscale_output_never_carries_addresses(tmp_path):
     out = run(tmp_path, "home", tools={"tailscale": f"echo '{TS}'"})
     assert "100.1.1.1" not in json.dumps(out)

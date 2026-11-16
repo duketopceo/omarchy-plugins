@@ -52,6 +52,22 @@ function homeDots(h) {
   return out
 }
 
+// Home's glance tile: battery, CPU and memory as [{ id, label, value, level }],
+// level 0..1. Sources that are missing are left out.
+function glance(h) {
+  var out = []
+  if (!h) return out
+  if (h.battery && typeof h.battery.capacity === "number") {
+    var st = h.battery.status === "Charging" ? " " + DOT + " charging" : (h.battery.status === "Full" ? " " + DOT + " full" : "")
+    out.push({ id: "battery", label: "Battery", value: h.battery.capacity + "%" + st, level: h.battery.capacity / 100 })
+  }
+  if (typeof h.cpu === "number") out.push({ id: "cpu", label: "CPU", value: h.cpu + "%", level: h.cpu / 100 })
+  if (h.memory && typeof h.memory.usedPct === "number") {
+    out.push({ id: "memory", label: "Memory", value: h.memory.usedPct + "%", level: h.memory.usedPct / 100 })
+  }
+  return out
+}
+
 function _gb(bytes) { return (Number(bytes) / 1073741824).toFixed(1) }
 
 var NET_KIND = { wifi: "Wi-Fi", ethernet: "Ethernet" }
@@ -83,4 +99,4 @@ function systemRows(s) {
   return out
 }
 
-if (typeof module !== "undefined") module.exports = { weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, systemRows: systemRows }
+if (typeof module !== "undefined") module.exports = { weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, glance: glance, systemRows: systemRows }

@@ -100,7 +100,28 @@ function activity(events, now) {
   return a
 }
 
+// Home's Up Next list: up to `max` events that have not ended, earliest
+// first, as { title, time, live, url }. `time` is "now" for one under way.
+function agenda(events, now, max) {
+  if (!Array.isArray(events)) return []
+  var list = []
+  for (var i = 0; i < events.length; i++) {
+    var e = events[i]
+    if (!e || typeof e.start !== "number" || typeof e.end !== "number") continue
+    if (e.end > now) list.push(e)
+  }
+  list.sort(function (a, b) { return a.start - b.start })
+  var out = []
+  var n = typeof max === "number" && max > 0 ? max : 3
+  for (var j = 0; j < list.length && out.length < n; j++) {
+    var x = list[j]
+    var live = x.start <= now
+    out.push({ title: _title(x.title), time: live ? "now" : clock(x.start), live: live, url: meetingUrl(x.url) })
+  }
+  return out
+}
+
 if (typeof module !== "undefined") module.exports = {
   PRIORITY: PRIORITY, GLYPHS: GLYPHS, HOSTS: HOSTS, SUFFIX_HOSTS: SUFFIX_HOSTS,
-  meetingUrl: meetingUrl, clock: clock, next: next, activity: activity
+  meetingUrl: meetingUrl, clock: clock, next: next, activity: activity, agenda: agenda
 }

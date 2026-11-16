@@ -14,6 +14,7 @@ import "Pages.js" as Pages
 import "More.js" as More
 import "Agents.js" as Agents
 import "Status.js" as Status
+import "Calendar.js" as Calendar
 
 // The Island's root: loads settings and the capability probe, creates one
 // IslandWindow per screen, watches fullscreen state, and owns the single
@@ -228,13 +229,27 @@ Item {
   readonly property string helperDir: decodeURIComponent(Qt.resolvedUrl("bin").toString().replace("file://", ""))
   property real weatherAt: 0
 
-  // Home: battery, Tailscale and VPN dots; once at load and on every open.
+  // Home: battery, Tailscale and VPN dots plus the glance tile (battery, CPU,
+  // memory); once at load, on every open, and every 3 s while Home is open.
   PollSource {
     id: homeStatus
     command: ["/usr/bin/python3", root.helperDir + "/island-status", "home"]
+    active: root.pageOpen("home")
+    interval: 3000
     Component.onCompleted: homeStatus.refresh()
   }
   readonly property var homeDots: Status.homeDots(homeStatus.data)
+  readonly property var homeGlance: Status.glance(homeStatus.data)
+
+  // Home's Up Next tile: the next three calendar events from the source the
+  // calendar activity already polls.
+  readonly property bool calendarOn: root.settings.calendar === true
+  readonly property var agenda: root.calendarOn ? Calendar.agenda(calendar.events, root.now.getTime(), 3) : []
+  // Opens an Up Next meeting link; Calendar.meetingUrl() re-checks the allowlist.
+  function joinMeeting(url) {
+    var u = Calendar.meetingUrl(url)
+    if (root.calendarOn && u !== "") Quickshell.execDetached(["xdg-open", u])
+  }
 
   // Weather through Omarchy's own command, only when Omarchy's weather widget
   // is in the bar (its service is already polled), at most every 30 minutes.
@@ -276,6 +291,8 @@ Item {
   }
   function refreshAgents() { if (root.settings.agents === true) agentsSrc.refresh() }
   readonly property var agentRows: root.settings.agents === true ? Agents.rows(agentsSrc.data) : []
+  // Home's one-line agent summary, e.g. "1 needs you · 2 working".
+  readonly property string agentsSummary: Agents.countsText(root.agentRows)
   function focusAgent(row) {
     var cmds = Agents.focusCommands(row)
     for (var i = 0; i < cmds.length; i++) Quickshell.execDetached(cmds[i])

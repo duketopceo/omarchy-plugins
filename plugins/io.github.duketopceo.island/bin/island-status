@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Island status reader: one JSON object of machine state for a card page.
 
-    island-status home     battery, tailscale, vpn
+    island-status home     battery, tailscale, vpn, cpu, memory
     island-status system   battery, profile, fan, cpu, memory, network, tailscale
     island-status more     dayflow, shots
 
@@ -233,7 +233,9 @@ def main() -> int:
     args = ap.parse_args()
     root = Path(args.root)
     if args.section == "home":
-        out = {"battery": battery(root), "tailscale": tailscale(), "vpn": vpn(root)}
+        started, before = time.monotonic(), read(root / "proc/stat")
+        out = {"battery": battery(root), "tailscale": tailscale(), "vpn": vpn(root), "memory": memory(root)}
+        out["cpu"] = cpu_end(root, before, started, args.cpu_sample)
     elif args.section == "system":
         # The CPU window spans the other reads instead of a bare sleep.
         started, before = time.monotonic(), read(root / "proc/stat")

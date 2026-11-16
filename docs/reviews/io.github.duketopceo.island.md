@@ -133,3 +133,17 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1, Spotify playing a podcast
 | Hover intent | Node tests only: `Intent.js` speed cases, the `Hover.js` open-timer gate, and a combined simulation of the hover check's stepped move (opens at enter + 140 ms, unchanged), a 1 px/ms pass (never opens) and a pointer that slows and stops (opens once it settles) |
 | Calendar helper | `bin/island-calendar` run by hand on omarchy-max: `{"source": "omarchy", "events": []}` (Omarchy's calendar file exists but holds no events; khal, gcalcli and evolution-data-server are not installed). khal, gcalcli and the allowlist are fixture-tested; the evolution-data-server path is untested (not installed) |
 | Not run live | At the owner's request no pointer was moved and `bin/island-hover-check` was not run. Not installed live either (another branch owns the live install): the calendar row and Join button render, the ten-toggle Settings page fit, and the hover check against this branch wait for install |
+
+### Live verification (Home dashboard, 0.4.0)
+
+Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, lid closed: HDMI-A-1 (Dell S2721NX, 1920x1080, scale 1) at x 0 and DP-3 (Samsung LS27A800U, 3840x2160, scale 1) at x 1920; eDP-1 off. Copy install, shell restarted. Actions through IPC and grim screenshots only; no pointer moves.
+
+| Check | Result |
+|---|---|
+| Owner report | Home showed only the clock when nothing was live: the old Home drew only the header and two toggles |
+| Home tiles | `open home` on DP-3: Now Playing, Up next and a glance tile with battery (100% charging), CPU, memory meters and the agents summary ("1 done · 2 working") |
+| Empty states | No player: "Nothing playing"; no calendar events: "Nothing in the next 24 h" |
+| Now Playing tile | Silent mpv track (null audio output): player name, title, artist, art placeholder, transport with previous and next dimmed (one track); `act media toggle` returned ok; the Music chip joined the page row |
+| Live rows | A 3 min timer showed as a row under the tiles with pause, +1 min and cancel; media and calendar are not repeated as rows |
+| Multi-display | One Island per screen: HDMI-A-1 origin 588 and DP-3 origin 3468, both 744x392; the open card landed on DP-3 |
+| Not run live | Join on an Up next meeting (no events in the calendar); clicks on the tiles (no click injector, owner rule against pointer moves) |

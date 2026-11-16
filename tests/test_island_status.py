@@ -139,3 +139,21 @@ def test_system_rows_tailscale_stopped():
 
 def test_system_rows_null_input():
     assert rows(None) == []
+
+
+# ---- Home glance tile ----
+def test_glance_battery_cpu_memory_in_order():
+    g = js('S.glance({battery:{capacity:62,status:"Charging"},cpu:12,memory:{usedPct:41}})')
+    assert [x["id"] for x in g] == ["battery", "cpu", "memory"]
+    assert g[0]["value"] == "62% · charging" and g[0]["level"] == 0.62
+    assert g[1]["value"] == "12%" and g[2]["value"] == "41%"
+
+
+def test_glance_full_and_discharging():
+    assert js('S.glance({battery:{capacity:100,status:"Full"}})')[0]["value"] == "100% · full"
+    assert js('S.glance({battery:{capacity:50,status:"Discharging"}})')[0]["value"] == "50%"
+
+
+@pytest.mark.parametrize("h", ["null", "{}", '{"cpu":null,"memory":null,"battery":null}'])
+def test_glance_missing_sources_empty(h):
+    assert js(f"S.glance({h})") == []

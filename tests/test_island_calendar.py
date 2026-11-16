@@ -127,3 +127,31 @@ def test_next_event_is_earliest_by_start():
 def test_card_title_trimmed():
     a = activity([ev("A" * 300, 5)])
     assert len(a["card"]) < 120
+
+
+# ---- Home Up Next list ----
+def agenda(events, now=T0, n=3):
+    return js(f"C.agenda({json.dumps(events)}, {now}, {n})")
+
+
+def test_agenda_lists_next_events_earliest_first():
+    a = agenda([ev("Late", 120), ev("Soon", 20), ev("Mid", 60)])
+    assert [x["title"] for x in a] == ["Soon", "Mid", "Late"]
+    assert a[0]["time"] == "09:42" and a[0]["live"] is False
+
+
+def test_agenda_includes_running_event_as_now_and_drops_ended():
+    a = agenda([ev("Done", -60, 30), ev("Running", -110, 180), ev("Next", 5)])
+    assert [x["title"] for x in a] == ["Running", "Next"]
+    assert a[0]["time"] == "now" and a[0]["live"] is True
+
+
+def test_agenda_caps_and_filters_urls():
+    a = agenda([ev(str(i), i + 1, url="https://evil.example/") for i in range(6)], n=2)
+    assert len(a) == 2 and all(x["url"] == "" for x in a)
+    assert agenda([ev("x", 5, url="https://meet.google.com/a")])[0]["url"] == "https://meet.google.com/a"
+
+
+def test_agenda_junk_is_empty():
+    assert js(f"C.agenda(null, {T0}, 3)") == []
+    assert agenda([{"title": "x"}]) == []
