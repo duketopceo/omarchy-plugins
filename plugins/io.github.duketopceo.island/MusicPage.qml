@@ -46,15 +46,12 @@ Item {
       onHoldEnd: page.holdEnd()
     }
 
-    Text {
-      id: empty
+    // The block's own height is held so the card never changes size (KTD2).
+    EmptyNote {
       visible: page.activity === null
-      textFormat: Text.PlainText
+      width: parent.width
+      height: mediaBlock.implicitHeight
       text: "Nothing playing"
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.body
     }
   }
 }

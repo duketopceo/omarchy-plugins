@@ -166,7 +166,8 @@ Item {
       anchors.leftMargin: Commons.Style.spacing.xl
       anchors.rightMargin: Commons.Style.spacing.xl
       anchors.verticalCenter: parent.verticalCenter
-      height: Commons.Style.space(5)
+      // The bar thickens under the pointer so a scrubbable bar reads as one.
+      height: Commons.Style.space(seek.containsMouse && block.scrubbable ? 7 : 5)
       radius: height / 2
       color: Qt.alpha(block.textColor, 0.18)
 
@@ -179,7 +180,10 @@ Item {
     }
 
     MouseArea {
+      id: seek
       enabled: block.scrubbable
+      hoverEnabled: true
+      cursorShape: block.scrubbable ? Qt.PointingHandCursor : Qt.ArrowCursor
       anchors.fill: track
       anchors.topMargin: -Commons.Style.spacing.lg
       anchors.bottomMargin: -Commons.Style.spacing.lg
@@ -216,31 +220,24 @@ Item {
         { action: "next", flag: "canGoNext", size: 1.0 }
       ]
 
-      Item {
+      HoverButton {
         id: key
         required property var modelData
-        readonly property bool available: block.activity !== null && block.activity[key.modelData.flag] === true
+        enabled: block.activity !== null && block.activity[key.modelData.flag] === true
+        hint: Glyphs.controlHint(key.modelData.action, block.activity)
         width: block.controlsHeight
         height: block.controlsHeight
-        opacity: key.available ? (hit.containsMouse ? 1 : 0.85) : 0.3
-        scale: hit.pressed && key.available ? 0.92 : 1
-        Behavior on scale { NumberAnimation { duration: Commons.Style.duration(90) } }
+        radius: height / 2
+        onClicked: block.send(key.modelData.action)
 
         Text {
           textFormat: Text.PlainText
           text: Glyphs.controlLabel(key.modelData.action, block.activity)
           color: block.textColor
+          opacity: key.hovered ? 1 : 0.85
           font.family: Commons.Style.font.family
           font.pixelSize: Math.round(Commons.Style.font.displayLarge * key.modelData.size)
           anchors.centerIn: parent
-        }
-
-        MouseArea {
-          id: hit
-          anchors.fill: parent
-          enabled: key.available
-          hoverEnabled: true
-          onClicked: block.send(key.modelData.action)
         }
       }
     }

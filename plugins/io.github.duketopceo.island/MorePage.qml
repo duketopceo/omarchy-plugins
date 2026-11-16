@@ -37,57 +37,39 @@ Item {
     Repeater {
       model: page.entries
 
-      Rectangle {
+      HoverButton {
         id: item
         required property string modelData
+        hint: "Open " + Pages.label(item.modelData)
         width: parent.width
         height: page.rowH
-        radius: Commons.Style.cornerRadius
-        color: hover.containsMouse ? Commons.Color.menu.selectedBackground : "transparent"
+        onClicked: page.openPage(item.modelData)
 
-        Text {
+        Txt {
           id: name
           anchors.left: parent.left
           anchors.leftMargin: Commons.Style.spacing.md
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
           text: Pages.label(item.modelData)
-          color: Commons.Color.popups.text
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.body
         }
-        Text {
+        Txt {
           anchors.left: name.right
           anchors.leftMargin: Commons.Style.spacing.huge
           anchors.right: chevron.left
           anchors.rightMargin: Commons.Style.spacing.lg
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
+          kind: "caption"
           text: page.detail(item.modelData)
-          color: Commons.Color.popups.text
-          opacity: 0.65
-          elide: Text.ElideRight
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.bodySmall
         }
-        Text {
+        Txt {
           id: chevron
           anchors.right: parent.right
           anchors.rightMargin: Commons.Style.spacing.md
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: "›"
-          color: Commons.Color.popups.text
+          kind: "heading"
+          font.bold: false
           opacity: 0.6
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.heading
-        }
-        MouseArea {
-          id: hover
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: page.openPage(item.modelData)
+          text: "›"
         }
       }
     }

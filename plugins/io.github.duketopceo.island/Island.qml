@@ -333,6 +333,15 @@ Item {
   }
   readonly property var messages: More.messages(root.settings.messages === true ? root.blipText : "")
   function openBlip() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "nixfred.blip"]) }
+  // Opens one chat in Blip through Blip's own `notified` IPC (the call its
+  // notification click makes), as an argv list. An id Blip would not accept
+  // opens Blip itself instead. The chat id is never logged.
+  readonly property string omarchyShellRoot: "/usr/share/omarchy/shell"
+  function openBlipChat(chat) {
+    var argv = More.blipChatArgv(chat, root.omarchyShellRoot)
+    if (argv.length === 0) root.openBlip()
+    else Quickshell.execDetached(argv)
+  }
 
   // Mic mute quick toggle (Home): the default source through wpctl.
   readonly property bool micMuteAvailable: root.tools.wpctl === true

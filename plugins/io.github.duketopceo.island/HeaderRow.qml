@@ -18,6 +18,8 @@ Item {
   property bool compact: false
   readonly property color textColor: Commons.Color.popups.text
 
+  signal openPage(string id)
+
   implicitHeight: header.compact ? compactText.implicitHeight : Math.ceil(Commons.Style.font.heading * 1.5)
 
   Row {
@@ -73,6 +75,29 @@ Item {
     anchors.right: parent.right
     anchors.verticalCenter: parent.verticalCenter
     spacing: Commons.Style.spacing.lg
+
+    // Unread messages (Home only; nothing at zero). Opens the Messages page.
+    HoverButton {
+      id: unreadBtn
+      readonly property int unread: header.island !== null && header.island.messages ? header.island.messages.unread : 0
+      visible: header.showStatus && unread > 0
+      hint: "Open Messages"
+      anchors.verticalCenter: parent.verticalCenter
+      width: unreadText.implicitWidth + Commons.Style.spacing.huge
+      height: Math.ceil(Commons.Style.font.bodySmall * 1.9)
+      radius: height / 2
+      onClicked: header.openPage("messages")
+
+      Txt {
+        id: unreadText
+        anchors.centerIn: parent
+        width: implicitWidth
+        kind: "caption"
+        color: Commons.Color.accent
+        opacity: 1
+        text: unreadBtn.unread + " unread"
+      }
+    }
 
     Repeater {
       model: header.showStatus && header.island ? header.island.homeDots : []

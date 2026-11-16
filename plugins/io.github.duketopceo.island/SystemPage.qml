@@ -19,14 +19,11 @@ Item {
   function count() { return Math.max(1, page.rows.length) }
   function heightFor(n) { return Math.max(1, n) * (page.rowH + page.gap) }
 
-  Text {
+  EmptyNote {
     visible: page.rows.length === 0
-    textFormat: Text.PlainText
+    width: parent.width
+    height: page.rowH + page.gap
     text: "Reading system state"
-    color: Commons.Color.popups.text
-    opacity: 0.7
-    font.family: Commons.Style.font.family
-    font.pixelSize: Commons.Style.font.body
   }
 
   Column {
@@ -42,30 +39,21 @@ Item {
         width: parent.width
         height: page.rowH
 
-        Text {
+        Txt {
           id: label
           width: page.labelW
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
+          opacity: 0.65
           text: item.modelData.label
-          color: Commons.Color.popups.text
-          opacity: 0.7
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.body
         }
 
-        Text {
+        Txt {
           id: value
           anchors.left: label.right
           anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: item.modelData.value
-          color: Commons.Color.popups.text
-          elide: Text.ElideRight
           width: Math.min(implicitWidth, parent.width - page.labelW - meter.width - openFan.width - Commons.Style.spacing.huge)
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.body
           font.features: { "tnum": 1 }
+          text: item.modelData.value
         }
 
         // A thin meter for rows with a level (battery, CPU, memory).
@@ -91,6 +79,7 @@ Item {
           visible: item.modelData.id === "fan" && page.island !== null && page.island.fanPanel
           width: visible ? implicitWidth : 0
           label: "Open"
+          hint: "Open the fan panel"
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           onClicked: page.island.openFanPanel()

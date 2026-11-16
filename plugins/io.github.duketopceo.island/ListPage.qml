@@ -1,14 +1,19 @@
 import QtQuick 6.11
 import qs.Commons as Commons
 
-// A simple list page (Shots, Messages, Dayflow): a summary line with an
+// A simple list page (Shots, Messages, Dayflow): a caption summary with an
 // optional action on the right, then label/value rows. A row with a `name`
-// is clickable (Shots opens the screenshot).
+// (Shots) or a `chat` (Messages) is a hover button that activates it; other
+// rows only display. A `muted` row is drawn dimmed. With no rows the page
+// shows one centered empty line.
 Item {
   id: page
 
   property string summary: ""
   property string actionLabel: ""
+  property string actionHint: ""
+  // Hover hint for a clickable row.
+  property string rowHint: ""
   property string emptyText: "Nothing here"
   property var rows: []
   property int maxRows: 0
@@ -32,33 +37,30 @@ Item {
       width: parent.width
       height: page.rowH
 
-      Text {
+      Txt {
         anchors.left: parent.left
+        anchors.right: actionButton.visible ? actionButton.left : parent.right
+        anchors.rightMargin: Commons.Style.spacing.lg
         anchors.verticalCenter: parent.verticalCenter
-        textFormat: Text.PlainText
+        kind: "caption"
         text: page.summary
-        color: Commons.Color.popups.text
-        opacity: 0.75
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.bodySmall
       }
       ActivityButton {
+        id: actionButton
         visible: page.actionLabel !== ""
         label: page.actionLabel
+        hint: page.actionHint
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         onClicked: page.action()
       }
     }
 
-    Text {
+    EmptyNote {
       visible: (page.rows || []).length === 0
-      textFormat: Text.PlainText
+      width: parent.width
+      height: page.rowH + page.gap
       text: page.emptyText
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.body
     }
 
     Column {
@@ -68,49 +70,36 @@ Item {
       Repeater {
         model: (page.rows || []).slice(0, Math.max(0, page.maxRows))
 
-        Rectangle {
+        HoverButton {
           id: item
           required property var modelData
-          readonly property bool clickable: typeof item.modelData.name === "string" && item.modelData.name !== ""
+          readonly property bool clickable: (typeof item.modelData.name === "string" && item.modelData.name !== "")
+            || (typeof item.modelData.chat === "string" && item.modelData.chat !== "")
+          readonly property bool muted: item.modelData.muted === true
+          passive: !item.clickable
+          hint: item.clickable ? page.rowHint : ""
           width: parent.width
           height: page.rowH
-          radius: Commons.Style.cornerRadius
-          color: hover.containsMouse && item.clickable ? Commons.Color.menu.selectedBackground : "transparent"
+          onClicked: page.activated(item.modelData)
 
-          Text {
+          Txt {
             anchors.left: parent.left
             anchors.leftMargin: Commons.Style.spacing.md
             anchors.right: value.left
             anchors.rightMargin: Commons.Style.spacing.lg
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
+            muted: item.muted
             text: item.modelData.label
-            color: Commons.Color.popups.text
-            elide: Text.ElideRight
-            maximumLineCount: 1
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.body
           }
-          Text {
+          Txt {
             id: value
             anchors.right: parent.right
             anchors.rightMargin: Commons.Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: item.modelData.value
-            color: Commons.Color.popups.text
-            opacity: 0.7
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.body
+            kind: "caption"
+            muted: item.muted
             font.features: { "tnum": 1 }
-          }
-          MouseArea {
-            id: hover
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: item.clickable
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: page.activated(item.modelData)
+            text: item.modelData.value
           }
         }
       }

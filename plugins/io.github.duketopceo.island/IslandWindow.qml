@@ -383,6 +383,7 @@ PanelWindow {
           tint: win.notch ? win.mediaPillTint : win.mediaTint
           topActivity: win.layout.top
           dnd: win.island ? win.island.dndOn : false
+          unread: win.island ? win.island.messages.live === true : false
           micInUse: win.island ? win.island.micInUse : false
           cameraInUse: win.island ? win.island.cameraInUse : false
           Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(120) } }

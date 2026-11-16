@@ -147,3 +147,28 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, lid closed at the owner's work d
 | Live rows | A 3 min timer showed as a row under the tiles with pause, +1 min and cancel; media and calendar are not repeated as rows |
 | Multi-display | One Island per screen: HDMI-A-1 origin 588 and DP-3 origin 3468, both 744x392; the open card landed on DP-3 |
 | Not run live | Join on an Up next meeting (no events in the calendar); clicks on the tiles (no click injector, owner rule against pointer moves) |
+
+### Polish and Blip (0.4.x)
+
+Run 2026-11-16 on omarchy-max, same two-display setup as the Home run (HDMI-A-1 at x 0, DP-3 at x 1920, scale 1). Copy install, shell restarted, no Island warnings in the journal. IPC and `grim` screenshots only, saved to `~/Inbox/claude/island-polish/`; no pointer was moved, no input injected, `bin/island-hover-check` not run. The open card landed on HDMI-A-1 (origin 588).
+
+Owner report: "almost no page is polished enough ... each part is rocky and rough"; wants hover feedback, and Blip in the Island.
+
+| Change | How it was checked |
+|---|---|
+| One control, `HoverButton.qml`, replaces the ad-hoc MouseAreas: chips, Pin, bell, action buttons, tiles, list and agent rows, transport keys, Join, Open fan panel | Code review; `Controls.js` look and hint-position rules node-tested (`tests/test_island_controls.py`) |
+| Hint drawn inside the card (`HintBubble.qml`, hosted by `Card.qml`) after a 400 ms rest; never a separate window, never takes the pointer | Code review and the position tests (above, below, clamped to the card) |
+| One type scale (`Txt.qml`: heading, body, caption) and one empty state (`EmptyNote.qml`) on Home tiles, Music, Agents, System, Messages, Shots, Dayflow and alerts | Screenshots `home.png`, `music-media.png`, `agents.png`, `system.png`, `more.png`, `settings.png`, `messages.png` |
+| Messages: unread rows are buttons that run `qs -p /usr/share/omarchy/shell ipc call nixfred.blip notified <chat>` (argv list; the handle is checked against Blip's own character set); muted chats listed last and dimmed; "Open Blip" button | `blipChatArgv` node-tested with safe and unsafe ids (fixtures only); `messages.png` shows the page on the live Blip state (labels are the last four characters of a handle) |
+| Home header shows "N unread" (accent, opens Messages), nothing at zero | `home.png` (6 unread) |
+| Pill: one 6 px accent dot beside the time while unmuted unread exists; the time stays in the left ear | `home.png`, `home-media.png`, `home-timer.png` |
+| Home Now Playing tile split so the open-Music area and the transport keys never overlap | `home-media.png` (silent mpv), `home-timer.png` (3 min timer), `music-media.png` |
+| KTD2 | Every page keeps its committed height: empty notes fill the rows the page already reserved; Music's empty note takes the media block's height |
+
+Not verified live:
+
+- Hover, pressed and disabled looks, the cursor shape and the hint bubble were never seen: they need the pointer. Covered by code review and the node tests only.
+- Clicking a chat row did not run (it would open Blip on the owner's screen). The argv it builds is tested; Blip's `notified` handler was read in `BarWidget.qml`, not called.
+- Join on a meeting (no events), the Agents focus click, the Shots page (no captioned screenshots) and the light theme were not shot.
+- The split-presentation bubble got a pointer cursor and a press scale but no hint, since it sits outside the card.
+- The Settings page uses the shell's own `qs.Ui` Toggle and NumberField, which already have hover and focus styles; they were not changed.

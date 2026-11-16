@@ -37,16 +37,20 @@ Item {
     width: parent.width
     spacing: Commons.Style.spacing.lg
 
-    Text {
+    Txt {
       id: summary
-      textFormat: Text.PlainText
+      width: parent.width
       readonly property int hidden: Math.max(0, page.keys.length - page.maxRows)
-      text: (page.keys.length === 0 ? "No agent sessions" : (Agents.countsText(page.rows) || (page.keys.length + " idle")))
-            + (hidden > 0 ? "  \u00b7  " + hidden + " more not shown" : "")
-      color: Commons.Color.popups.text
-      opacity: 0.75
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.bodySmall
+      kind: "caption"
+      text: (page.keys.length === 0 ? "Agent sessions" : (Agents.countsText(page.rows) || (page.keys.length + " idle")))
+            + (hidden > 0 ? "  ·  " + hidden + " more not shown" : "")
+    }
+
+    EmptyNote {
+      visible: page.keys.length === 0
+      width: parent.width
+      height: page.rowH + page.gap
+      text: "No agent sessions"
     }
 
     Column {
@@ -56,14 +60,15 @@ Item {
       Repeater {
         model: page.keys.slice(0, Math.max(0, page.maxRows))
 
-        Rectangle {
+        HoverButton {
           id: item
           required property string modelData
           readonly property var row: page.rowFor(modelData)
+          passive: !(item.row !== null && item.row.focusable)
+          hint: item.row && item.row.focusable ? "Focus this session's terminal" : ""
           width: parent.width
           height: page.rowH
-          radius: Commons.Style.cornerRadius
-          color: hover.containsMouse && item.row && item.row.focusable ? Commons.Color.menu.selectedBackground : "transparent"
+          onClicked: if (page.island && item.row) page.island.focusAgent(item.row)
 
           Rectangle {
             id: badge
@@ -73,53 +78,35 @@ Item {
             color: "transparent"
             border.width: Commons.Style.normalBorderWidth
             border.color: item.row && item.row.status === "needs" ? Commons.Color.urgent : Commons.Color.menu.border
-            Text {
+            Txt {
               anchors.centerIn: parent
-              textFormat: Text.PlainText
-              text: item.row ? item.row.app.charAt(0) : ""
-              color: Commons.Color.popups.text
-              font.family: Commons.Style.font.family
-              font.pixelSize: Commons.Style.font.bodySmall
+              width: implicitWidth
+              kind: "caption"
               font.bold: true
+              opacity: 1
+              text: item.row ? item.row.app.charAt(0) : ""
             }
           }
 
-          Text {
+          Txt {
             anchors.left: badge.right
             anchors.leftMargin: Commons.Style.spacing.lg
             anchors.right: status.left
             anchors.rightMargin: Commons.Style.spacing.lg
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
             text: item.row ? item.row.app + "  ·  " + item.row.title + (item.row.where && item.row.where !== item.row.title ? "  ·  " + item.row.where : "") : ""
-            color: Commons.Color.popups.text
-            elide: Text.ElideRight
-            maximumLineCount: 1
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.body
           }
 
-          Text {
+          Txt {
             id: status
             anchors.right: parent.right
             anchors.rightMargin: Commons.Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
+            kind: "caption"
             text: item.row ? item.row.statusLabel : ""
             color: item.row && item.row.status === "needs" ? Commons.Color.urgent
                  : (item.row && item.row.status === "working" ? Commons.Color.accent : Commons.Color.popups.text)
             opacity: item.row && (item.row.status === "needs" || item.row.status === "working") ? 1 : 0.6
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.bodySmall
-          }
-
-          MouseArea {
-            id: hover
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: item.row !== null && item.row.focusable
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (page.island && item.row) page.island.focusAgent(item.row)
           }
         }
       }

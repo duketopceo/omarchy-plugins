@@ -4,6 +4,7 @@ import "Dnd.js" as Dnd
 import "Pages.js" as Pages
 import "More.js" as More
 import "Presentation.js" as Presentation
+import "Controls.js" as Controls
 
 // The expanded card's content: the active page, and a compact row with the
 // page chips (Pages.js, frozen by the window while open), a Do Not Disturb
@@ -94,6 +95,36 @@ Item {
   // get their own clicks.
   TapHandler { onTapped: card.cardClicked() }
 
+  // ---- hover hints: HoverButton finds this host by walking up its parents ----
+  readonly property bool hintHost: true
+  property var hintOwner: null
+  function showHint(text, item) {
+    if (!item || text === "") { card.hideHint(card.hintOwner); return }
+    card.hintOwner = item
+    hintBubble.text = text
+    var p = item.mapToItem(card, 0, 0)
+    var at = Controls.hintPos({ x: p.x, y: p.y, w: item.width, h: item.height },
+                              { w: hintBubble.width, h: hintBubble.height },
+                              { w: card.width, h: card.height }, Commons.Style.spacing.sm)
+    hintBubble.x = at.x
+    hintBubble.y = at.y
+    hintBubble.visible = true
+  }
+  function hideHint(item) {
+    if (item !== card.hintOwner) return
+    card.hintOwner = null
+    hintBubble.visible = false
+  }
+  onPageChanged: { card.hintOwner = null; hintBubble.visible = false }
+  onVisibleChanged: if (!card.visible) { card.hintOwner = null; hintBubble.visible = false }
+
+  HintBubble {
+    id: hintBubble
+    z: 100
+    visible: false
+    maxWidth: card.width - Commons.Style.spacing.lg * 2
+  }
+
   Item {
     id: pageArea
     x: card.pad
@@ -164,6 +195,7 @@ Item {
       maxRows: card.maxRows
       summary: card.island && card.island.shots ? card.island.shots.total + " captioned screenshots" : ""
       emptyText: "No captioned screenshots yet"
+      rowHint: "Open this screenshot"
       rows: card.island ? card.island.shotRows : []
       onActivated: function(row) { if (card.island) card.island.openShot(row.name) }
     }
@@ -177,8 +209,11 @@ Item {
       summary: More.unreadText(card.island ? card.island.messages.unread : 0)
       emptyText: "All caught up"
       actionLabel: "Open Blip"
+      actionHint: "Open Blip"
+      rowHint: "Open this chat in Blip"
       rows: card.island ? card.island.messages.rows : []
       onAction: if (card.island) card.island.openBlip()
+      onActivated: function(row) { if (card.island) card.island.openBlipChat(row.chat) }
     }
 
     ListPage {
@@ -216,31 +251,28 @@ Item {
       Repeater {
         model: card.chips
 
-        Rectangle {
+        // Idle chips are dimmed text on nothing; hover adds a fill; the
+        // selected chip is the filled one with the selected text color.
+        HoverButton {
           id: chip
           required property string modelData
           // More stays lit while one of its pages is open from the list.
-          readonly property bool selected: card.page === chip.modelData
+          readonly property bool lit: card.page === chip.modelData
             || (chip.modelData === "more" && card.chips.indexOf(card.page) < 0)
+          selected: chip.lit
+          hint: chip.lit ? "" : (chip.modelData === "more" ? "More pages" : "Open " + Pages.label(chip.modelData))
           width: chipText.implicitWidth + Commons.Style.spacing.huge * 1.2
           height: card.rowHeight
           radius: height / 2
-          color: chip.selected ? Commons.Color.menu.selectedBackground : "transparent"
+          onClicked: card.open(chip.modelData)
 
-          Text {
+          Txt {
             id: chipText
-            textFormat: Text.PlainText
+            kind: "caption"
             text: Pages.label(chip.modelData)
-            color: chip.selected ? Commons.Color.menu.selectedText : card.textColor
-            opacity: chip.selected ? 1 : 0.75
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.bodySmall
+            color: chip.lit ? Commons.Color.menu.selectedText : card.textColor
+            opacity: chip.lit || chip.hovered ? 1 : 0.75
             anchors.centerIn: parent
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            onClicked: card.open(chip.modelData)
           }
         }
       }
@@ -248,56 +280,46 @@ Item {
 
     // Omarchy's Do Not Disturb, toggled through Omarchy's own command (R10).
     // A bell only, so six chips fit; Home has the labelled toggle.
-    Rectangle {
+    HoverButton {
       id: dndToggle
       visible: card.island !== null && card.island.dndAvailable === true
       readonly property bool on: card.island !== null && card.island.dndOn === true
+      selected: dndToggle.on
+      hint: dndToggle.on ? "Turn off Do Not Disturb" : "Turn on Do Not Disturb"
       anchors.right: pin.left
       anchors.rightMargin: Commons.Style.spacing.md
       width: card.rowHeight + Commons.Style.spacing.lg
       height: card.rowHeight
       radius: height / 2
-      color: dndToggle.on ? Commons.Color.menu.selectedBackground : "transparent"
+      onClicked: if (card.island) card.island.toggleDnd()
 
-      Text {
-        textFormat: Text.PlainText
+      Txt {
+        kind: "caption"
         text: Dnd.GLYPH
         color: dndToggle.on ? Commons.Color.accent : card.textColor
-        opacity: dndToggle.on ? 1 : 0.75
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        opacity: dndToggle.on || dndToggle.hovered ? 1 : 0.75
         anchors.centerIn: parent
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        onClicked: if (card.island) card.island.toggleDnd()
       }
     }
 
     // The only control that pins; the pinned state is drawn filled.
-    Rectangle {
+    HoverButton {
       id: pin
+      selected: card.pinned
+      hint: card.pinned ? "Unpin the card" : "Keep the card open"
       anchors.right: parent.right
       width: pinText.implicitWidth + Commons.Style.spacing.huge * 1.2
       height: card.rowHeight
       radius: height / 2
-      color: card.pinned ? Commons.Color.menu.selectedBackground : "transparent"
+      onClicked: card.pinClicked()
 
-      Text {
+      Txt {
         id: pinText
-        textFormat: Text.PlainText
+        kind: "caption"
         text: card.pinned ? "Pinned" : "Pin"
         color: card.pinned ? Commons.Color.accent : card.textColor
-        opacity: card.pinned ? 1 : 0.75
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        opacity: card.pinned || pin.hovered ? 1 : 0.75
         anchors.centerIn: parent
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        onClicked: card.pinClicked()
       }
     }
   }

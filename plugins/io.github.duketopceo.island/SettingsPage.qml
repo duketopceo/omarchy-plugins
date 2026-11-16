@@ -133,28 +133,20 @@ Item {
       }
     }
 
-    Text {
-      textFormat: Text.PlainText
+    Txt {
       visible: page.hudWaiting
+      kind: "caption"
+      wrap: true
       text: "Volume shows here once Omarchy's OSD is off (omarchy-plugin-disable omarchy.osd)."
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.bodySmall
-      wrapMode: Text.WordWrap
       width: page.width
     }
 
-    Text {
-      textFormat: Text.PlainText
+    Txt {
       visible: page.needsEntry
+      kind: "caption"
+      wrap: true
       text: "Enable the Island plugin first: there is no settings entry to save to yet."
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.bodySmall
-      wrapMode: Text.WordWrap
-      width: page.width
+      width: parent.width
     }
   }
 }

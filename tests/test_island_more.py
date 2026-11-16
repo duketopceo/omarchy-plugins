@@ -32,10 +32,28 @@ def messages(state):
 def test_messages_unread_rows_named_and_masked():
     m = messages(STATE)
     assert m["ok"] is True and m["unread"] == 5
-    assert m["rows"] == [{"label": "Chat ending 4567", "value": "3 unread"},
-                         {"label": "Family", "value": "2 unread"},
-                         {"label": "Chat ending ed-1", "value": "4 unread, muted"}]
-    assert "+15551234567" not in json.dumps(m)
+    assert m["rows"] == [
+        {"label": "Chat ending 4567", "value": "3 unread", "muted": False, "chat": "+15551234567"},
+        {"label": "Family", "value": "2 unread", "muted": False, "chat": "chat-g"},
+        {"label": "Chat ending ed-1", "value": "4 unread, muted", "muted": True, "chat": "muted-1"}]
+    # The handle rides along only so a row can open its chat; it is never drawn.
+    assert all("+15551234567" not in r["label"] + r["value"] for r in m["rows"])
+
+
+@pytest.mark.parametrize("chat,tail", [
+    ("+15551234567", "15551234567"),
+    ("15551234567", "15551234567"),
+    ("iMessage;-;chat123", "iMessage;-;chat123"),
+    ("user@example.com", "user@example.com"),
+])
+def test_blip_chat_argv_is_a_list_with_bare_handle(chat, tail):
+    argv = js(f"M.blipChatArgv({json.dumps(chat)}, '/usr/share/omarchy/shell')")
+    assert argv == ["qs", "-p", "/usr/share/omarchy/shell", "ipc", "call", "nixfred.blip", "notified", tail]
+
+
+@pytest.mark.parametrize("chat", ["", "-flag", "+-flag", "has space", "a;rm -rf /", "x" * 257, None])
+def test_blip_chat_argv_rejects_unsafe_ids(chat):
+    assert js(f"M.blipChatArgv({json.dumps(chat)}, '/usr/share/omarchy/shell')") == []
 
 
 def test_messages_live_ignores_muted_chats():

@@ -8,7 +8,7 @@ cutout; on other screens it is a virtual pill of the same shape.
 P1 is the shell (pill, hover open and close, fixed-size card, fullscreen
 step-aside, settings). P2 adds the live activities below. 0.3.0 brings it
 close to Apple's Dynamic Island (see Presentation). 0.4.0 splits the card into
-pages (see Pages).
+pages (see Pages). 0.4.1 polishes every surface (see Controls) and puts Blip in the Island.
 
 ## Pages
 
@@ -42,6 +42,24 @@ are fixed when the card opens or the page changes, never while it is open.
   herdr sessions, then `hyprctl dispatch 'hl.dsp.focus({ window = "address:0x..." })'`.
   Claude Code background sessions have no window and no action. Approving or
   denying an agent's request is not here yet (it needs a hook socket).
+
+## Controls
+
+Every clickable thing on the card is one `HoverButton.qml` (the Action button,
+page chips, Pin, the bell, tiles, list rows, transport keys). It has an instant
+hover fill (a border change for outlined buttons), a pressed state (darker
+fill, scale 0.96), the pointing-hand cursor and a short hint ("Open in Music",
+"Join meeting", "Pause timer") drawn by the card after the pointer rests 400 ms.
+A disabled control is dimmed with no hover, press or hint; a display-only row
+(`passive`) is neither. Text uses `Txt.qml` (heading, body, caption; `muted`
+dims one step), and empty pages use `EmptyNote.qml` (one centered muted line).
+The rules are in `Controls.js` and tested without Qt.
+
+Blip: the pill shows a small accent dot beside the time while any unmuted chat
+has unread messages; Home shows "N unread" in its header (nothing at zero) and
+opens Messages; each unread chat row on Messages opens that chat through Blip's
+`nixfred.blip notified <chat>` IPC (passed as an argv list; an id Blip would
+not accept just opens Blip); muted chats are listed last and dimmed.
 
 ## Presentation
 

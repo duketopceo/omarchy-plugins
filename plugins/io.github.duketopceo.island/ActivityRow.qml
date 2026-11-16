@@ -4,7 +4,7 @@ import "Glyphs.js" as Glyphs
 
 // One live activity on Home: glyph, card text, and the activity's controls
 // (Glyphs.rowControls: Stop, play/pause, the timer's pause/resume, +1 min and
-// cancel, calendar Join), if it has any.
+// cancel, calendar Join), if it has any. Each control carries a hover hint.
 Item {
   id: row
 
@@ -22,26 +22,18 @@ Item {
 
   implicitHeight: Commons.Style.spacing.controlHeight
 
-  Text {
+  Txt {
     id: glyphText
-    textFormat: Text.PlainText
+    kind: "heading"
+    font.bold: false
     text: row.activity ? row.activity.glyph : ""
-    color: Commons.Color.popups.text
-    font.family: Commons.Style.font.family
-    font.pixelSize: Commons.Style.font.heading
     width: Commons.Style.spacing.controlHeight
     horizontalAlignment: Text.AlignHCenter
     anchors.verticalCenter: parent.verticalCenter
   }
 
-  Text {
-    textFormat: Text.PlainText
+  Txt {
     text: row.activity ? row.activity.card : ""
-    color: Commons.Color.popups.text
-    font.family: Commons.Style.font.family
-    font.pixelSize: Commons.Style.font.body
-    elide: Text.ElideRight
-    maximumLineCount: 1
     anchors.left: glyphText.right
     anchors.leftMargin: Commons.Style.spacing.lg
     anchors.right: buttons.left
@@ -61,6 +53,7 @@ Item {
       ActivityButton {
         required property string modelData
         label: Glyphs.controlLabel(modelData, row.activity)
+        hint: Glyphs.controlHint(modelData, row.activity)
         onClicked: row.act(row.activityId, modelData)
       }
     }

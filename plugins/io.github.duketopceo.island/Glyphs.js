@@ -58,6 +58,24 @@ function controlLabel(action, a) {
   }
 }
 
+// The hint a control shows on hover: what a press will do.
+function controlHint(action, a) {
+  switch (action) {
+    case "stop":
+      return a && a.id === "screenrec" ? "Stop recording" : (a && a.id === "dictation" ? "Stop dictation" : "Stop")
+    case "toggle": return a && a.playing ? "Pause" : "Play"
+    case "pause": return "Pause timer"
+    case "resume": return "Resume timer"
+    case "next": return "Next track"
+    case "previous": return "Previous track"
+    case "cancel": return "Cancel timer"
+    case "add": return "Add one minute"
+    case "join": return "Join meeting"
+    default: return ""
+  }
+}
+
 if (typeof module !== "undefined") module.exports = {
-  GLYPHS: GLYPHS, primaryControl: primaryControl, rowControls: rowControls, controlLabel: controlLabel
+  GLYPHS: GLYPHS, primaryControl: primaryControl, rowControls: rowControls, controlLabel: controlLabel,
+  controlHint: controlHint
 }

@@ -62,17 +62,13 @@ Item {
     return header.implicitHeight + page.gap + page.tileH + n * (page.rowH + page.gap) + page.gap + page.rowH
   }
 
-  component Label: Text {
-    textFormat: Text.PlainText
-    color: page.textColor
-    elide: Text.ElideRight
-    font.family: Commons.Style.font.family
-    font.pixelSize: Commons.Style.font.body
-  }
-  component Caption: Label {
-    opacity: 0.6
-    font.pixelSize: Commons.Style.font.bodySmall
-  }
+  // The shared type scale (Txt.qml): body and caption only on this page.
+  component Label: Txt {}
+  component Caption: Txt { kind: "caption" }
+
+  // Transport and Join are small glyph or word buttons.
+  readonly property int keyH: Commons.Style.space(28)
+  readonly property int linkH: Math.ceil(Commons.Style.font.bodySmall * 1.9)
 
   Column {
     width: parent.width
@@ -85,6 +81,7 @@ Item {
       now: page.now
       showWeather: true
       showStatus: true
+      onOpenPage: function(id) { page.openPage(id) }
     }
 
     Row {
@@ -102,10 +99,14 @@ Item {
         radius: Commons.Style.cornerRadius
         color: page.plate
 
-        MouseArea {
-          anchors.fill: parent
-          enabled: page.media !== null
-          cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        // The tile above the transport row opens Music. The transport keys
+        // sit below it, so the two never overlap.
+        HoverButton {
+          id: nowOpen
+          passive: page.media === null
+          hint: "Open in Music"
+          width: parent.width
+          height: parent.height - page.keyH - Commons.Style.spacing.sm
           onClicked: page.openPage("music")
         }
 
@@ -144,7 +145,7 @@ Item {
           anchors.horizontalCenter: parent.horizontalCenter
           anchors.bottom: parent.bottom
           anchors.bottomMargin: Commons.Style.spacing.sm
-          spacing: Commons.Style.spacing.huge
+          spacing: Commons.Style.spacing.lg
 
           Repeater {
             model: [
@@ -152,41 +153,31 @@ Item {
               { action: "toggle", flag: "canTogglePlaying" },
               { action: "next", flag: "canGoNext" }
             ]
-            Text {
+            HoverButton {
               id: transport
               required property var modelData
-              readonly property bool ok: page.media !== null && page.media[transport.modelData.flag] === true
-              textFormat: Text.PlainText
-              text: transport.modelData.action === "toggle"
-                ? (page.media && page.media.playing ? Glyphs.GLYPHS.pause : Glyphs.GLYPHS.play)
-                : Glyphs.GLYPHS[transport.modelData.action]
-              color: page.textColor
-              opacity: transport.ok ? 1 : 0.35
-              font.family: Commons.Style.font.family
-              font.pixelSize: Commons.Style.font.heading
-              MouseArea {
-                anchors.fill: parent
-                anchors.margins: -Commons.Style.spacing.sm
-                enabled: transport.ok
-                cursorShape: Qt.PointingHandCursor
-                onClicked: page.act("media", transport.modelData.action)
+              enabled: page.media !== null && page.media[transport.modelData.flag] === true
+              hint: Glyphs.controlHint(transport.modelData.action, page.media)
+              width: page.keyH
+              height: page.keyH
+              radius: height / 2
+              onClicked: page.act("media", transport.modelData.action)
+
+              Label {
+                anchors.centerIn: parent
+                width: implicitWidth
+                kind: "heading"
+                font.bold: false
+                text: Glyphs.controlLabel(transport.modelData.action, page.media)
               }
             }
           }
         }
 
-        Column {
+        EmptyNote {
           visible: page.media === null
-          anchors.centerIn: parent
-          anchors.verticalCenterOffset: Commons.Style.spacing.sm
-          spacing: Commons.Style.spacing.sm
-          Label {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Glyphs.GLYPHS.music
-            opacity: 0.5
-            font.pixelSize: Commons.Style.font.heading
-          }
-          Caption { anchors.horizontalCenter: parent.horizontalCenter; text: "Nothing playing" }
+          anchors.fill: parent
+          text: "Nothing playing"
         }
       }
 
@@ -219,7 +210,7 @@ Item {
               id: ev
               required property var modelData
               width: parent.width
-              height: Math.max(evTime.implicitHeight, join.visible ? join.implicitHeight : 0)
+              height: Math.max(evTime.implicitHeight, join.visible ? join.height : 0)
 
               Label {
                 id: evTime
@@ -236,28 +227,32 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: ev.modelData.title
               }
-              Label {
+              HoverButton {
                 id: join
                 visible: ev.modelData.url !== ""
+                hint: "Join meeting"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Join"
-                color: Commons.Color.accent
-                MouseArea {
-                  anchors.fill: parent
-                  anchors.margins: -Commons.Style.spacing.sm
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: page.island.joinMeeting(ev.modelData.url)
+                width: joinText.implicitWidth + Commons.Style.spacing.lg
+                height: page.linkH
+                radius: height / 2
+                onClicked: page.island.joinMeeting(ev.modelData.url)
+
+                Label {
+                  id: joinText
+                  anchors.centerIn: parent
+                  width: implicitWidth
+                  text: "Join"
+                  color: Commons.Color.accent
                 }
               }
             }
           }
         }
 
-        Caption {
+        EmptyNote {
           visible: nextTile.items.length === 0
-          anchors.centerIn: parent
-          anchors.verticalCenterOffset: Commons.Style.spacing.sm
+          anchors.fill: parent
           text: page.island && page.island.calendarOn ? "Nothing in the next 24 h" : "Calendar is off"
         }
       }
@@ -311,30 +306,30 @@ Item {
             }
           }
 
-          Item {
+          HoverButton {
             visible: glanceTile.agents !== ""
+            hint: "Open Agents"
             width: parent.width
-            height: agentsLabel.implicitHeight
-            Caption { id: agentsLabel; text: "Agents" }
-            Label {
+            height: agentsLabel.implicitHeight + 2
+            hitPad: 3
+            onClicked: page.openPage("agents")
+
+            Caption { id: agentsLabel; anchors.verticalCenter: parent.verticalCenter; width: implicitWidth; text: "Agents" }
+            Caption {
               anchors.right: parent.right
               anchors.left: agentsLabel.right
               anchors.leftMargin: Commons.Style.spacing.sm
+              anchors.verticalCenter: parent.verticalCenter
               horizontalAlignment: Text.AlignRight
+              opacity: 1
               text: glanceTile.agents
-              font.pixelSize: Commons.Style.font.bodySmall
-            }
-            MouseArea {
-              anchors.fill: parent
-              cursorShape: Qt.PointingHandCursor
-              onClicked: page.openPage("agents")
             }
           }
         }
 
-        Caption {
+        EmptyNote {
           visible: glanceTile.rows.length === 0
-          anchors.centerIn: parent
+          anchors.fill: parent
           text: "Reading system state"
         }
       }
@@ -358,18 +353,21 @@ Item {
       ActivityButton {
         visible: page.island !== null && page.island.dndAvailable === true
         label: Dnd.GLYPH + "  Do Not Disturb"
+        hint: page.island !== null && page.island.dndOn === true ? "Turn off Do Not Disturb" : "Turn on Do Not Disturb"
         emphasized: page.island !== null && page.island.dndOn === true
         onClicked: page.island.toggleDnd()
       }
       ActivityButton {
         visible: page.island !== null && page.island.micMuteAvailable === true
         label: page.island !== null && page.island.micMuted ? "Mic muted" : "Mic on"
+        hint: page.island !== null && page.island.micMuted ? "Unmute the microphone" : "Mute the microphone"
         emphasized: page.island !== null && page.island.micMuted === true
         onClicked: page.island.toggleMicMute()
       }
       ActivityButton {
         visible: page.island !== null
         label: "5 min timer"
+        hint: "Start a 5 minute timer"
         onClicked: page.island.startTimer("5m")
       }
     }

@@ -61,27 +61,17 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
     spacing: Commons.Style.spacing.sm
 
-    Text {
+    Txt {
       width: parent.width
-      textFormat: Text.PlainText
+      kind: "heading"
       text: view.alert ? view.alert.title : ""
       color: view.textColor
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.heading
-      font.bold: true
-      elide: Text.ElideRight
-      maximumLineCount: 1
     }
-    Text {
+    Txt {
       width: parent.width
-      textFormat: Text.PlainText
       text: view.alert ? view.alert.detail : ""
       color: view.textColor
       opacity: 0.8
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.body
-      elide: Text.ElideRight
-      maximumLineCount: 1
     }
   }
 }

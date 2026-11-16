@@ -33,14 +33,26 @@ function messages(text) {
     if (!isFinite(n) || n <= 0) continue
     var isMuted = muted.indexOf(chat) >= 0
     if (!isMuted) { out.unread += n; out.live = true }
-    list.push({ label: _label(chat, groups), n: n, muted: isMuted, idx: list.length })
+    list.push({ label: _label(chat, groups), n: n, muted: isMuted, chat: String(chat), idx: list.length })
   }
   list.sort(function (a, b) {
     return (a.muted ? 1 : 0) - (b.muted ? 1 : 0) || b.n - a.n || a.idx - b.idx
   })
   for (var i = 0; i < list.length; i++)
-    out.rows.push({ label: list[i].label, value: list[i].n + " unread" + (list[i].muted ? ", muted" : "") })
+    out.rows.push({ label: list[i].label, value: list[i].n + " unread" + (list[i].muted ? ", muted" : ""),
+                    muted: list[i].muted, chat: list[i].chat })
   return out
+}
+
+// Blip's IPC call that opens one chat, as an argv list (never a shell
+// string). Blip's own toast uses the same call with the leading "+" dropped
+// and accepts only this character set; anything else, or an id that
+// `qs ipc call` could read as a flag, returns [] and the caller opens Blip
+// itself instead. Chat ids are handles: they are never logged.
+function blipChatArgv(chat, shellRoot) {
+  var c = String(chat === null || chat === undefined ? "" : chat).replace(/^\+/, "")
+  if (!/^[A-Za-z0-9._@:;$-]{1,256}$/.test(c) || c.charAt(0) === "-") return []
+  return ["qs", "-p", String(shellRoot), "ipc", "call", "nixfred.blip", "notified", c]
 }
 
 // "Paused", "Recording", or Dayflow's own state word; "" without Dayflow.
@@ -102,6 +114,6 @@ function shotsRows(shots) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  messages: messages, unreadText: unreadText, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
+  messages: messages, blipChatArgv: blipChatArgv, unreadText: unreadText, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
   shotsInitial: shotsInitial, shotsStep: shotsStep, shotsLive: shotsLive, shotsSeen: shotsSeen, shotsRows: shotsRows
 }
