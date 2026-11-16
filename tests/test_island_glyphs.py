@@ -41,6 +41,11 @@ def test_primary_control(activity, control):
     assert js("primaryControl", activity) == control
 
 
+def test_screenrec_gets_a_stop_control():
+    assert js("primaryControl", {"id": "screenrec", "active": True, "state": "recording"}) == "stop"
+    assert js("primaryControl", {"id": "screenrec", "active": False, "state": "recording"}) == ""
+
+
 def test_media_toggle_label_shows_what_a_press_does():
     playing = js("controlLabel", "toggle", {"playing": True})
     paused = js("controlLabel", "toggle", {"playing": False})

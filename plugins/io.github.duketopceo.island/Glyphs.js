@@ -23,6 +23,7 @@ var GLYPHS = {
 function primaryControl(a) {
   if (!a || a.active !== true) return ""
   if (a.id === "dictation") return a.state === "recording" ? "stop" : ""
+  if (a.id === "screenrec") return a.state === "recording" ? "stop" : ""
   if (a.id === "media") return a.canTogglePlaying ? "toggle" : ""
   if (a.id === "timer") {
     if (a.state === "running") return "pause"
