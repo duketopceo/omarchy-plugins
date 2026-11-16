@@ -2,8 +2,9 @@ import QtQuick 6.11
 import qs.Commons as Commons
 import "Glyphs.js" as Glyphs
 
-// One further activity under the top block: glyph, card text, and the
-// activity's primary control (Stop, play/pause, pause/resume), if it has one.
+// One live activity on Home: glyph, card text, and the activity's controls
+// (Glyphs.rowControls: Stop, play/pause, the timer's pause/resume, +1 min and
+// cancel, calendar Join), if it has any.
 Item {
   id: row
 
@@ -11,7 +12,12 @@ Item {
   signal act(string id, string action)
 
   readonly property string activityId: row.activity ? String(row.activity.id) : ""
-  readonly property string control: Glyphs.primaryControl(row.activity)
+  // Reassigned only when the set changes: a running timer redraws each
+  // second, and a new model would rebuild its buttons mid-click.
+  property var controls: []
+  readonly property string controlKey: Glyphs.rowControls(row.activity).join(",")
+  onControlKeyChanged: row.controls = row.controlKey === "" ? [] : row.controlKey.split(",")
+  Component.onCompleted: row.controls = row.controlKey === "" ? [] : row.controlKey.split(",")
 
   implicitHeight: Commons.Style.spacing.controlHeight
 
@@ -37,18 +43,25 @@ Item {
     maximumLineCount: 1
     anchors.left: glyphText.right
     anchors.leftMargin: Commons.Style.spacing.lg
-    anchors.right: button.left
+    anchors.right: buttons.left
     anchors.rightMargin: Commons.Style.spacing.lg
     anchors.verticalCenter: parent.verticalCenter
   }
 
-  ActivityButton {
-    id: button
-    visible: row.control !== ""
-    width: row.control !== "" ? implicitWidth : 0
-    label: Glyphs.controlLabel(row.control, row.activity)
+  Row {
+    id: buttons
+    spacing: Commons.Style.spacing.md
     anchors.right: parent.right
     anchors.verticalCenter: parent.verticalCenter
-    onClicked: row.act(row.activityId, row.control)
+
+    Repeater {
+      model: row.controls
+
+      ActivityButton {
+        required property string modelData
+        label: Glyphs.controlLabel(modelData, row.activity)
+        onClicked: row.act(row.activityId, modelData)
+      }
+    }
   }
 }

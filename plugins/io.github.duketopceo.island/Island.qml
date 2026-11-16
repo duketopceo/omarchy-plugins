@@ -10,6 +10,10 @@ import "Timer.js" as IslandTimer
 import "Hud.js" as Hud
 import "Alert.js" as Alert
 import "Dnd.js" as Dnd
+import "Pages.js" as Pages
+import "More.js" as More
+import "Agents.js" as Agents
+import "Status.js" as Status
 
 // The Island's root: loads settings and the capability probe, creates one
 // IslandWindow per screen, watches fullscreen state, and owns the single
@@ -22,9 +26,11 @@ Item {
   property var manifest: null
   // True while any screen's card is shown; kept up to date by the windows.
   property bool opened: false
+  // The pages open cards are showing now, e.g. ["home"]; kept up to date by the windows.
+  property var openPages: []
+  function pageOpen(id) { return root.openPages.indexOf(id) >= 0 }
 
   readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "io.github.duketopceo.island"
-  readonly property var pages: ["now", "settings"]
 
   // ---- clock, re-armed to each minute boundary ----
   property date now: new Date()
@@ -140,6 +146,8 @@ Item {
     enabled: root.settings.privacy === true
     // Omarchy's OSD already shows mic mute unless the owner handed it over.
     watchMute: root.hudEffective && root.settings.alerts === true
+    // Home's mic-mute toggle reads the same state while a card is open.
+    trackMute: root.opened
     onMicMuteFlipped: function(muted) { root.pushAlert(Alert.mic(muted)) }
   }
   readonly property bool micInUse: privacy.micInUse
@@ -217,6 +225,129 @@ Item {
   }
 
   // Every source's activity in one list; Activity.js lays it out per window.
+  // ---- pages (Pages.js): sources run only while their page needs them ----
+  readonly property string helperDir: decodeURIComponent(Qt.resolvedUrl("bin").toString().replace("file://", ""))
+  property real weatherAt: 0
+
+  // Home: battery, Tailscale and VPN dots; once at load and on every open.
+  PollSource {
+    id: homeStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "home"]
+    Component.onCompleted: homeStatus.refresh()
+  }
+  readonly property var homeDots: Status.homeDots(homeStatus.data)
+
+  // Weather through Omarchy's own command, only when Omarchy's weather widget
+  // is in the bar (its service is already polled), at most every 30 minutes.
+  readonly property bool weatherOn: root.settings.weather === true && root.shellText.indexOf('"omarchy.weather"') >= 0
+  PollSource {
+    id: weatherSrc
+    json: false
+    command: ["omarchy-weather-status"]
+  }
+  readonly property var weather: root.weatherOn ? Status.weather(weatherSrc.text) : null
+  function refreshWeather() {
+    if (!root.weatherOn || Date.now() - root.weatherAt < 1800000) return
+    root.weatherAt = Date.now()
+    weatherSrc.refresh()
+  }
+
+  // System: once at load (so the page sizes from real rows), then every 2 s
+  // while a System page is open.
+  PollSource {
+    id: systemStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "system"]
+    active: root.pageOpen("system")
+    interval: 2000
+    Component.onCompleted: systemStatus.refresh()
+  }
+  readonly property var systemRows: Status.systemRows(systemStatus.data)
+  readonly property bool fanPanel: systemStatus.data !== null && systemStatus.data.fanPanel === true
+  function openFanPanel() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "lukedaduke.fan"]) }
+
+  // Agents: herdr and Claude Code sessions; at load (detection), on open, and
+  // every 3 s while an Agents page is open.
+  PollSource {
+    id: agentsSrc
+    command: ["/usr/bin/python3", root.helperDir + "/island-agents"]
+    active: root.settings.agents === true && root.pageOpen("agents")
+    interval: 3000
+    Component.onCompleted: agentsSrc.refresh()
+  }
+  readonly property var agentRows: root.settings.agents === true ? Agents.rows(agentsSrc.data) : []
+  function focusAgent(row) {
+    var cmds = Agents.focusCommands(row)
+    for (var i = 0; i < cmds.length; i++) Quickshell.execDetached(cmds[i])
+  }
+
+  // More: Dayflow status and Snapdex screenshots; at load and on every open.
+  PollSource {
+    id: moreStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "more"]
+    Component.onCompleted: moreStatus.refresh()
+    onUpdated: root.shotsModel = More.shotsStep(root.shotsModel, moreStatus.data ? moreStatus.data.shots : null)
+  }
+  readonly property var dayflow: root.settings.dayflow === true && moreStatus.data ? moreStatus.data.dayflow : null
+  readonly property var dayflowRows: More.dayflowRows(root.dayflow)
+  readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
+  readonly property var shotRows: More.shotsRows(root.shots)
+  property var shotsModel: More.shotsInitial()
+  function markShotsSeen() { root.shotsModel = More.shotsSeen(root.shotsModel) }
+  // Opens one Snapdex screenshot; the name comes from Snapdex's own index.
+  function openShot(name) {
+    var n = String(name || "")
+    if (n === "" || n.indexOf("/") >= 0 || n.charAt(0) === ".") return
+    Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/Pictures/Screenshots/" + n])
+  }
+
+  // Messages: Blip's own state file, counts only (More.js).
+  property string blipText: ""
+  FileView {
+    id: blipFile
+    path: root.settings.messages === true ? Quickshell.env("HOME") + "/.local/state/blip/state.json" : ""
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.blipText = blipFile.text()
+    onLoadFailed: root.blipText = ""
+  }
+  readonly property var messages: More.messages(root.settings.messages === true ? root.blipText : "")
+  function openBlip() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "nixfred.blip"]) }
+
+  // Mic mute quick toggle (Home): the default source through wpctl.
+  readonly property bool micMuteAvailable: root.tools.wpctl === true
+  readonly property bool micMuted: privacy.micMuted
+  function toggleMicMute() {
+    if (root.micMuteAvailable) Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
+  }
+
+  // The media activity whichever slot it holds, for the Music page.
+  readonly property var mediaActivity: media.activity
+
+  readonly property var pageAvail: ({
+    music: root.settings.media === true && media.activity !== null && media.activity.active === true,
+    agents: root.settings.agents === true && agentsSrc.data !== null && (agentsSrc.data.herdr === true || agentsSrc.data.claude === true),
+    messages: root.settings.messages === true && root.messages.ok,
+    dayflow: root.dayflow !== null,
+    shots: root.shots !== null
+  })
+  readonly property var pageLive: ({
+    messages: root.messages.live,
+    shots: More.shotsLive(root.shotsModel),
+    dayflow: More.dayflowLive(root.dayflow)
+  })
+
+  onOpenedChanged: {
+    if (!root.opened) return
+    homeStatus.refresh()
+    moreStatus.refresh()
+    if (root.settings.agents === true) agentsSrc.refresh()
+  }
+  onOpenPagesChanged: {
+    if (root.pageOpen("home")) root.refreshWeather()
+    if (root.pageOpen("shots")) root.markShotsSeen()
+  }
+
   readonly property var activities: [dictation.activity, screenrec.activity, hud.activity, root.timerActivity,
                                      media.activity, charging.activity, bluetooth.activity,
                                      calendar.activity]
@@ -330,8 +461,14 @@ Item {
 
   function refreshOpened() {
     var any = false
+    var pages = []
     var list = windows.instances
-    for (var i = 0; i < list.length; i++) if (list[i].cardShown && !list[i].destroying) any = true
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i].cardShown || list[i].destroying) continue
+      any = true
+      if (pages.indexOf(list[i].page) < 0) pages.push(list[i].page)
+    }
+    if (pages.join(",") !== root.openPages.join(",")) root.openPages = pages
     root.opened = any
   }
 
@@ -369,7 +506,7 @@ Item {
     } catch (e) {
       page = String(payload || "")
     }
-    return root.pages.indexOf(page) >= 0 ? page : ""
+    return Pages.normalize(page)
   }
 
   function openPage(page) {
@@ -399,7 +536,8 @@ Item {
     var list = windows.instances
     var activities = root.activitiesJson()
     var indicators = { mic: root.micInUse, camera: root.cameraInUse, dnd: root.dndOn,
-                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true }
+                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true,
+                       micMuted: root.micMuted }
     for (var i = 0; i < list.length; i++) {
       var s = list[i].snapshot()
       s.activities = activities

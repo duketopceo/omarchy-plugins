@@ -18,8 +18,11 @@ Scope {
   property bool enabled: false
   // The mute edge is only wanted while the Island owns the OSD's job (R6).
   property bool watchMute: false
+  // Read the mute state without alerting on its edges (Home's toggle).
+  property bool trackMute: false
 
   readonly property bool micInUse: src.enabled && Privacy.micInUse(src.micRecords)
+  readonly property bool micMuted: src.muteState === 1
   property bool cameraInUse: false
 
   // A mute change after the first reading, for the Island's alert.
@@ -53,7 +56,7 @@ Scope {
   // ---- microphone mute edge ----
   // A virtual default source has no PwNode.audio; Omarchy reads its mute
   // through wpctl (UntypedInput), so this follows the same split as the bar.
-  readonly property var source: src.watchMute ? Pipewire.defaultAudioSource : null
+  readonly property var source: src.watchMute || src.trackMute ? Pipewire.defaultAudioSource : null
   readonly property bool viaWpctl: Commons.UntypedInput.active
   readonly property int muteState: !src.source ? -1
     : (src.viaWpctl ? (Commons.UntypedInput.known ? (Commons.UntypedInput.muted ? 1 : 0) : -1)
@@ -69,7 +72,7 @@ Scope {
       src.lastMute = src.muteState
       return
     }
-    if (src.lastMute >= 0 && src.lastMute !== src.muteState) src.micMuteFlipped(src.muteState === 1)
+    if (src.watchMute && src.lastMute >= 0 && src.lastMute !== src.muteState) src.micMuteFlipped(src.muteState === 1)
     src.lastMute = src.muteState
   }
   // A switch between two sources in the same mute state changes no
