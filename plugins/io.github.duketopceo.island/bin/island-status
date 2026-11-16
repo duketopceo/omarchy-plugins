@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""Island status reader: one JSON object of machine state for a card page.
+
+    island-status home     battery, tailscale, vpn
+    island-status system   battery, profile, fan, cpu, memory, network, tailscale
+    island-status more     dayflow, shots
+
+Read-only: sysfs and procfs reads, `powerprofilesctl get`, `nmcli -t ... device`,
+`tailscale status --json` (only BackendState, Self.Online and the peer count
+leave this process), `dayflow status --json` and Snapdex's index file. No
+writes, no network calls of its own. A field whose source is missing or
+fails is null. Always exits 0.
+
+`--root DIR` prefixes the sysfs/procfs paths for fixture tests.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+BACKSTOP_SECONDS = 12
+TOOL_TIMEOUT = 3
+CPU_SAMPLE_SECONDS = 0.25
+VPN_RE = re.compile(r"^(wg|tun|nordlynx|proton|ppp)[0-9a-z_-]*$")
+SKIP_NET_RE = re.compile(r"^(lo|docker|br-|veth|virbr|tailscale|cube-|vnet)")
+SHOTS_MAX = 8
+SNAPDEX_CTL_REL = ".config/omarchy/plugins/io.github.duketopceo.snapdex/bin/snapdex-ctl"
+INDEX_LINE = re.compile(r"^-\s*\[([^\]]+)\]\(([^)]+)\)\s*[—-]+\s*(.*)$")
+
+
+def read(path: Path) -> str | None:
+    try:
+        return path.read_text().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def which(name: str) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    p = Path.home() / ".local/bin" / name
+    return str(p) if p.is_file() and os.access(p, os.X_OK) else None
+
+
+def run(argv: list[str]) -> str | None:
+    exe = which(argv[0])
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, *argv[1:]], capture_output=True, text=True, timeout=TOOL_TIMEOUT, check=False,
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def battery(root: Path) -> dict | None:
+    base = root / "sys/class/power_supply"
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return None
+    for name in names:
+        if read(base / name / "type") != "Battery":
+            continue
+        try:
+            cap = int(read(base / name / "capacity") or "")
+        except ValueError:
+            continue
+        return {"capacity": max(0, min(100, cap)), "status": read(base / name / "status") or ""}
+    return None
+
+
+def profile() -> str | None:
+    out = run(["powerprofilesctl", "get"])
+    out = out.strip() if out else ""
+    return out or None
+
+
+def fan() -> str | None:
+    base = os.environ.get("XDG_RUNTIME_DIR") or os.path.join(os.path.expanduser("~"), ".local", "run")
+    mode = read(Path(base) / "omarchy-fan" / "current_fan_mode")
+    return mode or None
+
+
+def fan_panel() -> bool:
+    return (Path.home() / ".config/omarchy/plugins/lukedaduke.fan/manifest.json").is_file()
+
+
+def _cpu_times(text: str | None) -> tuple[int, int] | None:
+    for line in (text or "").splitlines():
+        parts = line.split()
+        if parts and parts[0] == "cpu":
+            try:
+                nums = [int(x) for x in parts[1:]]
+            except ValueError:
+                return None
+            idle = nums[3] + (nums[4] if len(nums) > 4 else 0)
+            return sum(nums), idle
+    return None
+
+
+def cpu_percent(before: str | None, after: str | None) -> int | None:
+    """Busy percentage between two /proc/stat snapshots, or None."""
+    a, b = _cpu_times(before), _cpu_times(after)
+    if not a or not b:
+        return None
+    total, idle = b[0] - a[0], b[1] - a[1]
+    if total <= 0:
+        return 0
+    return max(0, min(100, round(100 * (total - idle) / total)))
+
+
+def cpu(root: Path, sample: float) -> int | None:
+    before = read(root / "proc/stat")
+    if sample > 0:
+        time.sleep(sample)
+    return cpu_percent(before, read(root / "proc/stat"))
+
+
+def memory(root: Path) -> dict | None:
+    info: dict[str, int] = {}
+    for line in (read(root / "proc/meminfo") or "").splitlines():
+        m = re.match(r"^(\w+):\s+(\d+)\s*kB", line)
+        if m:
+            info[m.group(1)] = int(m.group(2)) * 1024
+    total, avail = info.get("MemTotal"), info.get("MemAvailable")
+    if not total or avail is None:
+        return None
+    used = max(0, total - avail)
+    return {"usedPct": round(100 * used / total), "used": used, "total": total}
+
+
+def network(root: Path) -> dict | None:
+    out = run(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"])
+    if out:
+        for line in out.splitlines():
+            parts = re.split(r"(?<!\\):", line)
+            if len(parts) < 4:
+                continue
+            dev, kind, state, conn = parts[0], parts[1], parts[2], ":".join(parts[3:]).replace("\\:", ":")
+            if kind in ("wifi", "ethernet") and state.startswith("connected") and "externally" not in state:
+                return {"iface": dev, "type": kind, "name": conn}
+    base = root / "sys/class/net"
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return None
+    for name in names:
+        if SKIP_NET_RE.match(name) or VPN_RE.match(name):
+            continue
+        if read(base / name / "operstate") == "up":
+            kind = "wifi" if (base / name / "wireless").exists() else "ethernet"
+            return {"iface": name, "type": kind, "name": ""}
+    return None
+
+
+def tailscale() -> dict | None:
+    out = run(["tailscale", "status", "--json"])
+    if not out:
+        return None
+    try:
+        d = json.loads(out)
+    except ValueError:
+        return None
+    if not isinstance(d, dict):
+        return None
+    state = str(d.get("BackendState") or "")
+    me = d.get("Self") if isinstance(d.get("Self"), dict) else {}
+    peers = d.get("Peer") if isinstance(d.get("Peer"), dict) else {}
+    return {"state": state, "online": me.get("Online") is True, "peers": len(peers)}
+
+
+def vpn(root: Path) -> dict:
+    base = root / "sys/class/net"
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        names = []
+    for name in names:
+        if VPN_RE.match(name) and read(base / name / "operstate") in ("up", "unknown"):
+            return {"on": True, "name": name}
+    return {"on": False, "name": ""}
+
+
+def dayflow() -> dict | None:
+    out = run(["dayflow", "status", "--json"])
+    if not out:
+        return None
+    try:
+        d = json.loads(out)
+    except ValueError:
+        return None
+    if not isinstance(d, dict):
+        return None
+    return {
+        "state": str(d.get("capture_state") or ""),
+        "paused": d.get("paused") is True,
+        "framesToday": d.get("frames_today") if isinstance(d.get("frames_today"), int) else 0,
+        "lastFrame": str(d.get("last_frame") or ""),
+        "pending": d.get("blocks_pending") if isinstance(d.get("blocks_pending"), int) else 0,
+        "storage": str(d.get("storage_text") or ""),
+    }
+
+
+def shots() -> dict | None:
+    home = Path.home()
+    if not (which("snapdex-ctl") or (home / SNAPDEX_CTL_REL).is_file()):
+        return None
+    items = []
+    for line in (read(home / "Pictures/Screenshots/index.md") or "").splitlines():
+        m = INDEX_LINE.match(line.strip())
+        if m:
+            items.append({"name": m.group(1), "caption": m.group(3).strip()[:120]})
+    items.sort(key=lambda r: r["name"], reverse=True)
+    return {"items": items[:SHOTS_MAX], "total": len(items)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("section", choices=["home", "system", "more"])
+    ap.add_argument("--root", default="/")
+    ap.add_argument("--cpu-sample", type=float, default=CPU_SAMPLE_SECONDS)
+    args = ap.parse_args()
+    root = Path(args.root)
+    if args.section == "home":
+        out = {"battery": battery(root), "tailscale": tailscale(), "vpn": vpn(root)}
+    elif args.section == "system":
+        out = {"battery": battery(root), "profile": profile(), "fan": fan(), "fanPanel": fan_panel(),
+               "cpu": cpu(root, args.cpu_sample), "memory": memory(root), "network": network(root),
+               "tailscale": tailscale()}
+    else:
+        out = {"dayflow": dayflow(), "shots": shots()}
+    sys.stdout.write(json.dumps(out) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    signal.alarm(BACKSTOP_SECONDS)
+    sys.exit(main())

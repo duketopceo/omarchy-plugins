@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""Island agents reader: herdr and Claude Code sessions as one JSON object.
+
+Prints {"ok": true, "herdr": bool, "claude": bool, "sessions": [{"source",
+"id", "app", "name", "where", "status", "terminal", "address"}]}.
+
+herdr: `herdr-app ls` (terminals running an agent; plain shells dropped);
+"address" is the herdr-app window. Claude Code: ~/.claude/sessions/<pid>.json
+for live pids only, reading pid, name, cwd, kind and status (nothing else
+leaves this process); "address" is the Hyprland window whose process is the
+session's parent, grandparent, and so on, or "" (background sessions).
+
+Read-only, no network. A source that is missing or fails adds no sessions.
+Always exits 0. `--root DIR` prefixes /proc for fixture tests.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+BACKSTOP_SECONDS = 10
+TOOL_TIMEOUT = 4
+MAX_SESSIONS = 40
+MAX_DEPTH = 40
+
+
+def which(name: str) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    p = Path.home() / ".local/bin" / name
+    return str(p) if p.is_file() and os.access(p, os.X_OK) else None
+
+
+def run(argv: list[str]) -> str | None:
+    exe = which(argv[0])
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, *argv[1:]], capture_output=True, text=True, timeout=TOOL_TIMEOUT, check=False,
+                           stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def _json(text: str | None):
+    try:
+        return json.loads(text) if text else None
+    except ValueError:
+        return None
+
+
+def clients() -> list[dict]:
+    data = _json(run(["hyprctl", "clients", "-j"]))
+    return [c for c in data if isinstance(c, dict)] if isinstance(data, list) else []
+
+
+def _s(v) -> str:
+    return str(v) if isinstance(v, (str, int)) and not isinstance(v, bool) else ""
+
+
+def herdr_sessions(window: str) -> list[dict]:
+    data = _json(run(["herdr-app", "ls"]))
+    spaces = data.get("spaces") if isinstance(data, dict) else None
+    out: list[dict] = []
+    if not isinstance(spaces, list):
+        return out
+
+    def add(t, tab_name: str, where: str) -> None:
+        if not isinstance(t, dict) or not t.get("terminal"):
+            return
+        if t.get("app") or t.get("status"):
+            out.append({"source": "herdr", "id": "herdr:" + _s(t["terminal"]), "app": _s(t.get("app")),
+                        "name": _s(t.get("name")) or tab_name, "where": where, "status": _s(t.get("status")),
+                        "terminal": _s(t["terminal"]), "address": window})
+        for sub in t.get("sub_agents") or []:
+            add(sub, tab_name, where)
+
+    for sp in spaces:
+        if not isinstance(sp, dict):
+            continue
+        where = _s(sp.get("name")) or "Space"
+        if sp.get("machine"):
+            where += " @ " + _s(sp["machine"])
+        for tab in sp.get("tabs") or []:
+            if not isinstance(tab, dict):
+                continue
+            for t in tab.get("terminals") or []:
+                add(t, _s(tab.get("name")), where)
+    return out
+
+
+def ppid(root: Path, pid: int) -> int:
+    try:
+        text = (root / "proc" / str(pid) / "stat").read_text()
+        return int(text[text.rindex(")") + 1:].split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+
+
+def window_for(root: Path, pid: int, by_pid: dict[int, str]) -> str:
+    for _ in range(MAX_DEPTH):
+        if pid <= 1:
+            return ""
+        if pid in by_pid:
+            return by_pid[pid]
+        pid = ppid(root, pid)
+    return ""
+
+
+def claude_sessions(root: Path, by_pid: dict[int, str]) -> list[dict]:
+    out: list[dict] = []
+    try:
+        files = sorted((Path.home() / ".claude/sessions").glob("*.json"))
+    except OSError:
+        return out
+    for f in files:
+        d = _json(f.read_text(errors="replace")) if f.is_file() else None
+        if not isinstance(d, dict) or not isinstance(d.get("pid"), int) or isinstance(d.get("pid"), bool):
+            continue
+        pid = d["pid"]
+        if not (root / "proc" / str(pid)).is_dir():
+            continue
+        place = os.path.basename(_s(d.get("cwd")).rstrip("/"))
+        out.append({"source": "claude", "id": "claude:%d" % pid, "app": "claude",
+                    "name": _s(d.get("name")) or place or "Claude", "where": place, "status": _s(d.get("status")),
+                    "terminal": "", "address": window_for(root, pid, by_pid)})
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default="/")
+    args = ap.parse_args()
+    root = Path(args.root)
+    has_herdr = which("herdr-app") is not None
+    has_claude = (Path.home() / ".claude/sessions").is_dir()
+    sessions: list[dict] = []
+    if has_herdr or has_claude:
+        cl = clients()
+        by_pid = {c["pid"]: _s(c.get("address")) for c in cl if isinstance(c.get("pid"), int)}
+        herdr_win = next((_s(c.get("address")) for c in cl if c.get("class") == "herdr-app"), "")
+        if has_herdr:
+            sessions += herdr_sessions(herdr_win)
+        if has_claude:
+            sessions += claude_sessions(root, by_pid)
+    out = {"ok": True, "herdr": has_herdr, "claude": has_claude, "sessions": sessions[:MAX_SESSIONS]}
+    sys.stdout.write(json.dumps(out) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    signal.alarm(BACKSTOP_SECONDS)
+    sys.exit(main())

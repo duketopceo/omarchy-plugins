@@ -80,16 +80,11 @@ function compact(geom, wantEar, opts) {
 
 // Height of the open card, computed once when it opens (and again when the page
 // changes), never while it is open, so the hot zone does not move under the
-// pointer. Only the Now page with media on top is shortened to its content;
-// everything else keeps the full height m.max.
-// m = { page, kind, band, pad, content, rows, rowH, gap, pageRowH, max }
+// pointer. Every page is as tall as its content, at least m.min, at most m.max.
+// m = { band, pad, content, gap, pageRowH, max, min }
 function cardHeight(m) {
-  var max = _num(m.max)
-  if (m.page !== "now" || m.kind !== "media") return max
-  var rows = Math.max(0, Math.floor(_num(m.rows)))
-  var h = _num(m.band) + _num(m.pad) + _num(m.content) + rows * (_num(m.rowH) + _num(m.gap)) +
-          _num(m.gap) + _num(m.pageRowH) + _num(m.pad)
-  return Math.min(max, Math.ceil(h))
+  var h = _num(m.band) + _num(m.pad) + _num(m.content) + _num(m.gap) + _num(m.pageRowH) + _num(m.pad)
+  return Math.min(_num(m.max), Math.max(_num(m.min), Math.ceil(h)))
 }
 
 function alertSize(geom) {

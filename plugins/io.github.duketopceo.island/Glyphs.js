@@ -34,6 +34,14 @@ function primaryControl(a) {
   return ""
 }
 
+// Every control a Home row shows: the primary one, plus the timer's +1 min
+// and cancel (the full set it had on the 0.3 Now page).
+function rowControls(a) {
+  var first = primaryControl(a)
+  if (a && a.id === "timer" && first !== "") return [first, "add", "cancel"]
+  return first !== "" ? [first] : []
+}
+
 // Label for a control button; media's toggle shows what a press will do.
 function controlLabel(action, a) {
   switch (action) {
@@ -51,5 +59,5 @@ function controlLabel(action, a) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  GLYPHS: GLYPHS, primaryControl: primaryControl, controlLabel: controlLabel
+  GLYPHS: GLYPHS, primaryControl: primaryControl, rowControls: rowControls, controlLabel: controlLabel
 }
