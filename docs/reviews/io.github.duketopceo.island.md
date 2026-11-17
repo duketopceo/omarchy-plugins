@@ -199,3 +199,23 @@ Not verified live:
 - Messages with real chats, the needs-you tile and the charging ring come from a fixture harness (the same page files with fake data), not from the live shell.
 - No second display this run (only eDP-1 was connected); the card is 720 wide at most, so a 1920 screen draws the same card.
 - Shots still uses the old list page (not in the redesign scope); it picks up only the new face.
+
+## Follow-ups (0.4.3)
+
+Run 2026-11-17 on omarchy-max (HDMI-A-1 live, window 744 wide). Copy install, shell restarted, live manifest 0.4.3, no Island warnings in the journal. IPC `open <page>` plus `grim` only, saved to `~/Inbox/claude/island-followups/`; no pointer moved, no input injected, `bin/island-hover-check` not run. Screenshots of Messages use invented names (fixture harness); no real contact, number or message text was saved.
+
+| Item | Result | Evidence |
+|---|---|---|
+| CodeRabbit comments on PR #80 | 22 inline plus 1 outside-diff comment checked against main; 13 fixed, 10 skipped as already fixed or optional (table in the PR) | PR body, tests |
+| Agent logos | Claude and Antigravity now show Omarchy's own agent marks, found at run time under `/usr/share/omarchy/shell/plugins/agents/assets/` (`claude.svg`, `agy.svg`, `-light` twins for light cards); nothing is copied into this repo; the lettered circle stays the fallback. Codex, OpenCode, Cursor and Gemini keep their theme icons | `agents.png` (live) |
+| Shots tiles | New `ShotsPage.qml`: two rows of four rounded thumbnails, newest first, decoded at 320x200 asynchronously; caption is the hover hint; click opens (name checked by `More.shotFile`); the unseen dot is unchanged. `ListPage.qml` removed (no users left) | `shots-fixture.png`, `shots-empty-fixture.png` (fixture) |
+| Messages names | One-on-one chats take a name from `groups[*].participantNames` in Blip's `state.json`, which the Island already reads; raw numbers and emails are not names. Blip keeps no other stored name file (the contact dump is a 60 s runtime cache of the whole address book, not read). Coverage is partial: only people who share a group with the owner | `messages-names-fixture.png` (fixture) |
+
+Not verified live:
+
+- Shots: this machine has no `snapdex-ctl`, so the page is not available live; the thumbnail grid and the empty state were rendered from the fixture harness (same page file, invented data). The click to open a screenshot was not run.
+- Messages names: only the fixture was shot; the live state has one unread chat whose person is in no stored group name, so it still reads "Chat ending NNNN".
+- Pressed-scale change in `HoverButton` (scale on the visuals only): no pointer input allowed, so hover and press were not exercised.
+- Dayflow Pause and Resume through the new `Process` were not clicked.
+- Light card surface (the `-light` agent mark order) was not shot.
+

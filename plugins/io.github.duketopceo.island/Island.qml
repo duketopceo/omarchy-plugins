@@ -328,10 +328,16 @@ Item {
   // Pause or resume capture through Dayflow's own CLI (argv, fixed words).
   function dayflowAction(action) {
     var argv = More.dayflowArgv(action)
-    if (argv.length === 0) return
-    argv[0] = Quickshell.env("HOME") + "/.local/bin/dayflow"
-    Quickshell.execDetached(argv)
-    reread.restart()
+    if (argv.length === 0 || dayflowRun.running) return
+    // The same executable island-status detects: PATH first, then ~/.local/bin.
+    dayflowRun.command = ["/bin/sh", "-c",
+      'd=$(command -v dayflow) || d="$HOME/.local/bin/dayflow"; exec "$d" "$1"', "island-dayflow", argv[1]]
+    dayflowRun.running = true
+  }
+  // The page re-reads when the command has finished, never on a timer guess.
+  Process {
+    id: dayflowRun
+    onExited: root.refreshMore()
   }
   readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
   readonly property var shotRows: More.shotsRows(root.shots)
@@ -339,9 +345,14 @@ Item {
   function markShotsSeen() { root.shotsModel = More.shotsSeen(root.shotsModel) }
   // Opens one Snapdex screenshot; the name comes from Snapdex's own index.
   function openShot(name) {
-    var n = String(name || "")
-    if (n === "" || n.indexOf("/") >= 0 || n.charAt(0) === ".") return
+    var n = More.shotFile(name)
+    if (n === "") return
     Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/Pictures/Screenshots/" + n])
+  }
+  // The thumbnail's file URL; "" for a name that is not a plain file name.
+  function shotUrl(name) {
+    var n = More.shotFile(name)
+    return n === "" ? "" : "file://" + Quickshell.env("HOME") + "/Pictures/Screenshots/" + n
   }
 
   // Messages: Blip's own state file, counts only (More.js).
