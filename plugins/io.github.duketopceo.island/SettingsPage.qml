@@ -24,13 +24,19 @@ Item {
     { key: "dictation", label: "Dictation" },
     { key: "media", label: "Media" },
     { key: "charging", label: "Charging" },
-    { key: "hud", label: "Volume level" },
+    { key: "hud", label: "Volume" },
     { key: "screenRecording", label: "Recording" },
-    { key: "privacy", label: "Mic, camera" },
-    { key: "dnd", label: "Do Not Disturb" },
+    { key: "privacy", label: "Mic, cam" },
+    { key: "dnd", label: "DND" },
     { key: "bluetooth", label: "Bluetooth" },
     { key: "calendar", label: "Calendar" },
-    { key: "alerts", label: "Alerts" }
+    { key: "alerts", label: "Alerts" },
+    { key: "weather", label: "Weather" },
+    { key: "sansFont", label: "Sans font" },
+    { key: "agents", label: "Agents" },
+    { key: "messages", label: "Messages" },
+    { key: "dayflow", label: "Dayflow" },
+    { key: "shots", label: "Shots" }
   ]
   // The HUD only shows once the owner has turned off Omarchy's own OSD.
   readonly property bool hudWaiting: island && island.settings && island.settings.hud === true && !island.hudEffective
@@ -53,9 +59,14 @@ Item {
     page.lastResult = page.island.saveSettings(edit)
   }
 
-  // No heading: the selected Settings chip already names the page, and the
-  // ten toggles need the room.
+  // The card sizes this page from its content, like every page (KTD2).
+  function count() { return 0 }
+  function heightFor(n) { return settingsColumn.implicitHeight }
+
+  // No heading: the More chip and list already name the page, and the
+  // fifteen toggles need the room.
   Column {
+    id: settingsColumn
     anchors.fill: parent
     spacing: Commons.Style.spacing.lg
 
@@ -97,7 +108,7 @@ Item {
     }
 
     Grid {
-      columns: 3
+      columns: 4
       columnSpacing: Commons.Style.spacing.huge * 2
       rowSpacing: Commons.Style.spacing.sm
 
@@ -106,9 +117,12 @@ Item {
 
         Toggle {
           required property var modelData
-          width: (page.width - Commons.Style.spacing.huge * 4) / 3
+          width: (page.width - Commons.Style.spacing.huge * 6) / 4
+          // Fifteen toggles in four columns: shorter than the Ui default so
+          // the page fits the card without scrolling.
+          height: Commons.Style.spacing.controlHeight + Commons.Style.spacing.huge
           label: modelData.label
-          titleSize: Commons.Style.font.body
+          titleSize: Commons.Style.font.bodySmall
           checked: page.island && page.island.settings ? page.island.settings[modelData.key] === true : true
           foreground: Commons.Color.popups.text
           onClicked: {
@@ -120,28 +134,20 @@ Item {
       }
     }
 
-    Text {
-      textFormat: Text.PlainText
+    Txt {
       visible: page.hudWaiting
-      text: "The volume and brightness level shows here only after Omarchy's OSD is turned off (omarchy-plugin-disable omarchy.osd)."
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.bodySmall
-      wrapMode: Text.WordWrap
+      kind: "caption"
+      wrap: true
+      text: "Volume shows here once Omarchy's OSD is off (omarchy-plugin-disable omarchy.osd)."
       width: page.width
     }
 
-    Text {
-      textFormat: Text.PlainText
+    Txt {
       visible: page.needsEntry
+      kind: "caption"
+      wrap: true
       text: "Enable the Island plugin first: there is no settings entry to save to yet."
-      color: Commons.Color.popups.text
-      opacity: 0.7
-      font.family: Commons.Style.font.family
-      font.pixelSize: Commons.Style.font.bodySmall
-      wrapMode: Text.WordWrap
-      width: page.width
+      width: parent.width
     }
   }
 }

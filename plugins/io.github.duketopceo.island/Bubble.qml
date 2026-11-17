@@ -26,14 +26,22 @@ Item {
     border.color: Commons.Color.popups.border
   }
 
+  // The glyph brightens under the pointer and the bubble dips to 0.96 while
+  // pressed; the pointing hand marks it as clickable. (The card opens by the
+  // normal hover rules, so there is no hint here: nothing to draw it in.)
   Text {
     anchors.centerIn: parent
     textFormat: Text.PlainText
     text: bubble.activity ? bubble.activity.glyph : ""
     color: bubble.textColor
+    opacity: hover.hovered ? 1 : 0.8
     font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
   }
 
-  TapHandler { onTapped: bubble.clicked() }
+  scale: tap.pressed ? 0.96 : 1
+  Behavior on scale { NumberAnimation { duration: Commons.Style.duration(70) } }
+
+  HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
+  TapHandler { id: tap; onTapped: bubble.clicked() }
 }

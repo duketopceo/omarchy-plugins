@@ -108,6 +108,66 @@
       "pause": true,
       "delete": "turn the setting off or restart the shell; nothing persists",
       "export": "not applicable"
+    },
+    {
+      "id": "island_weather",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "current temperature on the Island's Home page",
+      "egress": "runs Omarchy's own omarchy-weather-status, which asks wttr.in for the location Omarchy already uses for its bar weather; only while omarchy.weather is in the bar and Home is open, at most every 30 minutes",
+      "retention": "the last answer in memory only; nothing written to disk",
+      "pause": true,
+      "delete": "turn the weather setting off or remove omarchy.weather from the bar; nothing persists",
+      "export": "not applicable"
+    },
+    {
+      "id": "island_system_status",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "battery, power profile, fan mode, CPU, memory, network name and Tailscale state on the Home and System pages",
+      "egress": "none; reads sysfs and procfs, powerprofilesctl, nmcli and tailscale status --json locally (only BackendState, Self.Online and the peer count are kept)",
+      "retention": "in memory only, replaced on each read; read once when the shell loads, then every 2 s only while the System page is open, and once per card open for Home",
+      "pause": true,
+      "delete": "nothing to delete; closing the card stops the reads",
+      "export": "not applicable"
+    },
+    {
+      "id": "island_agents",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "agent session names, status and window address on the Agents page, to focus a session's terminal",
+      "egress": "none; reads herdr-app ls, Claude Code's ~/.claude/sessions files (pid, name, cwd basename, kind, status only) and hyprctl clients locally",
+      "retention": "in memory only, replaced every 3 s while the Agents page is open",
+      "pause": true,
+      "delete": "nothing to delete; turning the agents setting off stops the reads",
+      "export": "not applicable"
+    },
+    {
+      "id": "island_messages_counts",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "unread message counts per chat on the Messages page",
+      "egress": "none; reads Blip's own state file read-only (unread counts, group names and muted chats; never message text)",
+      "retention": "in memory only; chats without a group name are shown by the handle's last four characters",
+      "pause": true,
+      "delete": "nothing to delete; turning the messages setting off stops the watch",
+      "export": "not applicable"
+    },
+    {
+      "id": "island_dayflow_status",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "Dayflow capture state, frame count and storage on the Dayflow page",
+      "egress": "none; runs dayflow status --json locally",
+      "retention": "in memory only, read once per card open",
+      "pause": true,
+      "delete": "nothing to delete; turning the dayflow setting off hides the page",
+      "export": "not applicable"
+    },
+    {
+      "id": "island_shots_index",
+      "owner": "io.github.duketopceo.island",
+      "purpose": "newest Snapdex screenshot names and captions on the Shots page",
+      "egress": "none; reads Snapdex's index.md locally; never runs snapdex itself",
+      "retention": "in memory only, read once per card open; the unseen marker lives in memory and resets with the shell",
+      "pause": true,
+      "delete": "nothing to delete; turning the shots setting off hides the page",
+      "export": "not applicable"
     }
   ]
 }

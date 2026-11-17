@@ -10,6 +10,11 @@ import "Timer.js" as IslandTimer
 import "Hud.js" as Hud
 import "Alert.js" as Alert
 import "Dnd.js" as Dnd
+import "Pages.js" as Pages
+import "More.js" as More
+import "Agents.js" as Agents
+import "Status.js" as Status
+import "Calendar.js" as Calendar
 
 // The Island's root: loads settings and the capability probe, creates one
 // IslandWindow per screen, watches fullscreen state, and owns the single
@@ -22,9 +27,11 @@ Item {
   property var manifest: null
   // True while any screen's card is shown; kept up to date by the windows.
   property bool opened: false
+  // The pages open cards are showing now, e.g. ["home"]; kept up to date by the windows.
+  property var openPages: []
+  function pageOpen(id) { return root.openPages.indexOf(id) >= 0 }
 
   readonly property string pluginId: manifest && manifest.id ? String(manifest.id) : "io.github.duketopceo.island"
-  readonly property var pages: ["now", "settings"]
 
   // ---- clock, re-armed to each minute boundary ----
   property date now: new Date()
@@ -140,6 +147,8 @@ Item {
     enabled: root.settings.privacy === true
     // Omarchy's OSD already shows mic mute unless the owner handed it over.
     watchMute: root.hudEffective && root.settings.alerts === true
+    // Home's mic-mute toggle reads the same state while a card is open.
+    trackMute: root.opened
     onMicMuteFlipped: function(muted) { root.pushAlert(Alert.mic(muted)) }
   }
   readonly property bool micInUse: privacy.micInUse
@@ -214,6 +223,183 @@ Item {
     if (ms <= 0) return "invalid"
     root.timerUpdate(IslandTimer.start(IslandTimer.initial(), ms, Date.now()))
     return "ok"
+  }
+
+  // ---- pages (Pages.js): sources run only while their page needs them ----
+  readonly property string helperDir: decodeURIComponent(Qt.resolvedUrl("bin").toString().replace("file://", ""))
+  property real weatherAt: 0
+
+  // Home: battery, Tailscale and VPN dots plus the glance tile (battery, CPU,
+  // memory); once at load, on every open, and every 3 s while Home is open.
+  PollSource {
+    id: homeStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "home"]
+    active: root.pageOpen("home")
+    interval: 3000
+    Component.onCompleted: homeStatus.refresh()
+  }
+  readonly property var homeDots: Status.homeDots(homeStatus.data)
+  readonly property var homeGlance: Status.glance(homeStatus.data)
+
+  // Home's Up Next tile: the next three calendar events from the source the
+  // calendar activity already polls.
+  readonly property bool calendarOn: root.settings.calendar === true
+  readonly property var agenda: root.calendarOn ? Calendar.agenda(calendar.events, root.now.getTime(), 3) : []
+  // Opens an Up Next meeting link; Calendar.meetingUrl() re-checks the allowlist.
+  function joinMeeting(url) {
+    var u = Calendar.meetingUrl(url)
+    if (root.calendarOn && u !== "") Quickshell.execDetached(["xdg-open", u])
+  }
+
+  // Weather through Omarchy's own command, only when Omarchy's weather widget
+  // is in the bar (its service is already polled), at most every 30 minutes.
+  readonly property bool weatherOn: root.settings.weather === true && Status.weatherInBar(root.shellText)
+  PollSource {
+    id: weatherSrc
+    json: false
+    command: ["omarchy-weather-status"]
+    deadline: 8000
+  }
+  readonly property var weather: root.weatherOn ? Status.weather(weatherSrc.text) : null
+  function refreshWeather() {
+    if (!root.weatherOn || Date.now() - root.weatherAt < 1800000) return
+    root.weatherAt = Date.now()
+    weatherSrc.refresh()
+  }
+
+  // System: once at load (so the page sizes from real rows), then every 2 s
+  // while a System page is open.
+  PollSource {
+    id: systemStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "system"]
+    active: root.pageOpen("system")
+    interval: 2000
+    Component.onCompleted: systemStatus.refresh()
+  }
+  readonly property var systemRows: Status.systemRows(systemStatus.data)
+  readonly property bool fanPanel: systemStatus.data !== null && systemStatus.data.fanPanel === true
+  readonly property var systemView: Status.system(systemStatus.data)
+  function openFanPanel() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "lukedaduke.fan"]) }
+  // Sets a power profile: only a name `powerprofilesctl list` printed is run,
+  // as an argv list. The page re-reads a moment later to show the new one.
+  function setProfile(name) {
+    var argv = Status.profileArgv(name, systemStatus.data ? systemStatus.data.profiles : "")
+    if (argv.length === 0) return
+    Quickshell.execDetached(argv)
+    reread.restart()
+  }
+  // One short re-read after a control ran (profile set, Dayflow pause/resume).
+  Timer {
+    id: reread
+    interval: 900
+    onTriggered: { systemStatus.refresh(); root.refreshMore() }
+  }
+
+  // Agents: herdr and Claude Code sessions; at load (detection), on open, and
+  // every 3 s while an Agents page is open.
+  PollSource {
+    id: agentsSrc
+    command: ["/usr/bin/python3", root.helperDir + "/island-agents"]
+    active: root.settings.agents === true && root.pageOpen("agents")
+    interval: 3000
+    Component.onCompleted: root.refreshAgents()
+  }
+  function refreshAgents() { if (root.settings.agents === true) agentsSrc.refresh() }
+  readonly property var agentRows: root.settings.agents === true ? Agents.rows(agentsSrc.data) : []
+  // Home's one-line agent summary, e.g. "1 needs you · 2 working".
+  readonly property string agentsSummary: Agents.countsText(root.agentRows)
+  function focusAgent(row) {
+    var cmds = Agents.focusCommands(row)
+    for (var i = 0; i < cmds.length; i++) Quickshell.execDetached(cmds[i])
+  }
+
+  // More: Dayflow status and Snapdex screenshots; at load and on every open.
+  PollSource {
+    id: moreStatus
+    command: ["/usr/bin/python3", root.helperDir + "/island-status", "more", "--skip",
+              (root.settings.dayflow === true ? "" : "dayflow,") + (root.settings.shots === true ? "" : "shots")]
+    Component.onCompleted: root.refreshMore()
+    onUpdated: root.shotsModel = More.shotsStep(root.shotsModel, moreStatus.data ? moreStatus.data.shots : null)
+  }
+  function refreshMore() { if (root.settings.dayflow === true || root.settings.shots === true) moreStatus.refresh() }
+  readonly property var dayflow: root.settings.dayflow === true && moreStatus.data ? moreStatus.data.dayflow : null
+  readonly property var dayflowRows: More.dayflowRows(root.dayflow)
+  readonly property var dayflowView: More.dayflowView(root.dayflow, root.now.getTime())
+  // Pause or resume capture through Dayflow's own CLI (argv, fixed words).
+  function dayflowAction(action) {
+    var argv = More.dayflowArgv(action)
+    if (argv.length === 0) return
+    argv[0] = Quickshell.env("HOME") + "/.local/bin/dayflow"
+    Quickshell.execDetached(argv)
+    reread.restart()
+  }
+  readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
+  readonly property var shotRows: More.shotsRows(root.shots)
+  property var shotsModel: More.shotsInitial()
+  function markShotsSeen() { root.shotsModel = More.shotsSeen(root.shotsModel) }
+  // Opens one Snapdex screenshot; the name comes from Snapdex's own index.
+  function openShot(name) {
+    var n = String(name || "")
+    if (n === "" || n.indexOf("/") >= 0 || n.charAt(0) === ".") return
+    Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/Pictures/Screenshots/" + n])
+  }
+
+  // Messages: Blip's own state file, counts only (More.js).
+  property string blipText: ""
+  FileView {
+    id: blipFile
+    path: root.settings.messages === true ? Quickshell.env("HOME") + "/.local/state/blip/state.json" : ""
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.blipText = blipFile.text()
+    onLoadFailed: root.blipText = ""
+  }
+  readonly property var messages: More.messages(root.settings.messages === true ? root.blipText : "")
+  function openBlip() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "nixfred.blip"]) }
+  // Opens one chat in Blip through Blip's own `notified` IPC (the call its
+  // notification click makes), as an argv list. An id Blip would not accept
+  // opens Blip itself instead. The chat id is never logged.
+  readonly property string omarchyShellRoot: "/usr/share/omarchy/shell"
+  function openBlipChat(chat) {
+    var argv = More.blipChatArgv(chat, root.omarchyShellRoot)
+    if (argv.length === 0) root.openBlip()
+    else Quickshell.execDetached(argv)
+  }
+
+  // Mic mute quick toggle (Home): the default source through wpctl.
+  readonly property bool micMuteAvailable: root.tools.wpctl === true
+  readonly property bool micMuted: privacy.micMuted
+  function toggleMicMute() {
+    if (root.micMuteAvailable) Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"])
+  }
+
+  // The media activity whichever slot it holds, or null when nothing plays:
+  // the Music page and the window's art tint read it.
+  readonly property var mediaActivity: media.activity !== null && media.activity.active === true ? media.activity : null
+
+  readonly property var pageAvail: ({
+    music: root.settings.media === true && root.mediaActivity !== null,
+    agents: root.settings.agents === true && agentsSrc.data !== null && (agentsSrc.data.herdr === true || agentsSrc.data.claude === true),
+    messages: root.settings.messages === true && root.messages.ok,
+    dayflow: root.dayflow !== null,
+    shots: root.shots !== null
+  })
+  readonly property var pageLive: ({
+    messages: root.messages.live,
+    shots: More.shotsLive(root.shotsModel),
+    dayflow: More.dayflowLive(root.dayflow)
+  })
+
+  onOpenedChanged: {
+    if (!root.opened) return
+    homeStatus.refresh()
+    root.refreshMore()
+    root.refreshAgents()
+  }
+  onOpenPagesChanged: {
+    if (root.pageOpen("home")) root.refreshWeather()
+    if (root.pageOpen("shots")) root.markShotsSeen()
   }
 
   // Every source's activity in one list; Activity.js lays it out per window.
@@ -330,8 +516,14 @@ Item {
 
   function refreshOpened() {
     var any = false
+    var pages = []
     var list = windows.instances
-    for (var i = 0; i < list.length; i++) if (list[i].cardShown && !list[i].destroying) any = true
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i].cardShown || list[i].destroying) continue
+      any = true
+      if (pages.indexOf(list[i].page) < 0) pages.push(list[i].page)
+    }
+    if (pages.join(",") !== root.openPages.join(",")) root.openPages = pages
     root.opened = any
   }
 
@@ -369,14 +561,19 @@ Item {
     } catch (e) {
       page = String(payload || "")
     }
-    return root.pages.indexOf(page) >= 0 ? page : ""
+    return Pages.normalize(page)
   }
 
   function openPage(page) {
     root.withTarget(function(win) { win.summon(page) })
   }
 
-  function open(payload) { root.openPage(root.pageOf(payload)) }
+  // A named page that does not exist opens Home; no page keeps the current one.
+  function requestedPage(payload) {
+    var p = root.pageOf(payload)
+    return p === "" && String(payload || "").replace(/^\s+|\s+$/g, "") !== "" ? "home" : p
+  }
+  function open(payload) { root.openPage(root.requestedPage(payload)) }
 
   function close() {
     var list = windows.instances
@@ -399,7 +596,8 @@ Item {
     var list = windows.instances
     var activities = root.activitiesJson()
     var indicators = { mic: root.micInUse, camera: root.cameraInUse, dnd: root.dndOn,
-                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true }
+                       dndAvailable: root.dndAvailable, recording: screenrec.model.recording === true,
+                       micMuted: root.micMuted }
     for (var i = 0; i < list.length; i++) {
       var s = list[i].snapshot()
       s.activities = activities
@@ -413,7 +611,7 @@ Item {
     target: "island"
 
     function toggle(): void { root.toggle() }
-    function open(page: string): void { root.openPage(root.pageOf(page)) }
+    function open(page: string): void { root.openPage(root.requestedPage(page)) }
     function close(): void { root.close() }
     function focus(): void { root.focusCard() }
     function state(): string { return root.stateJson() }

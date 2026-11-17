@@ -12,6 +12,8 @@ import "Activity.js" as Activity
 import "Presentation.js" as Presentation
 import "Alert.js" as Alert
 import "Tint.js" as Tint
+import "Pages.js" as Pages
+import "Fonts.js" as Fonts
 
 // One screen's island. The window is fixed at card size plus slop and never
 // resizes. The input mask is the hot zone: a separate, non-animating item whose
@@ -42,7 +44,11 @@ PanelWindow {
 
   // ---- state ----
   property var model: Hover.initial()
-  property string page: "now"
+  // The card's page (Pages.js); every open starts on Home unless a summon names one.
+  property string page: "home"
+  // The chip row and More list, frozen at each commit so nothing moves under
+  // the pointer while the card is open (pages plan KTD3).
+  property var chips: Pages.chips({}, {})
   readonly property bool cardShown: Hover.cardShown(win.model)
   readonly property string zone: Hover.zoneFor(win.model)
   // Recent pointer motion inside the hot zone, for the hover-intent check on
@@ -51,28 +57,39 @@ PanelWindow {
   property var motion: []
   onZoneChanged: win.motion = []
   onCardShownChanged: {
-    if (!win.cardShown) win.hold.ids = []
+    if (!win.cardShown) { win.hold.ids = []; win.page = "home" }
     else { win.zoneCardH = win.geom.card.height; win.zoneFresh = true }
     if (win.island) win.island.refreshOpened()
     win.refreshAlert()
     if (win.cardShown) Qt.callLater(win.commitCard)
   }
-  onPageChanged: if (win.cardShown) Qt.callLater(win.commitCard)
+  onPageChanged: {
+    if (win.island) win.island.refreshOpened()
+    if (win.cardShown) Qt.callLater(win.commitCard)
+  }
 
   // ---- card size commit (KTD2) ----
-  // The card is as tall as its content, computed when it opens and when the
-  // page changes, then fixed while open. The hot zone follows this committed
-  // height and never shrinks while the card is open, so switching from the
-  // tall Settings page to a short Now page cannot leave the pointer outside
-  // the zone. Neither is bound to the live layout.
+  // Every page is as tall as its content, computed when the card opens and
+  // when the page changes, then fixed while open; the chip row is frozen at
+  // the same moment. The hot zone follows the committed height and never
+  // shrinks while the card is open, so switching from the tall Settings page
+  // to a short Home page cannot leave the pointer outside the zone. Neither
+  // is bound to live data.
   property int cardH: win.geom.card.height
   property int cardRows: 2
   property int zoneCardH: win.geom.card.height
   property bool zoneFresh: true
   function commitCard() {
     if (!win.cardShown) return
-    var rows = card.rowIds.length
-    var h = Math.min(win.geom.card.height, card.heightFor(rows))
+    var avail = win.island ? win.island.pageAvail : ({})
+    // A chip frozen in the row still opens its page (its empty state) after
+    // its backend goes away; IPC and stale pages fall back to Home.
+    var frozen = win.chips.chips.indexOf(win.page) >= 0 || win.chips.more.indexOf(win.page) >= 0
+    var page = frozen ? win.page : Pages.reachable(win.page, avail)
+    win.chips = Pages.chips(avail, win.island ? win.island.pageLive : ({}), page)
+    if (page !== win.page) { win.page = page; return }   // onPageChanged commits again
+    var rows = card.countFor(page)
+    var h = Math.min(win.geom.card.height, card.heightFor(page, rows))
     win.cardRows = rows
     win.cardH = h
     win.zoneCardH = win.zoneFresh ? h : Math.max(win.zoneCardH, h)
@@ -143,7 +160,12 @@ PanelWindow {
 
   // ---- media on top: album art tint (R13) ----
   readonly property bool mediaTop: win.layout.top !== null && win.layout.top.id === "media"
-  readonly property string mediaArt: win.mediaTop ? String(win.layout.top.art || "") : ""
+  // The art the tint reads: the top activity's, or on an open Music page the
+  // media activity's wherever it sits in the layout.
+  readonly property var mediaAct: win.island ? win.island.mediaActivity : null
+  readonly property bool musicOpen: win.cardShown && win.page === "music" && win.mediaAct !== null
+  readonly property string mediaArt: win.mediaTop ? String(win.layout.top.art || "")
+    : (win.musicOpen ? String(win.mediaAct.art || "") : "")
   function pickTint(colors, surface, fallback) {
     var c = Tint.pick(colors, { r: surface.r, g: surface.g, b: surface.b })
     return c ? Qt.rgba(c.r, c.g, c.b, 1) : fallback
@@ -204,8 +226,11 @@ PanelWindow {
 
   // IPC entry points (the root picks the window).
   function summon(pageId) {
-    if (pageId === "now" || pageId === "settings") win.page = pageId
+    var p = Pages.normalize(pageId)
+    if (p !== "") win.page = p
     win.send("summon")
+    // A refused summon (fullscreen) must not leave the next open on that page.
+    if (!win.cardShown) win.page = "home"
   }
   function closeByIpc() { win.send("ipcClose") }
   function focusCard() { win.send("focus") }
@@ -221,8 +246,11 @@ PanelWindow {
     s.window = win.winSize
     s.pillRect = Zone.rect("pill", win.geom)
     s.cardRect = Zone.rect("card", win.geom, null, win.zoneCardH)
-    s.mediaTint = win.mediaTop ? String(win.mediaTint) : ""
+    s.mediaTint = win.mediaTop || win.musicOpen ? String(win.mediaTint) : ""
     s.pinCenter = card.pinCenter()
+    s.page = win.page
+    s.chips = win.chips.chips
+    s.more = win.chips.more
     s.top = win.layout.top ? win.layout.top.id : ""
     s.second = win.layout.second ? win.layout.second.id : ""
     s.held = win.hold.ids
@@ -275,6 +303,11 @@ PanelWindow {
       // shrink, both through Commons.Style.duration so reduced motion snaps
       // (KTD3). Opening and alert growth spring; content changes and closing ease.
       readonly property bool springing: win.cardShown || win.alertShown !== null
+
+      // The UI typeface for everything in this window (Fonts.js): Face.qml
+      // walks up to here. The `sansFont` setting flips it live.
+      readonly property string uiFont: Fonts.family(win.island && win.island.settings ? win.island.settings.sansFont !== false : true,
+                                                    Commons.Style.font.family, Qt.fontFamilies())
 
       Item {
         id: body
@@ -329,7 +362,7 @@ PanelWindow {
           width: parent.width
           height: parent.height + body.radius
           radius: body.radius
-          opacity: win.mode === "expanded" && win.mediaTop && artTint.colors.length > 0 ? 1 : 0
+          opacity: win.mode === "expanded" && win.musicOpen && artTint.colors.length > 0 ? 1 : 0
           visible: opacity > 0.01
           gradient: Gradient {
             GradientStop { position: 0.0; color: Qt.alpha(win.mediaTint, 0.26) }
@@ -356,6 +389,7 @@ PanelWindow {
           tint: win.notch ? win.mediaPillTint : win.mediaTint
           topActivity: win.layout.top
           dnd: win.island ? win.island.dndOn : false
+          unread: win.island ? win.island.messages.live === true : false
           micInUse: win.island ? win.island.micInUse : false
           cameraInUse: win.island ? win.island.cameraInUse : false
           Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(120) } }
@@ -384,6 +418,8 @@ PanelWindow {
           visible: opacity > 0.01
           now: win.island ? win.island.now : new Date()
           page: win.page
+          chips: win.chips.chips
+          moreList: win.chips.more
           pinned: win.model.pinned
           island: win.island
           layout: win.layout

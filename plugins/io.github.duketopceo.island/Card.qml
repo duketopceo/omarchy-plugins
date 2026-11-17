@@ -1,24 +1,26 @@
 import QtQuick 6.11
 import qs.Commons as Commons
 import "Dnd.js" as Dnd
+import "Pages.js" as Pages
 import "Presentation.js" as Presentation
-import "Privacy.js" as Privacy
+import "Controls.js" as Controls
 
-// The expanded card's content: the active page, and a compact row with the Now
-// and Settings chips plus the Do Not Disturb and pin controls. The Now page
-// shows the top activity's block and up to two rows (KTD9), or the clock and
-// date when nothing is live. Media on top gets the Now Playing block and a
-// card as short as that block needs; every other page and activity keeps the
-// full card height. The window asks heightFor() once when the card opens or the
-// page changes and holds that size while open (KTD2). It clips this content to
-// the morphing shape.
+// The expanded card's content: the active page, and a compact row with the
+// page chips (Pages.js, frozen by the window while open), a Do Not Disturb
+// bell and the pin control. Every page is as tall as its content: the window
+// asks countFor() and heightFor() once when the card opens or the page
+// changes and holds that size while open (KTD2). It clips this content to the
+// morphing shape.
 Item {
   id: card
 
   property date now: new Date()
-  property string page: "now"
+  property string page: "home"
+  // The chip row and the More list, from the window's commit.
+  property var chips: ["home", "system", "more"]
+  property var moreList: ["settings"]
   property bool pinned: false
-  // The Island root, handed to the Settings page.
+  // The Island root: sources, settings, actions.
   property var island: null
   // Activity.layout() for this window: { top, second, rows, held }.
   property var layout: null
@@ -27,8 +29,8 @@ Item {
   // The pill row above the card and the tallest the card may be, from the window.
   property int band: 28
   property int maxHeight: 380
-  // Rows shown below the top block: the count the window committed to.
-  property int maxRows: 2
+  // Rows the active page shows: the count the window committed to.
+  property int maxRows: 0
 
   signal pageSelected(string id)
   signal pinClicked()
@@ -37,42 +39,43 @@ Item {
   signal holdEnd()
   signal act(string id, string action, real value)
 
-  readonly property var topActivity: card.layout ? card.layout.top : null
-  readonly property var rows: card.layout && card.layout.rows ? card.layout.rows : []
-  // The row Repeater is keyed on ids, reassigned only when the set or order
-  // changes: `rows` is a new array on every tick (a running timer redraws
-  // each second), and a new model would destroy each row and its button
-  // mid-click. Each row looks its activity up by id, so text still updates.
-  property var rowIds: []
-  onRowsChanged: {
-    var ids = []
-    for (var i = 0; i < card.rows.length; i++) ids.push(String(card.rows[i].id))
-    if (ids.join(",") !== card.rowIds.join(",")) card.rowIds = ids
-  }
-  readonly property var shownRowIds: card.rowIds.slice(0, card.maxRows)
-  function rowFor(id) {
-    for (var i = 0; i < card.rows.length; i++) if (String(card.rows[i].id) === id) return card.rows[i]
-    return null
-  }
-
   readonly property int pad: Commons.Style.spacing.huge
   readonly property int rowHeight: Commons.Style.space(24)
   readonly property color textColor: Commons.Color.popups.text
-  readonly property var pages: [{ id: "now", label: "Now" }, { id: "settings", label: "Settings" }]
 
-  // The card height for `rowCount` rows under the current page and top block.
-  function heightFor(rowCount) {
+  function pageItem(id) {
+    switch (id) {
+      case "home": return homePage
+      case "music": return musicPage
+      case "agents": return agentsPage
+      case "system": return systemPage
+      case "more": return morePage
+      case "shots": return shotsPage
+      case "messages": return messagesPage
+      case "dayflow": return dayflowPage
+      case "settings": return settingsPage
+      default: return null
+    }
+  }
+
+  // The rows a page would show now, for the window's commit.
+  function countFor(id) {
+    var p = card.pageItem(id)
+    return p ? p.count() : 0
+  }
+
+  // The card height for `rows` rows of page `id`.
+  function heightFor(id, rows) {
+    var p = card.pageItem(id)
     return Presentation.cardHeight({
-      page: card.page,
-      kind: card.topActivity ? String(card.topActivity.id) : "",
       band: card.band,
       pad: card.pad,
-      content: mediaBlock.implicitHeight + header.implicitHeight + Commons.Style.spacing.lg,
-      rows: rowCount,
-      rowH: Commons.Style.spacing.controlHeight,
+      content: p ? p.heightFor(rows) : 0,
       gap: Commons.Style.spacing.lg,
       pageRowH: card.rowHeight,
-      max: card.maxHeight
+      max: card.maxHeight,
+      // A floor of two control rows, so a short page still reads as a card.
+      min: card.band + card.pad * 2 + Commons.Style.spacing.lg + card.rowHeight + Commons.Style.spacing.controlHeight * 2
     })
   }
 
@@ -82,9 +85,44 @@ Item {
     return { x: p.x, y: p.y }
   }
 
+  function open(id) {
+    card.pageSelected(id)
+    card.cardClicked()
+  }
+
   // A click anywhere on the card raises keyboard focus; controls inside still
   // get their own clicks.
   TapHandler { onTapped: card.cardClicked() }
+
+  // ---- hover hints: HoverButton finds this host by walking up its parents ----
+  readonly property bool hintHost: true
+  property var hintOwner: null
+  function showHint(text, item) {
+    if (!item || text === "") { card.hideHint(card.hintOwner); return }
+    card.hintOwner = item
+    hintBubble.text = text
+    var p = item.mapToItem(card, 0, 0)
+    var at = Controls.hintPos({ x: p.x, y: p.y, w: item.width, h: item.height },
+                              { w: hintBubble.width, h: hintBubble.height },
+                              { w: card.width, h: card.height }, Commons.Style.spacing.sm)
+    hintBubble.x = at.x
+    hintBubble.y = at.y
+    hintBubble.visible = true
+  }
+  function hideHint(item) {
+    if (item !== card.hintOwner) return
+    card.hintOwner = null
+    hintBubble.visible = false
+  }
+  onPageChanged: { card.hintOwner = null; hintBubble.visible = false }
+  onVisibleChanged: if (!card.visible) { card.hintOwner = null; hintBubble.visible = false }
+
+  HintBubble {
+    id: hintBubble
+    z: 100
+    visible: false
+    maxWidth: card.width - Commons.Style.spacing.lg * 2
+  }
 
   Item {
     id: pageArea
@@ -92,119 +130,98 @@ Item {
     y: card.pad
     width: card.width - card.pad * 2
     height: pageRow.y - y - Commons.Style.spacing.lg
+    clip: true
 
-    // The top activity's block, or the clock and date when no activity may
-    // take the top (nothing live, or only card-only ones such as Bluetooth
-    // audio), then up to two rows (KTD9, KTD13).
-    Column {
-      visible: card.page === "now"
+    HomePage {
+      id: homePage
+      visible: card.page === "home"
       width: parent.width
-      spacing: Commons.Style.spacing.lg
+      height: parent.height
+      island: card.island
+      now: card.now
+      layout: card.layout
+      maxRows: card.maxRows
+      onAct: function(id, action) { card.act(id, action, 0) }
+      onOpenPage: function(id) { card.open(id) }
+    }
 
-      // Time and date (and the indicators the pill shows) above the media block.
-      Row {
-        id: header
-        visible: card.topActivity !== null && card.topActivity.id === "media"
-        width: parent.width
-        height: visible ? implicitHeight : 0
-        spacing: Commons.Style.spacing.lg
+    MusicPage {
+      id: musicPage
+      visible: card.page === "music"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      now: card.now
+      tint: card.tint
+      onAct: function(id, action, value) { card.act(id, action, value) }
+      onHoldStart: card.holdStart()
+      onHoldEnd: card.holdEnd()
+    }
 
-        Text {
-          textFormat: Text.PlainText
-          text: Qt.formatTime(card.now, Qt.locale().timeFormat(Locale.ShortFormat)) + "  \u00b7  " + Qt.formatDate(card.now, "ddd MMM d")
-          color: card.textColor
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.body
-          font.features: { "tnum": 1 }
-        }
-        Text {
-          visible: card.island !== null && card.island.dndOn === true
-          textFormat: Text.PlainText
-          text: Dnd.GLYPH
-          color: card.textColor
-          opacity: 0.8
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.body
-        }
-        Rectangle {
-          visible: card.island !== null && card.island.cameraInUse === true
-          width: Presentation.DOT_SIZE; height: Presentation.DOT_SIZE; radius: Presentation.DOT_SIZE / 2
-          anchors.verticalCenter: parent.verticalCenter
-          readonly property var hsl: Privacy.dotColor("camera", { h: Commons.Color.urgent.hslHue, s: Commons.Color.urgent.hslSaturation, l: Commons.Color.urgent.hslLightness })
-          color: Qt.hsla(hsl.h, hsl.s, hsl.l, 1)
-        }
-        Rectangle {
-          visible: card.island !== null && card.island.micInUse === true
-          width: Presentation.DOT_SIZE; height: Presentation.DOT_SIZE; radius: Presentation.DOT_SIZE / 2
-          anchors.verticalCenter: parent.verticalCenter
-          readonly property var hsl: Privacy.dotColor("mic", { h: Commons.Color.urgent.hslHue, s: Commons.Color.urgent.hslSaturation, l: Commons.Color.urgent.hslLightness })
-          color: Qt.hsla(hsl.h, hsl.s, hsl.l, 1)
-        }
-      }
+    AgentsPage {
+      id: agentsPage
+      visible: card.page === "agents"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      maxRows: card.maxRows
+    }
 
-      MediaBlock {
-        id: mediaBlock
-        visible: card.topActivity !== null && card.topActivity.id === "media"
-        width: parent.width
-        height: visible ? implicitHeight : 0
-        activity: visible ? card.topActivity : null
-        tint: card.tint
-        onAct: function(id, action, value) { card.act(id, action, value) }
-        onHoldStart: card.holdStart()
-        onHoldEnd: card.holdEnd()
-      }
+    SystemPage {
+      id: systemPage
+      visible: card.page === "system"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      maxRows: card.maxRows
+    }
 
-      ActivityBlock {
-        visible: card.topActivity !== null && card.topActivity.id !== "media"
-        width: parent.width
-        height: visible ? implicitHeight : 0
-        activity: visible ? card.topActivity : null
-        onAct: function(id, action, value) { card.act(id, action, value) }
-      }
+    MorePage {
+      id: morePage
+      visible: card.page === "more"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      entries: card.moreList
+      onOpenPage: function(id) { card.open(id) }
+    }
 
-      Column {
-        visible: card.topActivity === null
-        anchors.horizontalCenter: parent.horizontalCenter
-        spacing: Commons.Style.spacing.md
-        topPadding: card.rowIds.length > 0 ? 0 : Math.max(0, (pageArea.height - implicitHeight) / 2 - Commons.Style.spacing.lg)
+    ListPage {
+      id: shotsPage
+      visible: card.page === "shots"
+      width: parent.width
+      height: parent.height
+      maxRows: card.maxRows
+      summary: card.island && card.island.shots ? card.island.shots.total + " captioned screenshots" : ""
+      emptyText: "No captioned screenshots yet"
+      rowHint: "Open this screenshot"
+      rows: card.island ? card.island.shotRows : []
+      onActivated: function(row) { if (card.island) card.island.openShot(row.name) }
+    }
 
-        Text {
-          textFormat: Text.PlainText
-          text: Qt.formatTime(card.now, Qt.locale().timeFormat(Locale.ShortFormat))
-          color: card.textColor
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.displayLarge * 2
-          font.bold: true
-          anchors.horizontalCenter: parent.horizontalCenter
-        }
+    MessagesPage {
+      id: messagesPage
+      visible: card.page === "messages"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      maxRows: card.maxRows
+    }
 
-        Text {
-          textFormat: Text.PlainText
-          text: Qt.formatDate(card.now, "dddd, MMMM d")
-          color: card.textColor
-          opacity: 0.8
-          font.family: Commons.Style.font.family
-          font.pixelSize: Commons.Style.font.heading
-          anchors.horizontalCenter: parent.horizontalCenter
-        }
-      }
-
-      Repeater {
-        model: card.shownRowIds
-
-        ActivityRow {
-          required property string modelData
-          width: parent.width
-          height: Commons.Style.spacing.controlHeight
-          activity: card.rowFor(modelData)
-          onAct: function(id, action) { card.act(id, action, 0) }
-        }
-      }
+    DayflowPage {
+      id: dayflowPage
+      visible: card.page === "dayflow"
+      width: parent.width
+      height: parent.height
+      island: card.island
+      maxRows: card.maxRows
     }
 
     SettingsPage {
+      id: settingsPage
       visible: card.page === "settings"
-      anchors.fill: parent
+      width: parent.width
+      height: parent.height
       island: card.island
       onHoldStart: card.holdStart()
       onHoldEnd: card.holdEnd()
@@ -219,94 +236,81 @@ Item {
     height: card.rowHeight
 
     Row {
-      spacing: Commons.Style.spacing.lg
+      spacing: Commons.Style.spacing.md
 
       Repeater {
-        model: card.pages
+        model: card.chips
 
-        Rectangle {
+        // Idle chips are dimmed text on nothing; hover adds a fill; the
+        // selected chip is the filled one with the selected text color.
+        HoverButton {
           id: chip
-          required property var modelData
-          readonly property bool selected: card.page === chip.modelData.id
-          width: chipText.implicitWidth + Commons.Style.spacing.huge * 1.5
+          required property string modelData
+          // More stays lit while one of its pages is open from the list.
+          readonly property bool lit: card.page === chip.modelData
+            || (chip.modelData === "more" && card.chips.indexOf(card.page) < 0)
+          selected: chip.lit
+          hint: chip.lit ? "" : (chip.modelData === "more" ? "More pages" : "Open " + Pages.label(chip.modelData))
+          width: chipText.implicitWidth + Commons.Style.spacing.huge * 1.2
           height: card.rowHeight
           radius: height / 2
-          color: chip.selected ? Commons.Color.menu.selectedBackground : "transparent"
+          onClicked: card.open(chip.modelData)
 
-          Text {
+          Txt {
             id: chipText
-            textFormat: Text.PlainText
-            text: chip.modelData.label
-            color: chip.selected ? Commons.Color.menu.selectedText : card.textColor
-            opacity: chip.selected ? 1 : 0.75
-            font.family: Commons.Style.font.family
-            font.pixelSize: Commons.Style.font.bodySmall
+            kind: "caption"
+            text: Pages.label(chip.modelData)
+            color: chip.lit ? Commons.Color.menu.selectedText : card.textColor
+            opacity: chip.lit || chip.hovered ? 1 : 0.75
             anchors.centerIn: parent
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            onClicked: {
-              card.pageSelected(chip.modelData.id)
-              card.cardClicked()
-            }
           }
         }
       }
     }
 
     // Omarchy's Do Not Disturb, toggled through Omarchy's own command (R10).
-    Rectangle {
+    // A bell only, so six chips fit; Home has the labelled toggle.
+    HoverButton {
       id: dndToggle
       visible: card.island !== null && card.island.dndAvailable === true
       readonly property bool on: card.island !== null && card.island.dndOn === true
+      selected: dndToggle.on
+      hint: dndToggle.on ? "Turn off Do Not Disturb" : "Turn on Do Not Disturb"
       anchors.right: pin.left
-      anchors.rightMargin: Commons.Style.spacing.lg
-      width: dndText.implicitWidth + Commons.Style.spacing.huge * 1.5
+      anchors.rightMargin: Commons.Style.spacing.md
+      width: card.rowHeight + Commons.Style.spacing.lg
       height: card.rowHeight
       radius: height / 2
-      color: dndToggle.on ? Commons.Color.menu.selectedBackground : "transparent"
+      onClicked: if (card.island) card.island.toggleDnd()
 
-      Text {
-        id: dndText
-        textFormat: Text.PlainText
-        text: Dnd.GLYPH + "  Do Not Disturb"
+      Txt {
+        kind: "caption"
+        icon: true
+        text: Dnd.GLYPH
         color: dndToggle.on ? Commons.Color.accent : card.textColor
-        opacity: dndToggle.on ? 1 : 0.75
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        opacity: dndToggle.on || dndToggle.hovered ? 1 : 0.75
         anchors.centerIn: parent
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        onClicked: if (card.island) card.island.toggleDnd()
       }
     }
 
     // The only control that pins; the pinned state is drawn filled.
-    Rectangle {
+    HoverButton {
       id: pin
+      selected: card.pinned
+      hint: card.pinned ? "Unpin the card" : "Keep the card open"
       anchors.right: parent.right
-      width: pinText.implicitWidth + Commons.Style.spacing.huge * 1.5
+      width: pinText.implicitWidth + Commons.Style.spacing.huge * 1.2
       height: card.rowHeight
       radius: height / 2
-      color: card.pinned ? Commons.Color.menu.selectedBackground : "transparent"
+      onClicked: card.pinClicked()
 
-      Text {
+      Txt {
         id: pinText
-        textFormat: Text.PlainText
+        kind: "caption"
         text: card.pinned ? "Pinned" : "Pin"
         color: card.pinned ? Commons.Color.accent : card.textColor
-        opacity: card.pinned ? 1 : 0.75
-        font.family: Commons.Style.font.family
-        font.pixelSize: Commons.Style.font.bodySmall
+        opacity: card.pinned || pin.hovered ? 1 : 0.75
         anchors.centerIn: parent
-      }
-
-      MouseArea {
-        anchors.fill: parent
-        onClicked: card.pinClicked()
       }
     }
   }

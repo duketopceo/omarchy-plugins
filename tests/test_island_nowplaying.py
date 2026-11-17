@@ -109,9 +109,8 @@ def test_media_tight_pill_zone_follows_target():
     assert r["width"] == run(t)["width"] + 12
 
 
-# ---- card height ----
-BASE = {"page": "now", "kind": "media", "band": 28, "pad": 16, "content": 164, "rows": 0,
-        "rowH": 36, "gap": 12, "pageRowH": 26, "max": 380}
+# ---- card height (every page is content-sized; KTD2 of the pages plan) ----
+BASE = {"band": 28, "pad": 16, "content": 164, "gap": 12, "pageRowH": 26, "max": 380, "min": 0}
 
 
 def card_height(**over):
@@ -124,21 +123,23 @@ def test_media_card_height_fits_content():
     assert card_height() == 28 + 16 + 164 + 12 + 26 + 16 == 262
 
 
-def test_media_card_adds_rows():
-    assert card_height(rows=2) == 262 + 2 * (36 + 12)
-
-
 def test_card_height_capped_at_max():
-    assert card_height(rows=2, content=400) == 380
+    assert card_height(content=400) == 380
 
 
-@pytest.mark.parametrize("over", [{"page": "settings"}, {"kind": "timer"}, {"kind": ""}])
-def test_other_pages_and_kinds_use_full_height(over):
-    assert card_height(**over) == 380
+@pytest.mark.parametrize("content", [40, 120, 250])
+def test_any_page_is_content_sized(content):
+    assert card_height(content=content) == 28 + 16 + content + 12 + 26 + 16
+
+
+def test_card_height_floored_at_min():
+    assert card_height(content=10, min=200) == 200
+    assert card_height(content=164, min=200) == 262
 
 
 def test_card_height_ignores_junk():
-    assert card_height(content="x", rows=-3) <= 380
+    assert card_height(content="x") == 28 + 16 + 12 + 26 + 16
+    assert card_height(content=None, min="z") == 28 + 16 + 12 + 26 + 16
 
 
 # ---- hot zone follows the committed card height ----

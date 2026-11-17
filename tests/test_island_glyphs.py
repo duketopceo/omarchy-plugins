@@ -63,3 +63,17 @@ def test_media_toggle_label_shows_what_a_press_does():
 def test_add_label_and_unknown_action():
     assert js("controlLabel", "add", None) == "+1 min"
     assert js("controlLabel", "nope", None) == ""
+
+
+# ---- Home rows: every control a row shows (pages plan; the timer keeps its full set) ----
+@pytest.mark.parametrize("activity,controls", [
+    ({"id": "timer", "active": True, "state": "running"}, ["pause", "add", "cancel"]),
+    ({"id": "timer", "active": True, "state": "paused"}, ["resume", "add", "cancel"]),
+    ({"id": "timer", "active": True, "state": "done"}, []),
+    ({"id": "dictation", "active": True, "state": "recording"}, ["stop"]),
+    ({"id": "media", "active": True, "canTogglePlaying": True}, ["toggle"]),
+    ({"id": "charging", "active": True}, []),
+    (None, []),
+])
+def test_row_controls(activity, controls):
+    assert js("rowControls", activity) == controls

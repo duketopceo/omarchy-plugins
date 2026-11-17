@@ -160,7 +160,9 @@ def test_save_merge_keeps_unknown_keys_and_skips_noop_write():
     text = json.dumps({"plugins": [{"id": "me", "openDelay": 140, "closeDelay": 450, "cameraWidth": 0,
                                     "dictation": True, "media": True, "webArt": True, "charging": True, "hud": True,
                                     "screenRecording": True, "privacy": True, "dnd": True,
-                                    "bluetooth": True, "alerts": True, "calendar": True, "custom": [1]}]})
+                                    "bluetooth": True, "alerts": True, "calendar": True, "weather": True,
+                                    "agents": True, "messages": True, "dayflow": True, "shots": True, "sansFont": True,
+                                    "custom": [1]}]})
     out = run(
         f"(()=>{{const S=require({json.dumps(str(PLUGIN / 'Settings.js'))});"
         f"const cur=Entry.find({json.dumps(text)},'me');"

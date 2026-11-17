@@ -133,3 +133,69 @@ Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, eDP-1, Spotify playing a podcast
 | Hover intent | Node tests only: `Intent.js` speed cases, the `Hover.js` open-timer gate, and a combined simulation of the hover check's stepped move (opens at enter + 140 ms, unchanged), a 1 px/ms pass (never opens) and a pointer that slows and stops (opens once it settles) |
 | Calendar helper | `bin/island-calendar` run by hand on omarchy-max: `{"source": "omarchy", "events": []}` (Omarchy's calendar file exists but holds no events; khal, gcalcli and evolution-data-server are not installed). khal, gcalcli and the allowlist are fixture-tested; the evolution-data-server path is untested (not installed) |
 | Not run live | At the owner's request no pointer was moved and `bin/island-hover-check` was not run. Not installed live either (another branch owns the live install): the calendar row and Join button render, the ten-toggle Settings page fit, and the hover check against this branch wait for install |
+
+### Live verification (Home dashboard, 0.4.0)
+
+Run 2026-11-16 on omarchy-max, Hyprland 0.57.2, lid closed at the owner's work desk (work dock, ethernet, USB camera and mic; not the home Odyssey ultrawide): HDMI-A-1 (Dell S2721NX, 1920x1080, scale 1) at x 0 and DP-3 (Samsung LS27A800U, 3840x2160, scale 1) at x 1920; eDP-1 off. Copy install, shell restarted. Actions through IPC and grim screenshots only; no pointer moves.
+
+| Check | Result |
+|---|---|
+| Owner report | Home showed only the clock when nothing was live: the old Home drew only the header and two toggles |
+| Home tiles | `open home` on DP-3: Now Playing, Up next and a glance tile with battery (100% charging), CPU, memory meters and the agents summary ("1 done · 2 working") |
+| Empty states | No player: "Nothing playing"; no calendar events: "Nothing in the next 24 h" |
+| Now Playing tile | Silent mpv track (null audio output): player name, title, artist, art placeholder, transport with previous and next dimmed (one track); `act media toggle` returned ok; the Music chip joined the page row |
+| Live rows | A 3 min timer showed as a row under the tiles with pause, +1 min and cancel; media and calendar are not repeated as rows |
+| Multi-display | One Island per screen: HDMI-A-1 origin 588 and DP-3 origin 3468, both 744x392; the open card landed on DP-3 |
+| Not run live | Join on an Up next meeting (no events in the calendar); clicks on the tiles (no click injector, owner rule against pointer moves) |
+
+### Polish and Blip (0.4.x)
+
+Run 2026-11-16 on omarchy-max, same two-display setup as the Home run (HDMI-A-1 at x 0, DP-3 at x 1920, scale 1). Copy install, shell restarted, no Island warnings in the journal. IPC and `grim` screenshots only, saved to `~/Inbox/claude/island-polish/`; no pointer was moved, no input injected, `bin/island-hover-check` not run. The open card landed on HDMI-A-1 (origin 588).
+
+Owner report: "almost no page is polished enough ... each part is rocky and rough"; wants hover feedback, and Blip in the Island.
+
+| Change | How it was checked |
+|---|---|
+| One control, `HoverButton.qml`, replaces the ad-hoc MouseAreas: chips, Pin, bell, action buttons, tiles, list and agent rows, transport keys, Join, Open fan panel | Code review; `Controls.js` look and hint-position rules node-tested (`tests/test_island_controls.py`) |
+| Hint drawn inside the card (`HintBubble.qml`, hosted by `Card.qml`) after a 400 ms rest; never a separate window, never takes the pointer | Code review and the position tests (above, below, clamped to the card) |
+| One type scale (`Txt.qml`: heading, body, caption) and one empty state (`EmptyNote.qml`) on Home tiles, Music, Agents, System, Messages, Shots, Dayflow and alerts | Screenshots `home.png`, `music-media.png`, `agents.png`, `system.png`, `more.png`, `settings.png`, `messages.png` |
+| Messages: unread rows are buttons that run `qs -p /usr/share/omarchy/shell ipc call nixfred.blip notified <chat>` (argv list; the handle is checked against Blip's own character set); muted chats listed last and dimmed; "Open Blip" button | `blipChatArgv` node-tested with safe and unsafe ids (fixtures only); `messages.png` shows the page on the live Blip state (labels are the last four characters of a handle) |
+| Home header shows "N unread" (accent, opens Messages), nothing at zero | `home.png` (6 unread) |
+| Pill: one 6 px accent dot beside the time while unmuted unread exists; the time stays in the left ear | `home.png`, `home-media.png`, `home-timer.png` |
+| Home Now Playing tile split so the open-Music area and the transport keys never overlap | `home-media.png` (silent mpv), `home-timer.png` (3 min timer), `music-media.png` |
+| KTD2 | Every page keeps its committed height: empty notes fill the rows the page already reserved; Music's empty note takes the media block's height |
+
+Not verified live:
+
+- Hover, pressed and disabled looks, the cursor shape and the hint bubble were never seen: they need the pointer. Covered by code review and the node tests only.
+- Clicking a chat row did not run (it would open Blip on the owner's screen). The argv it builds is tested; Blip's `notified` handler was read in `BarWidget.qml`, not called.
+- Join on a meeting (no events), the Agents focus click, the Shots page (no captioned screenshots) and the light theme were not shot.
+- The split-presentation bubble got a pointer cursor and a press scale but no hint, since it sits outside the card.
+- The Settings page uses the shell's own `qs.Ui` Toggle and NumberField, which already have hover and focus styles; they were not changed.
+
+## Visual redesign (0.4.2)
+
+Run 2026-11-16 on omarchy-max, one display (eDP-1, logical 1728 wide, origin 492, window 744x392). Copy install (`scripts/install.sh --copy`), shell restarted, version 0.4.2 confirmed in the live manifest, no Island QML warnings in the journal beyond the existing Pill binding-loop notice (present before this change). IPC `open <page>` plus `grim` only, saved to `~/Inbox/claude/island-redesign/`; no pointer was moved, no input injected, `bin/island-hover-check` not run.
+
+Owner report: "good hover, agents, system, dayflow, and the last one. all of those are just words. ui is a typewriter its crap. there is no UX. no simplicity its just words."
+
+| Change | Evidence |
+|---|---|
+| One UI face: `Fonts.js` + `Face.qml` (text) and `Txt.qml` (scale: display, heading, body, caption); the window `stage` publishes `uiFont`. `sansFont` setting (default on) picks Adwaita Sans, else the shell font; glyph text keeps the shell font | `home.png`, `agents.png`, `system.png`, `dayflow.png`, `more.png` (live, sans); harness render with the setting off keeps the monospace face; `tests/test_island_redesign.py` (family choice) |
+| Agents: three-column tiles, icon (theme icon for Codex and OpenCode, lettered circle for Claude and Antigravity, which ship none here), name, host, status mark; header count pills; idle folds into "+N idle" | `agents.png` (live: 1 working, 1 done, 6 idle); `state-agents2.png` (fixture: needs you, working, done, idle, "+3 idle") |
+| System: Battery, CPU, Memory rings with a one-word caption; bolt while charging; network, Tailscale and fan chips; power-profile segmented control | `system.png` (live); `state-system2.png` (fixture: charging battery, CPU at 93 percent in the urgent color, profile control shown) |
+| Dayflow: recording indicator and Pause or Resume (no Open Dayflow button: Dayflow has no open command, so none was added), three stat tiles, pending only above zero | `dayflow.png` (live, recording); `state-dayflow2.png` (fixture: paused, 3 pending) |
+| More: launcher grid, icon over name, Messages count badge, dot on Shots while unseen | `more.png` (live); badge and dot in the fixture render only |
+| Messages: avatar (initials or person glyph), name, unread badge, "Open Blip" | `state-messages-fixture.png` (invented names; the live state had no unread chats, so no live Messages shot with real data was saved) |
+| Home keeps its layout; sans face and the rounder tile plates match the new pages | `home.png` |
+
+Gates: manifests, plugin contract, qmllint syntax and pytest all run before the push (see the PR).
+
+Not verified live:
+
+- The power-profile control was never exercised: power-profiles-daemon is inactive on this machine, so the control is hidden (and the helper skips the profile read instead of stalling on D-Bus activation for seconds). Set-profile argv building is node-tested (listed names only); the click and the re-read were not run.
+- Pause and Resume were not clicked (rule against changing Dayflow state); the argv is tested (`dayflow pause`, `dayflow resume` only).
+- Hover and pressed looks, hints on the new tiles, and the working-dot pulse and recording halo (animation) were not seen: they need the pointer or motion, and stills cannot show them.
+- Messages with real chats, the needs-you tile and the charging ring come from a fixture harness (the same page files with fake data), not from the live shell.
+- No second display this run (only eDP-1 was connected); the card is 720 wide at most, so a 1920 screen draws the same card.
+- Shots still uses the old list page (not in the redesign scope); it picks up only the new face.

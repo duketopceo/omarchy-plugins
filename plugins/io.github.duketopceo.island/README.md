@@ -7,8 +7,61 @@ cutout; on other screens it is a virtual pill of the same shape.
 
 P1 is the shell (pill, hover open and close, fixed-size card, fullscreen
 step-aside, settings). P2 adds the live activities below. 0.3.0 brings it
-close to Apple's Dynamic Island (see Presentation). More pages arrive in later
-phases.
+close to Apple's Dynamic Island (see Presentation). 0.4.0 splits the card into
+pages (see Pages). 0.4.1 polishes every surface (see Controls) and puts Blip in the Island. 0.4.2 redraws Agents,
+System, Dayflow, More and Messages as tiles, rings and badges in a proportional sans face
+(`sansFont`).
+
+## Pages
+
+The card opens on Home. The chip row under it holds Home, Music, Agents,
+System and More; a page shows only when its source is detected (Home, System
+and More always). Shots, Messages and Dayflow are listed under More, and one
+of them takes a chip before More while it has something live (an unseen
+screenshot, an unread message, Dayflow recording or paused), in that order of
+preference: Messages, Shots, Dayflow, never more than six chips. Settings is
+under More. Every page is as tall as its content; the height and the chip row
+are fixed when the card opens or the page changes, never while it is open.
+
+| Page | Shows | Source | Detected when |
+|---|---|---|---|
+| Home | time, date, weather, battery, Tailscale and VPN dots, Do Not Disturb bell, mic and camera dots; the live activities as rows with their controls (next calendar event first, with Join); Do Not Disturb and mic-mute toggles | activities below; `bin/island-status home`; Omarchy's `omarchy-weather-status`; `wpctl` | always |
+| Music | the Now Playing view (art, scrubber, controls) | MPRIS | a player has a track |
+| Agents | a grid of tiles (three columns, six at most): app icon or lettered circle, session name, host and one status mark (urgent dot needs you, pulsing accent dot working, check done, dim dot idle); needs-you, working, done first; the rest fold into a "+N idle" tile; click focuses the terminal window | `bin/island-agents` (`herdr-app ls`, `~/.claude/sessions`, `hyprctl clients`) | `herdr-app` exists or `~/.claude/sessions` exists |
+| System | three rings (battery with a bolt while charging, CPU, memory), chips for network, Tailscale and fan mode (the fan chip opens the Resource & Fan panel), and a power-profile segmented control (`powerprofilesctl set`, only names `powerprofilesctl list` printed; hidden while power-profiles-daemon is not running) | `bin/island-status system` | always |
+| Shots | the newest Snapdex screenshots and captions; click opens one | `~/Pictures/Screenshots/index.md` | `snapdex-ctl` exists |
+| Messages | unread chats as tiles: avatar (initials, or a person glyph for an unnamed chat), name, unread badge; Open Blip. Never message text | Blip's `~/.local/state/blip/state.json` | that file exists |
+| Dayflow | a recording indicator (pulsing dot, or a pause glyph), Pause or Resume (`dayflow pause`, `dayflow resume`) and tiles for frames today, last frame ("2 min ago") and storage; blocks pending only when above zero | `dayflow status --json` | `dayflow` exists |
+
+- Weather runs Omarchy's own `omarchy-weather-status`, which asks the same
+  service Omarchy's bar weather already polls. The Island runs it only while
+  Omarchy's weather widget is in the bar and the Home page is open, at most
+  every 30 minutes.
+- System values are sampled every 2 s only while the System page is open;
+  agents every 3 s only while Agents is open. Home, Shots, Messages and Dayflow
+  sources read once per open (Blip's file is watched).
+- An agent session's click runs `herdr-app do agent.focus --terminal <id>` for
+  herdr sessions, then `hyprctl dispatch 'hl.dsp.focus({ window = "address:0x..." })'`.
+  Claude Code background sessions have no window and no action. Approving or
+  denying an agent's request is not here yet (it needs a hook socket).
+
+## Controls
+
+Every clickable thing on the card is one `HoverButton.qml` (the Action button,
+page chips, Pin, the bell, tiles, list rows, transport keys). It has an instant
+hover fill (a border change for outlined buttons), a pressed state (darker
+fill, scale 0.96), the pointing-hand cursor and a short hint ("Open in Music",
+"Join meeting", "Pause timer") drawn by the card after the pointer rests 400 ms.
+A disabled control is dimmed with no hover, press or hint; a display-only row
+(`passive`) is neither. Text uses `Txt.qml` (heading, body, caption; `muted`
+dims one step), and empty pages use `EmptyNote.qml` (one centered muted line).
+The rules are in `Controls.js` and tested without Qt.
+
+Blip: the pill shows a small accent dot beside the time while any unmuted chat
+has unread messages; Home shows "N unread" in its header (nothing at zero) and
+opens Messages; each unread chat row on Messages opens that chat through Blip's
+`nixfred.blip notified <chat>` IPC (passed as an argv list; an id Blip would
+not accept just opens Blip); muted chats are listed last and dimmed.
 
 ## Presentation
 
@@ -43,10 +96,11 @@ phases.
 
 What is happening now shows in the pill's right ear (glyph and a short form,
 such as `0:12` or `46%`); with nothing live the ear shows the date. A second
-live activity shows as the split bubble beside the pill. On the card's Now
-page the top activity gets its controls and up to two more activities get a
-row each. While the card is open nothing moves under the pointer: a new
-activity takes a free row, never the top.
+live activity shows as the split bubble beside the pill. On the card's Home
+page up to three activities get a row each with their controls (the timer keeps
+pause or resume, +1 min and cancel); the media row opens Music. While the card
+is open nothing moves under the pointer: a new activity takes a free row, never
+the top.
 
 | Activity | Source | Card controls | Priority |
 |---|---|---|---|
@@ -181,6 +235,12 @@ Island writes nothing else there.
 | `bluetooth` | true | true/false | show Bluetooth audio devices |
 | `calendar` | true | true/false | show the next calendar event (off stops the poll) |
 | `alerts` | true | true/false | show transient alerts |
+| `weather` | true | true/false | show the weather on Home (only while Omarchy's weather widget is in the bar) |
+| `agents` | true | true/false | show the Agents page (off stops its reads) |
+| `messages` | true | true/false | show the Messages page from Blip's unread counts |
+| `dayflow` | true | true/false | show the Dayflow page |
+| `shots` | true | true/false | show the Shots page |
+| `sansFont` | true | true/false | draw the card and pill in Adwaita Sans (falls back to the shell font when it is not installed); off keeps the shell's monospace face |
 
 The Settings page in the card edits all of these.
 
@@ -210,7 +270,8 @@ from `hyprctl cursorpos -j`; the focused monitor only when that fails), except
 
 ```bash
 qs -p /usr/share/omarchy/shell ipc call island toggle
-qs -p /usr/share/omarchy/shell ipc call island open settings   # or: now
+qs -p /usr/share/omarchy/shell ipc call island open agents     # home, music, agents, system, more,
+                                                               # shots, messages, dayflow, settings; now = home
 qs -p /usr/share/omarchy/shell ipc call island focus
 qs -p /usr/share/omarchy/shell ipc call island close
 qs -p /usr/share/omarchy/shell ipc call island state           # JSON, one object per screen
@@ -225,6 +286,7 @@ or `unknown`: `dictation stop`; `screenrec stop`; `media toggle|next|previous`;
 sample alert (`charging`, `timer`, `bluetooth`, `dnd`, `mic`) and returns `ok`,
 `off` (alerts disabled) or `unknown`.
 
+`open <page>` opens that page when it exists and Home otherwise.
 `open`, `toggle` and `focus` give the card keyboard focus. An IPC-opened card
 stays until the pointer has entered and left it, or 5 s pass untouched.
 `state` reports per screen: `screen`, `state`, `flags`, the hot-zone `rect`
@@ -233,8 +295,9 @@ stays until the pointer has entered and left it, or 5 s pass untouched.
 `top` and `second` activity ids, the card's `held` order, `activities`
 (every live activity's `id`, `priority`, `text` and `card`), `presentation`
 (`mode`: compact, split, alert or expanded; `surface`; pill and ear width;
-`bubble`), the shown `alert`, and `indicators` (`mic`, `camera`, `dnd`,
-`dndAvailable`, `recording`).
+`bubble`), the shown `alert`, the card's `page`, `chips` and `more` list (as
+committed when it last opened), and `indicators` (`mic`, `camera`, `dnd`,
+`dndAvailable`, `recording`, `micMuted`).
 
 ## Hover check
 

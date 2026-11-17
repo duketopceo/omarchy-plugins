@@ -29,10 +29,17 @@ Item {
   // From Activity.layout(): the top live activity, or null.
   property var topActivity: null
   property bool dnd: false
+  // Unmuted unread messages (Blip): one small accent dot beside the time.
+  property bool unread: false
   property bool micInUse: false
   property bool cameraInUse: false
 
   readonly property int pad: Commons.Style.spacing.lg
+  // Width beside the time in the left ear: the Do Not Disturb glyph and the
+  // unread dot, each with its gap. The time itself never moves or goes away.
+  readonly property int dotSize: Presentation.DOT_SIZE - 2
+  readonly property int leftExtras: (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0)
+    + (pill.unread ? pill.dotSize + Commons.Style.spacing.sm : 0)
   readonly property bool mediaTop: pill.topActivity !== null && pill.topActivity.id === "media"
   readonly property int thumbSize: Math.max(16, pill.height - Commons.Style.spacing.lg)
   readonly property string earText: pill.topActivity
@@ -40,20 +47,19 @@ Item {
     : Qt.formatDate(pill.now, "MMM d")
   // Natural width of the wider ear, padding included.
   readonly property int wantEar: Math.ceil(Math.max(
-    timeText.implicitWidth + (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0),
+    timeText.implicitWidth + pill.leftExtras,
     pill.mediaTop ? pill.thumbSize + Commons.Style.spacing.md + eq.width : earLabel.implicitWidth) + pill.pad * 1.5)
 
-  Text {
+  Face {
     id: timeText
     textFormat: Text.PlainText
     text: Qt.formatTime(pill.now, Qt.locale().timeFormat(Locale.ShortFormat))
     color: pill.textColor
-    font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
     font.features: { "tnum": 1 }
     maximumLineCount: 1
     elide: Text.ElideRight
-    width: Math.min(implicitWidth, Math.max(0, pill.earWidth - pill.pad - (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0)))
+    width: Math.min(implicitWidth, Math.max(0, pill.earWidth - pill.pad - pill.leftExtras))
     anchors.left: parent.left
     anchors.leftMargin: pill.pad
     anchors.verticalCenter: parent.verticalCenter
@@ -88,6 +94,18 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
   }
 
+  Rectangle {
+    id: unreadDot
+    visible: pill.unread
+    width: pill.dotSize
+    height: pill.dotSize
+    radius: width / 2
+    color: Commons.Color.accent
+    anchors.left: dndGlyph.visible ? dndGlyph.right : timeText.right
+    anchors.leftMargin: Commons.Style.spacing.sm
+    anchors.verticalCenter: parent.verticalCenter
+  }
+
   // ---- privacy dots: camera then mic, beside the camera cutout ----
   Row {
     id: dots
@@ -113,14 +131,13 @@ Item {
   }
 
   // ---- right ear ----
-  Text {
+  Face {
     id: earLabel
     visible: !pill.mediaTop
     textFormat: Text.PlainText
     text: pill.earText
     color: pill.textColor
     opacity: pill.topActivity ? 1 : 0.8
-    font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
     font.features: { "tnum": 1 }
     maximumLineCount: 1
