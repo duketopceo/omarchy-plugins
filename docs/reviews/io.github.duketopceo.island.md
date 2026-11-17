@@ -219,3 +219,12 @@ Not verified live:
 - Dayflow Pause and Resume through the new `Process` were not clicked.
 - Light card surface (the `-light` agent mark order) was not shot.
 
+### Owner checks (2026-11-16)
+
+| Check | Result |
+|---|---|
+| Clicks on the bubble, the Do Not Disturb bell and play/pause | Owner clicked them by hand on 0.4.2: "seems they were good". Closes the "clicks on the bubble, DND button and Stop" gap left in the Mac parity 0.3.0 run |
+| Hover, press and hint looks | Owner moused over 0.4.1: "good hover" |
+| Bluetooth activity and alert | Dropped by the owner for now ("no bluetooth as of now"); only `preview bluetooth` has run |
+| Odyssey ultrawide on DP-3 | Not run: the multi-display run used the work dock (Dell on HDMI-A-1, Samsung LS27A800U 4K on DP-3). Waits for the home dock |
+| WordInk pill alongside the Island | WordInk's own bottom pill (layer `hex-hud`, 304x80) had stopped drawing after several dock and undock cycles while WordInk kept running; a `wordink.service` restart brought it back (seen in a test dictation stopped with `--print`). The Island does not touch WordInk settings. Lasting fix belongs in WordInk's HUD (recreate the surface when its output goes away) |
