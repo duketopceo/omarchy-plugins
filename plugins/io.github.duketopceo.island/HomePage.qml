@@ -31,7 +31,7 @@ Item {
   readonly property int rowH: Commons.Style.spacing.controlHeight
   readonly property int gap: Commons.Style.spacing.lg
   readonly property int tileH: Commons.Style.space(116)
-  readonly property int tilePad: Commons.Style.spacing.lg
+  readonly property int tilePad: Commons.Style.spacing.xl
   readonly property color textColor: Commons.Color.popups.text
   readonly property color plate: Qt.alpha(Commons.Color.popups.text, 0.06)
 
@@ -96,7 +96,7 @@ Item {
         id: nowTile
         width: tiles.tileW
         height: parent.height
-        radius: Commons.Style.cornerRadius
+        radius: Commons.Style.cornerRadius + Commons.Style.spacing.xxl
         color: page.plate
 
         // The tile above the transport row opens Music. The transport keys
@@ -186,7 +186,7 @@ Item {
         id: nextTile
         width: tiles.tileW
         height: parent.height
-        radius: Commons.Style.cornerRadius
+        radius: Commons.Style.cornerRadius + Commons.Style.spacing.xxl
         color: page.plate
         readonly property var items: page.island ? page.island.agenda : []
 
@@ -262,7 +262,7 @@ Item {
         id: glanceTile
         width: tiles.tileW
         height: parent.height
-        radius: Commons.Style.cornerRadius
+        radius: Commons.Style.cornerRadius + Commons.Style.spacing.xxl
         color: page.plate
         readonly property var rows: page.island ? page.island.homeGlance : []
         readonly property string agents: page.island ? page.island.agentsSummary : ""

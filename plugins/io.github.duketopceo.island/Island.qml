@@ -278,7 +278,22 @@ Item {
   }
   readonly property var systemRows: Status.systemRows(systemStatus.data)
   readonly property bool fanPanel: systemStatus.data !== null && systemStatus.data.fanPanel === true
+  readonly property var systemView: Status.system(systemStatus.data)
   function openFanPanel() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "lukedaduke.fan"]) }
+  // Sets a power profile: only a name `powerprofilesctl list` printed is run,
+  // as an argv list. The page re-reads a moment later to show the new one.
+  function setProfile(name) {
+    var argv = Status.profileArgv(name, systemStatus.data ? systemStatus.data.profiles : "")
+    if (argv.length === 0) return
+    Quickshell.execDetached(argv)
+    reread.restart()
+  }
+  // One short re-read after a control ran (profile set, Dayflow pause/resume).
+  Timer {
+    id: reread
+    interval: 900
+    onTriggered: { systemStatus.refresh(); root.refreshMore() }
+  }
 
   // Agents: herdr and Claude Code sessions; at load (detection), on open, and
   // every 3 s while an Agents page is open.
@@ -309,6 +324,16 @@ Item {
   function refreshMore() { if (root.settings.dayflow === true || root.settings.shots === true) moreStatus.refresh() }
   readonly property var dayflow: root.settings.dayflow === true && moreStatus.data ? moreStatus.data.dayflow : null
   readonly property var dayflowRows: More.dayflowRows(root.dayflow)
+  readonly property var dayflowView: More.dayflowView(root.dayflow, root.now.getTime())
+  // Pause or resume capture through Dayflow's own CLI (argv, fixed words).
+  function dayflowAction(action) {
+    var argv = More.dayflowArgv(action)
+    if (argv.length === 0) return
+    argv[0] = Quickshell.env("HOME") + "/.local/bin/dayflow"
+    Quickshell.execDetached(argv)
+    reread.restart()
+  }
+  function openDayflowPanel() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.duketopceo.dayflow"]) }
   readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
   readonly property var shotRows: More.shotsRows(root.shots)
   property var shotsModel: More.shotsInitial()

@@ -50,12 +50,11 @@ Item {
     timeText.implicitWidth + pill.leftExtras,
     pill.mediaTop ? pill.thumbSize + Commons.Style.spacing.md + eq.width : earLabel.implicitWidth) + pill.pad * 1.5)
 
-  Text {
+  Face {
     id: timeText
     textFormat: Text.PlainText
     text: Qt.formatTime(pill.now, Qt.locale().timeFormat(Locale.ShortFormat))
     color: pill.textColor
-    font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
     font.features: { "tnum": 1 }
     maximumLineCount: 1
@@ -132,14 +131,13 @@ Item {
   }
 
   // ---- right ear ----
-  Text {
+  Face {
     id: earLabel
     visible: !pill.mediaTop
     textFormat: Text.PlainText
     text: pill.earText
     color: pill.textColor
     opacity: pill.topActivity ? 1 : 0.8
-    font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
     font.features: { "tnum": 1 }
     maximumLineCount: 1

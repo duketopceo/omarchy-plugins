@@ -16,8 +16,36 @@ var GLYPHS = {
   next: cp(0xF04AD),      // nf-md-skip_next
   previous: cp(0xF04AE),  // nf-md-skip_previous
   cancel: cp(0xF0156),    // nf-md-close
-  music: cp(0xF075A)      // nf-md-music
+  music: cp(0xF075A),     // nf-md-music
+  // Pages: ring and chip icons, the launcher grid, the profile control.
+  battery: cp(0xF0079),   // nf-md-battery
+  charging: cp(0xF0084),  // nf-md-battery_charging
+  bolt: cp(0xF0241),      // nf-md-flash
+  cpu: cp(0xF061A),       // nf-md-chip
+  memory: cp(0xF035B),    // nf-md-memory
+  wifi: cp(0xF05A9),      // nf-md-wifi
+  ethernet: cp(0xF0200),  // nf-md-ethernet
+  vpn: cp(0xF0582),       // nf-md-vpn
+  fan: cp(0xF0210),       // nf-md-fan
+  message: cp(0xF0369),   // nf-md-message_text
+  clock: cp(0xF0150),     // nf-md-clock_outline
+  camera: cp(0xF0100),    // nf-md-camera
+  settings: cp(0xF0493),  // nf-md-cog
+  check: cp(0xF012C),     // nf-md-check
+  person: cp(0xF0009),    // nf-md-account_circle
+  leaf: cp(0xF032A),      // nf-md-leaf
+  balance: cp(0xF05D1),   // nf-md-scale_balance
+  speed: cp(0xF04C5),     // nf-md-speedometer
+  open: cp(0xF03CC)       // nf-md-open_in_new
 }
+
+// The icon a page shows in the More launcher.
+var PAGE_GLYPH = { messages: "message", dayflow: "clock", shots: "camera", settings: "settings" }
+function pageGlyph(id) { return GLYPHS[PAGE_GLYPH[id]] || GLYPHS.open }
+
+// The icon of a power profile segment.
+var PROFILE_GLYPH = { "power-saver": "leaf", balanced: "balance", performance: "speed" }
+function profileGlyph(name) { return GLYPHS[PROFILE_GLYPH[name]] || GLYPHS.balance }
 
 // The one control a card row shows for an activity, or "" for none.
 function primaryControl(a) {
@@ -77,5 +105,5 @@ function controlHint(action, a) {
 
 if (typeof module !== "undefined") module.exports = {
   GLYPHS: GLYPHS, primaryControl: primaryControl, rowControls: rowControls, controlLabel: controlLabel,
-  controlHint: controlHint
+  controlHint: controlHint, pageGlyph: pageGlyph, profileGlyph: profileGlyph
 }

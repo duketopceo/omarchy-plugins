@@ -83,8 +83,8 @@ def test_herdr_terminals_flattened_with_window(tmp_path):
     out = run(tmp_path, herdr_tool())
     assert out["herdr"] is True
     ids = [s["id"] for s in out["sessions"]]
-    # plain shell dropped; needs-you first, then done, working, idle (the cap keeps that order)
-    assert ids == ["herdr:term-3", "herdr:term-4", "herdr:term-2", "herdr:term-5"]
+    # plain shell dropped; needs-you first, then working, done, idle (the cap keeps that order)
+    assert ids == ["herdr:term-3", "herdr:term-2", "herdr:term-4", "herdr:term-5"]
     s3 = out["sessions"][0]
     assert s3 == {"source": "herdr", "id": "herdr:term-3", "app": "claude-code", "name": "wisp", "where": "Home",
                   "status": "blocked", "terminal": "term-3", "address": "0xaaab73eb5d80"}
@@ -152,12 +152,12 @@ def test_status_vocabulary(source, status, want):
     assert js(f"A.normStatus({json.dumps(status)})") == want
 
 
-def test_rows_needs_you_first_then_done_working_idle_then_name():
+def test_rows_needs_you_first_then_working_done_idle_then_name():
     data = {"ok": True, "sessions": [s("herdr", "a", "working", "b"), s("claude", "b", "idle", "a"),
                                      s("herdr", "c", "blocked", "z"), s("claude", "d", "waiting", "m"),
                                      s("herdr", "e", "done", "q"), s("herdr", "f", "working", "a")]}
     rows = js(f"A.rows({json.dumps(data)})")
-    assert [r["key"] for r in rows] == ["d", "c", "e", "f", "a", "b"]
+    assert [r["key"] for r in rows] == ["d", "c", "f", "a", "e", "b"]
     assert rows[0]["statusLabel"] == "needs you"
 
 

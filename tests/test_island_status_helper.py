@@ -137,7 +137,7 @@ def test_more_dayflow_fields(tmp_path):
                      "blocks_pending": 2, "storage_text": "18.3 GB", "model": "secret-model"})
     out = run(tmp_path, "more", tools={"dayflow": f"echo '{df}'"})
     assert out["dayflow"] == {"state": "recording", "paused": False, "framesToday": 656, "lastFrame": "10:59 AM",
-                              "pending": 2, "storage": "18.3 GB"}
+                              "pending": 2, "storage": "18.3 GB", "panel": False}
     assert out["shots"] is None
 
 

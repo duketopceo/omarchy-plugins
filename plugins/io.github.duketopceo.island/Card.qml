@@ -2,7 +2,6 @@ import QtQuick 6.11
 import qs.Commons as Commons
 import "Dnd.js" as Dnd
 import "Pages.js" as Pages
-import "More.js" as More
 import "Presentation.js" as Presentation
 import "Controls.js" as Controls
 
@@ -200,31 +199,22 @@ Item {
       onActivated: function(row) { if (card.island) card.island.openShot(row.name) }
     }
 
-    ListPage {
+    MessagesPage {
       id: messagesPage
       visible: card.page === "messages"
       width: parent.width
       height: parent.height
+      island: card.island
       maxRows: card.maxRows
-      summary: More.unreadText(card.island ? card.island.messages.unread : 0)
-      emptyText: "All caught up"
-      actionLabel: "Open Blip"
-      actionHint: "Open Blip"
-      rowHint: "Open this chat in Blip"
-      rows: card.island ? card.island.messages.rows : []
-      onAction: if (card.island) card.island.openBlip()
-      onActivated: function(row) { if (card.island) card.island.openBlipChat(row.chat) }
     }
 
-    ListPage {
+    DayflowPage {
       id: dayflowPage
       visible: card.page === "dayflow"
       width: parent.width
       height: parent.height
+      island: card.island
       maxRows: card.maxRows
-      summary: "Dayflow"
-      emptyText: "Dayflow did not answer"
-      rows: card.island ? card.island.dayflowRows : []
     }
 
     SettingsPage {
@@ -295,6 +285,7 @@ Item {
 
       Txt {
         kind: "caption"
+        icon: true
         text: Dnd.GLYPH
         color: dndToggle.on ? Commons.Color.accent : card.textColor
         opacity: dndToggle.on || dndToggle.hovered ? 1 : 0.75

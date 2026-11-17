@@ -40,7 +40,8 @@ function messages(text) {
   })
   for (var i = 0; i < list.length; i++)
     out.rows.push({ label: list[i].label, value: list[i].n + " unread" + (list[i].muted ? ", muted" : ""),
-                    muted: list[i].muted, chat: list[i].chat })
+                    muted: list[i].muted, chat: list[i].chat, n: list[i].n, badge: badgeText(list[i].n),
+                    initials: initials(list[i].label) })
   return out
 }
 
@@ -66,6 +67,70 @@ function dayflowState(d) {
 function unreadText(n) { return n > 0 ? n + " unread" : "No unread messages" }
 
 function dayflowLive(d) { return !!d && (d.state === "recording" || d.paused === true) }
+
+// A badge's text: the count, "99+" past 99, "" for none.
+function badgeText(n) {
+  var v = Math.floor(Number(n))
+  return isFinite(v) && v > 0 ? (v > 99 ? "99+" : String(v)) : ""
+}
+
+// Up to two letters for a chat's avatar circle; "" when the chat has no name
+// (the page draws a person glyph then, never part of a handle).
+function initials(label) {
+  var s = String(label === null || label === undefined ? "" : label)
+  if (/^Chat ending /.test(s)) return ""
+  var words = s.split(/\s+/)
+  var out = ""
+  for (var i = 0; i < words.length && out.length < 2; i++) {
+    var c = words[i].charAt(0)
+    if (/[A-Za-z0-9À-ɏ]/.test(c)) out += c.toUpperCase()
+  }
+  return out
+}
+
+// Dayflow's `last_frame` is a clock time of today ("8:31 PM"). -> "just now",
+// "2 min ago", "3 h ago", "yesterday", or the text itself when it is not a
+// clock time. A time in the future means yesterday's.
+function relTime(text, nowMs) {
+  var m = /^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s*$/.exec(String(text === null || text === undefined ? "" : text))
+  if (!m) return String(text || "")
+  var h = Number(m[1])
+  var min = Number(m[2])
+  if (m[3]) {
+    var pm = m[3].toLowerCase() === "pm"
+    h = (h % 12) + (pm ? 12 : 0)
+  }
+  if (h > 23 || min > 59) return String(text)
+  var now = new Date(Number(nowMs))
+  var then = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, 0, 0).getTime()
+  var diff = Math.floor((now.getTime() - then) / 60000)
+  if (diff < 0) diff += 1440
+  if (diff < 1) return "just now"
+  if (diff < 60) return diff + " min ago"
+  if (diff < 1440 - 60) return Math.floor(diff / 60) + " h ago"
+  return "yesterday"
+}
+
+// The Dayflow page: -> { state: "recording" | "paused" | "idle", title,
+// action: "pause" | "resume" | "", frames, last, storage, pending, panel }.
+// Only recording and paused have an action: the command is `dayflow <action>`.
+function dayflowView(d, nowMs) {
+  if (!d) return null
+  var state = d.paused === true ? "paused" : (d.state === "recording" ? "recording" : "idle")
+  return {
+    state: state,
+    title: state === "recording" ? "Recording" : (state === "paused" ? "Paused" : (dayflowState(d) || "Idle")),
+    action: state === "recording" ? "pause" : (state === "paused" ? "resume" : ""),
+    frames: String(d.framesToday || 0),
+    last: d.lastFrame ? relTime(d.lastFrame, nowMs) : "none yet",
+    storage: String(d.storage || ""),
+    pending: Math.max(0, Math.floor(Number(d.pending) || 0)),
+    panel: d.panel === true
+  }
+}
+
+// The only argv the Dayflow button may run.
+function dayflowArgv(action) { return action === "pause" || action === "resume" ? ["dayflow", action] : [] }
 
 function dayflowRows(d) {
   if (!d) return []
@@ -114,6 +179,7 @@ function shotsRows(shots) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  messages: messages, blipChatArgv: blipChatArgv, unreadText: unreadText, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
+  messages: messages, blipChatArgv: blipChatArgv, unreadText: unreadText, badgeText: badgeText, initials: initials, relTime: relTime,
+  dayflowView: dayflowView, dayflowArgv: dayflowArgv, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
   shotsInitial: shotsInitial, shotsStep: shotsStep, shotsLive: shotsLive, shotsSeen: shotsSeen, shotsRows: shotsRows
 }

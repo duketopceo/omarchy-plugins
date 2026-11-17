@@ -90,10 +90,38 @@ def battery(root: Path) -> dict | None:
     return None
 
 
+PROFILE_HEADER = re.compile(r"^[* ] [a-z][a-z-]{0,31}:\s*$")
+
+
+def profiles_daemon_down() -> bool:
+    """True when systemd says power-profiles-daemon is not running: asking it
+    anyway would make D-Bus try to start it and stall the call for seconds."""
+    exe = which("systemctl")
+    if not exe:
+        return False
+    try:
+        r = subprocess.run([exe, "is-active", "--quiet", "power-profiles-daemon"], timeout=TOOL_TIMEOUT, check=False,
+                           stdin=subprocess.DEVNULL, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode != 0
+
+
 def profile() -> str | None:
+    if profiles_daemon_down():
+        return None
     out = run(["powerprofilesctl", "get"])
     out = out.strip() if out else ""
     return out or None
+
+
+def profiles() -> str | None:
+    """The profile header lines of `powerprofilesctl list` ("* balanced:"), nothing else."""
+    if profiles_daemon_down():
+        return None
+    out = run(["powerprofilesctl", "list"])
+    lines = [ln for ln in (out or "").splitlines() if PROFILE_HEADER.match(ln)]
+    return "\n".join(lines) or None
 
 
 def fan() -> str | None:
@@ -208,6 +236,7 @@ def dayflow() -> dict | None:
         "lastFrame": str(d.get("last_frame") or ""),
         "pending": d.get("blocks_pending") if isinstance(d.get("blocks_pending"), int) else 0,
         "storage": str(d.get("storage_text") or ""),
+        "panel": (Path.home() / ".config/omarchy/plugins/io.github.duketopceo.dayflow/manifest.json").is_file(),
     }
 
 
@@ -239,7 +268,7 @@ def main() -> int:
     elif args.section == "system":
         # The CPU window spans the other reads instead of a bare sleep.
         started, before = time.monotonic(), read(root / "proc/stat")
-        out = {"battery": battery(root), "profile": profile(), "fan": fan(), "fanPanel": fan_panel(),
+        out = {"battery": battery(root), "profile": profile(), "profiles": profiles(), "fan": fan(), "fanPanel": fan_panel(),
                "memory": memory(root), "network": network(root), "tailscale": tailscale()}
         out["cpu"] = cpu_end(root, before, started, args.cpu_sample)
     else:

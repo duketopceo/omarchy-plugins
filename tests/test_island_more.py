@@ -33,9 +33,12 @@ def test_messages_unread_rows_named_and_masked():
     m = messages(STATE)
     assert m["ok"] is True and m["unread"] == 5
     assert m["rows"] == [
-        {"label": "Chat ending 4567", "value": "3 unread", "muted": False, "chat": "+15551234567"},
-        {"label": "Family", "value": "2 unread", "muted": False, "chat": "chat-g"},
-        {"label": "Chat ending ed-1", "value": "4 unread, muted", "muted": True, "chat": "muted-1"}]
+        {"label": "Chat ending 4567", "value": "3 unread", "muted": False, "chat": "+15551234567",
+         "n": 3, "badge": "3", "initials": ""},
+        {"label": "Family", "value": "2 unread", "muted": False, "chat": "chat-g",
+         "n": 2, "badge": "2", "initials": "F"},
+        {"label": "Chat ending ed-1", "value": "4 unread, muted", "muted": True, "chat": "muted-1",
+         "n": 4, "badge": "4", "initials": ""}]
     # The handle rides along only so a row can open its chat; it is never drawn.
     assert all("+15551234567" not in r["label"] + r["value"] for r in m["rows"])
 

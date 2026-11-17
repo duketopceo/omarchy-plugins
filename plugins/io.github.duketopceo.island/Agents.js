@@ -2,7 +2,7 @@
 // commands that focus a session's terminal. ES5, no Qt types; node tests load
 // it with require(). Approve/deny is not here (needs a hook socket).
 
-var ORDER = { needs: 0, done: 1, working: 2, idle: 3 }
+var ORDER = { needs: 0, working: 1, done: 2, idle: 3 }
 var LABEL = { needs: "needs you", done: "done", working: "working", idle: "idle" }
 var NEEDS = { blocked: true, waiting: true, needs_input: true, awaiting_input: true, permission: true }
 var APPS = {
@@ -22,6 +22,30 @@ function appName(app) {
   var k = String(app || "").toLowerCase()
   if (APPS[k]) return APPS[k]
   return k ? k.charAt(0).toUpperCase() + k.slice(1) : "Agent"
+}
+
+// The app's own key ("claude", "codex", ...): picks an icon; "" when unknown.
+function appKey(app) {
+  var k = String(app || "").toLowerCase()
+  if (k === "claude-code") return "claude"
+  return /^[a-z0-9_-]+$/.test(k) ? k : ""
+}
+
+// Icon-theme names to try for an app, in order. Claude and Antigravity ship no
+// theme icon on this machine, so the tile falls back to a lettered circle.
+var ICONS = {
+  claude: ["claude-code", "claude", "anthropic-claude"], codex: ["codex-desktop", "codex", "openai-codex"],
+  opencode: ["ai.opencode", "opencode", "opencode-desktop"], antigravity: ["antigravity", "google-antigravity"],
+  gemini: ["gemini"], cursor: ["cursor"], grok: ["grok"], devin: ["devin"]
+}
+function iconNames(app) { return ICONS[appKey(app)] || [] }
+
+// The small muted line of a tile: the machine of "Space @ machine", else the
+// space or folder name.
+function hostOf(where) {
+  var w = String(where || "")
+  var i = w.lastIndexOf(" @ ")
+  return i >= 0 ? w.slice(i + 3) : w
 }
 
 // A Hyprland window address: hex, "0x" added when missing; "" when invalid.
@@ -49,7 +73,7 @@ function rows(data) {
     var address = _address(x.address)
     var terminal = x.source === "herdr" ? _terminal(x.terminal) : ""
     out.push({
-      key: String(x.id), source: String(x.source || ""), app: appName(x.app), title: String(x.name || ""),
+      key: String(x.id), source: String(x.source || ""), app: appName(x.app), appKey: appKey(x.app), host: hostOf(x.where), title: String(x.name || ""),
       where: String(x.where || ""), status: st, statusLabel: LABEL[st], terminal: terminal,
       address: address, focusable: address !== "" || terminal !== "", idx: i
     })
@@ -70,6 +94,34 @@ function countsText(list) {
   return parts.join(" · ")
 }
 
+// What the grid draws: the rows in order, capped at `cap` tiles. When there
+// are more rows than tiles, the last tile is a "+N" tile for the rest (idle
+// when they all are, else "more"). -> { tiles: [row], more: { n, label } | null }
+function tiles(list, cap) {
+  var rows = list || []
+  var max = Math.max(1, cap | 0)
+  if (rows.length <= max) return { tiles: rows.slice(), more: null }
+  var keep = rows.slice(0, max - 1)
+  var rest = rows.slice(max - 1)
+  var allIdle = true
+  for (var i = 0; i < rest.length; i++) if (rest[i].status !== "idle") allIdle = false
+  return { tiles: keep, more: { n: rest.length, label: "+" + rest.length + (allIdle ? " idle" : " more") } }
+}
+
+// The header pills: [{ status, n, label }] for needs, working and done only,
+// zero counts dropped ("1 needs you", "2 working", "1 done").
+function pills(list) {
+  var c = { needs: 0, working: 0, done: 0 }
+  for (var i = 0; i < (list || []).length; i++) if (c[list[i].status] !== undefined) c[list[i].status]++
+  var out = []
+  var keys = ["needs", "working", "done"]
+  for (var k = 0; k < keys.length; k++) if (c[keys[k]] > 0) out.push({ status: keys[k], n: c[keys[k]], label: c[keys[k]] + " " + LABEL[keys[k]] })
+  return out
+}
+
+// A tile's one-letter fallback badge.
+function initial(app) { return appName(app).charAt(0).toUpperCase() }
+
 // argv lists, run in order: herdr's own terminal focus, then the window focus
 // through Hyprland (the form Omarchy's dock uses). Each is passed as argv, never
 // through a shell.
@@ -84,5 +136,6 @@ function focusCommands(row) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  normStatus: normStatus, appName: appName, rows: rows, countsText: countsText, focusCommands: focusCommands
+  normStatus: normStatus, appName: appName, appKey: appKey, iconNames: iconNames, hostOf: hostOf, rows: rows,
+  countsText: countsText, tiles: tiles, pills: pills, initial: initial, focusCommands: focusCommands
 }

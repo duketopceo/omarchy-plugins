@@ -13,6 +13,7 @@ import "Presentation.js" as Presentation
 import "Alert.js" as Alert
 import "Tint.js" as Tint
 import "Pages.js" as Pages
+import "Fonts.js" as Fonts
 
 // One screen's island. The window is fixed at card size plus slop and never
 // resizes. The input mask is the hot zone: a separate, non-animating item whose
@@ -302,6 +303,11 @@ PanelWindow {
       // shrink, both through Commons.Style.duration so reduced motion snaps
       // (KTD3). Opening and alert growth spring; content changes and closing ease.
       readonly property bool springing: win.cardShown || win.alertShown !== null
+
+      // The UI typeface for everything in this window (Fonts.js): Face.qml
+      // walks up to here. The `sansFont` setting flips it live.
+      readonly property string uiFont: Fonts.family(win.island && win.island.settings ? win.island.settings.sansFont !== false : true,
+                                                    Commons.Style.font.family, Qt.fontFamilies())
 
       Item {
         id: body

@@ -73,12 +73,11 @@ Item {
       anchors.verticalCenter: parent.verticalCenter
     }
 
-    Text {
+    Face {
       textFormat: Text.PlainText
       text: block.activity ? String(block.activity.identity || "") : ""
       color: block.textColor
       opacity: 0.7
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.bodySmall
       elide: Text.ElideRight
       maximumLineCount: 1
@@ -95,26 +94,24 @@ Item {
     anchors.bottom: art.bottom
     spacing: Commons.Style.spacing.xs
 
-    Text {
+    Face {
       width: parent.width
       textFormat: Text.PlainText
       text: block.activity ? String(block.activity.card || "") : ""
       color: block.textColor
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.heading
       font.bold: true
       elide: Text.ElideRight
       maximumLineCount: 1
     }
 
-    Text {
+    Face {
       width: parent.width
       visible: text !== ""
       textFormat: Text.PlainText
       text: block.activity ? String(block.activity.subtitle || "") : ""
       color: block.textColor
       opacity: 0.75
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.body
       elide: Text.ElideRight
       maximumLineCount: 1
@@ -133,25 +130,23 @@ Item {
     readonly property real fraction: block.dragging ? block.dragFraction
       : (block.hasLength ? Math.max(0, Math.min(1, block.activity.position / block.activity.length)) : 0)
 
-    Text {
+    Face {
       id: posText
       textFormat: Text.PlainText
       text: block.hasLength ? Media.fmt(scrub.fraction * block.activity.length) : ""
       color: block.textColor
       opacity: 0.7
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.bodySmall
       font.features: { "tnum": 1 }
       anchors.left: parent.left
       anchors.verticalCenter: parent.verticalCenter
     }
-    Text {
+    Face {
       id: leftText
       textFormat: Text.PlainText
       text: block.hasLength ? Media.fmtRemaining(scrub.fraction * block.activity.length, block.activity.length) : ""
       color: block.textColor
       opacity: 0.7
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.bodySmall
       font.features: { "tnum": 1 }
       anchors.right: parent.right

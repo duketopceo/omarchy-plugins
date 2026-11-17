@@ -31,7 +31,7 @@ MAX_SESSIONS = 40
 MAX_DEPTH = 40
 # Sessions that need the user survive the cap first (the same order Agents.js uses).
 STATUS_RANK = {"blocked": 0, "waiting": 0, "needs_input": 0, "awaiting_input": 0, "permission": 0,
-               "done": 1, "working": 2, "busy": 2}
+               "working": 1, "busy": 1, "done": 2}
 
 
 def which(name: str) -> str | None:

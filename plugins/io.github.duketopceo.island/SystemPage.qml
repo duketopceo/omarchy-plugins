@@ -1,88 +1,213 @@
 import QtQuick 6.11
 import qs.Commons as Commons
+import "Glyphs.js" as Glyphs
 
-// System: battery, power profile, fan mode, CPU, memory, network and
-// Tailscale (Status.js rows). The root samples them only while a System page
-// is open. The fan row opens the Resource & Fan panel when that plugin is
-// installed.
+// System: three rings (Battery, CPU, Memory) with the percentage in the
+// middle and a one-word caption, a row of chips (network, Tailscale, fan) and
+// the power-profile segmented control. Status.system() turns the helper's
+// data into rings, chips and profiles; the root samples them only while a
+// System page is open. The fan chip opens the Resource & Fan panel when that
+// plugin is installed. The card's height comes from heightFor() and does not
+// move while it is open (KTD2).
 Item {
   id: page
 
   property var island: null
   property int maxRows: 0
 
-  readonly property int rowH: Commons.Style.spacing.controlHeight
-  readonly property int gap: Commons.Style.spacing.sm
-  readonly property var rows: page.island ? page.island.systemRows : []
-  readonly property int labelW: Commons.Style.space(120)
+  readonly property var view: page.island ? page.island.systemView : null
+  readonly property var rings: page.view ? page.view.rings : []
+  readonly property var chips: page.view ? page.view.chips : []
+  readonly property var profiles: page.view ? page.view.profiles : null
 
-  function count() { return Math.max(1, page.rows.length) }
-  function heightFor(n) { return Math.max(1, n) * (page.rowH + page.gap) }
+  readonly property int gap: Commons.Style.spacing.lg
+  readonly property int rowH: Commons.Style.spacing.controlHeight
+  readonly property int ringTileH: Commons.Style.space(128)
+  readonly property int ringSize: Commons.Style.space(80)
+
+  function count() { return page.rings.length > 0 ? 1 : 0 }
+  function heightFor(n) {
+    if (n <= 0) return page.rowH
+    return page.ringTileH + page.gap + page.rowH + page.gap + page.rowH
+  }
+
+  // ---- one ring tile ----
+  component RingTile: Item {
+    id: tile
+    required property var modelData
+
+    Plate {
+      anchors.fill: parent
+    }
+    Ring {
+      id: ring
+      width: page.ringSize
+      height: width
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: parent.top
+      anchors.topMargin: Commons.Style.spacing.xl
+      level: tile.modelData.level
+      tone: tile.modelData.tone === "urgent" ? Commons.Color.urgent : Commons.Color.accent
+
+      Txt {
+        icon: true
+        visible: tile.modelData.charging
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: parent.height * 0.16
+        width: implicitWidth
+        opacity: 1
+        color: Commons.Color.accent
+        text: Glyphs.GLYPHS.bolt
+      }
+      Txt {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: tile.modelData.charging ? Commons.Style.spacing.md : 0
+        width: implicitWidth
+        kind: "display"
+        font.pixelSize: Commons.Style.font.title + Commons.Style.spacing.md
+        numeric: true
+        text: tile.modelData.pct + "%"
+      }
+    }
+    Txt {
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: ring.bottom
+      anchors.topMargin: Commons.Style.spacing.md
+      width: Math.min(implicitWidth, parent.width)
+      kind: "caption"
+      text: tile.modelData.caption
+    }
+  }
+
+  // ---- one chip: a glyph and a short word ----
+  component Chip: Item {
+    id: chip
+    required property var modelData
+    readonly property bool clickable: chip.modelData.action === "fan" && page.island !== null && page.island.fanPanel
+    implicitWidth: chipRow.implicitWidth + Commons.Style.spacing.xxl * 2
+    height: page.rowH
+
+    Plate {
+      anchors.fill: parent
+      radius: height / 2
+    }
+    HoverButton {
+      anchors.fill: parent
+      radius: height / 2
+      passive: !chip.clickable
+      hint: chip.clickable ? "Open the fan panel" : ""
+      onClicked: if (chip.clickable) page.island.openFanPanel()
+
+      Row {
+        id: chipRow
+        anchors.centerIn: parent
+        spacing: Commons.Style.spacing.lg
+
+        Txt {
+          icon: true
+          anchors.verticalCenter: parent.verticalCenter
+          opacity: chip.modelData.on ? 1 : 0.45
+          text: Glyphs.GLYPHS[chip.modelData.icon]
+        }
+        Txt {
+          anchors.verticalCenter: parent.verticalCenter
+          width: Math.min(implicitWidth, Commons.Style.space(190))
+          opacity: chip.modelData.on ? 1 : 0.55
+          text: chip.modelData.text
+        }
+      }
+    }
+  }
 
   EmptyNote {
-    visible: page.rows.length === 0
+    visible: page.rings.length === 0
     width: parent.width
-    height: page.rowH + page.gap
+    height: page.rowH
     text: "Reading system state"
   }
 
   Column {
     width: parent.width
     spacing: page.gap
+    visible: page.rings.length > 0
 
-    Repeater {
-      model: page.rows.slice(0, Math.max(0, page.maxRows))
+    Row {
+      id: ringRow
+      width: parent.width
+      spacing: page.gap
+      readonly property int tileW: Math.floor((width - spacing * 2) / 3)
 
-      Item {
-        id: item
-        required property var modelData
-        width: parent.width
-        height: page.rowH
+      Repeater {
+        model: page.rings
 
-        Txt {
-          id: label
-          width: page.labelW
-          anchors.verticalCenter: parent.verticalCenter
-          opacity: 0.65
-          text: item.modelData.label
+        RingTile {
+          width: ringRow.tileW
+          height: page.ringTileH
         }
+      }
+    }
 
-        Txt {
-          id: value
-          anchors.left: label.right
-          anchors.verticalCenter: parent.verticalCenter
-          width: Math.min(implicitWidth, parent.width - page.labelW - meter.width - openFan.width - Commons.Style.spacing.huge)
-          font.features: { "tnum": 1 }
-          text: item.modelData.value
-        }
+    Row {
+      id: chipRow2
+      height: page.rowH
+      spacing: page.gap
 
-        // A thin meter for rows with a level (battery, CPU, memory).
-        Rectangle {
-          id: meter
-          visible: typeof item.modelData.level === "number"
-          width: visible ? Commons.Style.space(140) : 0
-          height: 4
-          radius: 2
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          color: Commons.Color.menu.selectedBackground
-          Rectangle {
-            width: parent.width * Math.max(0, Math.min(1, item.modelData.level || 0))
-            height: parent.height
-            radius: parent.radius
-            color: (item.modelData.level || 0) >= 0.9 && item.modelData.id !== "battery" ? Commons.Color.urgent : Commons.Color.accent
+      Repeater {
+        model: page.chips
+
+        Chip {}
+      }
+    }
+
+    // The power profile: a segmented control. Dimmed when the daemon is not
+    // running (nothing to set); the active profile is the filled segment.
+    Item {
+      id: seg
+      width: parent.width
+      height: page.rowH
+      readonly property var names: page.profiles ? page.profiles.names : []
+      readonly property bool available: page.profiles !== null && page.profiles.available
+      readonly property string active: page.profiles ? page.profiles.active : ""
+
+      Plate {
+        anchors.fill: parent
+        radius: height / 2
+      }
+      Row {
+        anchors.fill: parent
+
+        Repeater {
+          model: seg.names
+
+          HoverButton {
+            id: segment
+            required property var modelData
+            enabled: seg.available
+            selected: seg.active === segment.modelData.name
+            hint: segment.selected ? "" : "Power profile: " + segment.modelData.hint
+            width: seg.width / Math.max(1, seg.names.length)
+            height: seg.height
+            radius: height / 2
+            onClicked: if (page.island) page.island.setProfile(segment.modelData.name)
+
+            Row {
+              anchors.centerIn: parent
+              spacing: Commons.Style.spacing.lg
+
+              Txt {
+                icon: true
+                anchors.verticalCenter: parent.verticalCenter
+                color: segment.selected ? Commons.Color.menu.selectedText : Commons.Color.popups.text
+                text: Glyphs.profileGlyph(segment.modelData.name)
+              }
+              Txt {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, segment.width - Commons.Style.spacing.huge * 3)
+                color: segment.selected ? Commons.Color.menu.selectedText : Commons.Color.popups.text
+                text: segment.modelData.label
+              }
+            }
           }
-        }
-
-        ActivityButton {
-          id: openFan
-          visible: item.modelData.id === "fan" && page.island !== null && page.island.fanPanel
-          width: visible ? implicitWidth : 0
-          label: "Open"
-          hint: "Open the fan panel"
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          onClicked: page.island.openFanPanel()
         }
       }
     }

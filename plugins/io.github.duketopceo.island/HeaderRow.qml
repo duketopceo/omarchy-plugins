@@ -27,45 +27,41 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
     spacing: Commons.Style.spacing.lg
 
-    Text {
+    Face {
       id: compactText
       visible: header.compact
       textFormat: Text.PlainText
       text: Qt.formatTime(header.now, Qt.locale().timeFormat(Locale.ShortFormat)) + "  \u00b7  " + Qt.formatDate(header.now, "ddd MMM d")
       color: header.textColor
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.body
       font.features: { "tnum": 1 }
       anchors.verticalCenter: parent.verticalCenter
     }
-    Text {
+    Face {
       visible: !header.compact
       textFormat: Text.PlainText
       text: Qt.formatTime(header.now, Qt.locale().timeFormat(Locale.ShortFormat))
       color: header.textColor
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.heading
       font.bold: true
       font.features: { "tnum": 1 }
       anchors.verticalCenter: parent.verticalCenter
     }
-    Text {
+    Face {
       visible: !header.compact
       textFormat: Text.PlainText
       text: Qt.formatDate(header.now, "ddd MMM d")
       color: header.textColor
       opacity: 0.8
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.body
       anchors.verticalCenter: parent.verticalCenter
     }
-    Text {
+    Face {
       visible: header.showWeather && header.island !== null && header.island.weather !== null
       textFormat: Text.PlainText
       text: visible ? "·  " + header.island.weather.temp : ""
       color: header.textColor
       opacity: 0.8
-      font.family: Commons.Style.font.family
       font.pixelSize: Commons.Style.font.body
       anchors.verticalCenter: parent.verticalCenter
     }
@@ -111,12 +107,11 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           color: modelData.on ? Commons.Color.accent : Commons.Color.muted
         }
-        Text {
+        Face {
           textFormat: Text.PlainText
           text: modelData.text
           color: header.textColor
           opacity: modelData.on ? 0.9 : 0.55
-          font.family: Commons.Style.font.family
           font.pixelSize: Commons.Style.font.bodySmall
           anchors.verticalCenter: parent.verticalCenter
         }

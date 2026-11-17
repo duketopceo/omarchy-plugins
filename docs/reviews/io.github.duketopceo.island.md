@@ -172,3 +172,30 @@ Not verified live:
 - Join on a meeting (no events), the Agents focus click, the Shots page (no captioned screenshots) and the light theme were not shot.
 - The split-presentation bubble got a pointer cursor and a press scale but no hint, since it sits outside the card.
 - The Settings page uses the shell's own `qs.Ui` Toggle and NumberField, which already have hover and focus styles; they were not changed.
+
+## Visual redesign (0.4.2)
+
+Run 2026-11-16 on omarchy-max, one display (eDP-1, logical 1728 wide, origin 492, window 744x392). Copy install (`scripts/install.sh --copy`), shell restarted, version 0.4.2 confirmed in the live manifest, no Island QML warnings in the journal beyond the existing Pill binding-loop notice (present before this change). IPC `open <page>` plus `grim` only, saved to `~/Inbox/claude/island-redesign/`; no pointer was moved, no input injected, `bin/island-hover-check` not run.
+
+Owner report: "good hover, agents, system, dayflow, and the last one. all of those are just words. ui is a typewriter its crap. there is no UX. no simplicity its just words."
+
+| Change | Evidence |
+|---|---|
+| One UI face: `Fonts.js` + `Face.qml` (text) and `Txt.qml` (scale: display, heading, body, caption); the window `stage` publishes `uiFont`. `sansFont` setting (default on) picks Adwaita Sans, else the shell font; glyph text keeps the shell font | `home.png`, `agents.png`, `system.png`, `dayflow.png`, `more.png` (live, sans); harness render with the setting off keeps the monospace face; `tests/test_island_redesign.py` (family choice) |
+| Agents: three-column tiles, icon (theme icon for Codex and OpenCode, lettered circle for Claude and Antigravity, which ship none here), name, host, status mark; header count pills; idle folds into "+N idle" | `agents.png` (live: 1 working, 1 done, 6 idle); `state-agents2.png` (fixture: needs you, working, done, idle, "+3 idle") |
+| System: Battery, CPU, Memory rings with a one-word caption; bolt while charging; network, Tailscale and fan chips; power-profile segmented control | `system.png` (live); `state-system2.png` (fixture: charging battery, CPU at 93 percent in the urgent color, profile control live) |
+| Dayflow: recording indicator and Pause or Resume, Open Dayflow, three stat tiles, pending only above zero | `dayflow.png` (live, recording); `state-dayflow2.png` (fixture: paused, 3 pending) |
+| More: launcher grid, icon over name, Messages count badge, dot on Shots while unseen | `more.png` (live); badge and dot in the fixture render only |
+| Messages: avatar (initials or person glyph), name, unread badge, "Open Blip" | `state-messages-fixture.png` (invented names; the live state had no unread chats, so no live Messages shot with real data was saved) |
+| Home keeps its layout; sans face and the rounder tile plates match the new pages | `home.png` |
+
+Gates: manifests, plugin contract, qmllint syntax and pytest all run before the push (see the PR).
+
+Not verified live:
+
+- The power-profile control was never exercised: power-profiles-daemon is inactive on this machine, so the control is dimmed (and the helper skips the profile read instead of stalling on D-Bus activation for seconds). Set-profile argv building is node-tested (listed names only); the click and the re-read were not run.
+- Pause and Resume were not clicked (rule against changing Dayflow state); the argv is tested (`dayflow pause`, `dayflow resume` only). "Open Dayflow" was not clicked either.
+- Hover and pressed looks, hints on the new tiles, and the working-dot pulse and recording halo (animation) were not seen: they need the pointer or motion, and stills cannot show them.
+- Messages with real chats, the needs-you tile and the charging ring come from a fixture harness (the same page files with fake data), not from the live shell.
+- No second display this run (only eDP-1 was connected); the card is 720 wide at most, so a 1920 screen draws the same card.
+- Shots still uses the old list page (not in the redesign scope); it picks up only the new face.

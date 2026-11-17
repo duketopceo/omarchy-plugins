@@ -99,4 +99,89 @@ function systemRows(s) {
   return out
 }
 
-if (typeof module !== "undefined") module.exports = { weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, glance: glance, systemRows: systemRows }
+// ---- the System page: rings, chips and the power-profile control ----
+
+var PROFILE_NAMES = ["power-saver", "balanced", "performance"]
+var PROFILE_LABEL = { "power-saver": "Saver", balanced: "Balanced", performance: "Performance" }
+var PROFILE_HINT = { "power-saver": "Power saver", balanced: "Balanced", performance: "Performance" }
+
+// `powerprofilesctl list` text -> { names: [profile names, in the daemon's
+// order], active } . Header lines look like "* balanced:" or "  power-saver:".
+function parseProfiles(raw) {
+  var names = []
+  var active = ""
+  var lines = String(raw === null || raw === undefined ? "" : raw).split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var m = /^([* ]) ([a-z][a-z-]{0,31}):\s*$/.exec(lines[i])
+    if (!m) continue
+    names.push(m[2])
+    if (m[1] === "*") active = m[2]
+  }
+  return { names: names, active: active }
+}
+
+// The command that sets a profile, as an argv list, or [] when `name` is not
+// one the daemon listed (nothing is ever built from free text).
+function profileArgv(name, raw) {
+  var listed = parseProfiles(raw).names
+  var n = String(name === null || name === undefined ? "" : name)
+  return listed.indexOf(n) >= 0 ? ["powerprofilesctl", "set", n] : []
+}
+
+// A ring's accent: urgent when the machine is under strain (CPU or memory at
+// 90% or more, battery at 15% or less and not charging), else the accent.
+function ringTone(id, pct, charging) {
+  if (id === "battery") return pct <= 15 && !charging ? "urgent" : "accent"
+  return pct >= 90 ? "urgent" : "accent"
+}
+
+function _pct(n) { return Math.max(0, Math.min(100, Math.round(Number(n)))) }
+
+// -> { rings: [{ id, caption, pct, level, tone, charging }],
+//      chips: [{ id, icon, text, on, action }],
+//      profiles: { names: [{ name, label, hint }], active, available } }
+// Rings and chips whose source is missing are left out.
+function system(s) {
+  var out = { rings: [], chips: [], profiles: { names: [], active: "", available: false } }
+  if (!s) return out
+  if (s.battery && typeof s.battery.capacity === "number") {
+    var charging = s.battery.status === "Charging"
+    var b = _pct(s.battery.capacity)
+    out.rings.push({ id: "battery", caption: "Battery", pct: b, level: b / 100, tone: ringTone("battery", b, charging), charging: charging })
+  }
+  if (typeof s.cpu === "number") {
+    var c = _pct(s.cpu)
+    out.rings.push({ id: "cpu", caption: "CPU", pct: c, level: c / 100, tone: ringTone("cpu", c, false), charging: false })
+  }
+  if (s.memory && typeof s.memory.usedPct === "number") {
+    var m = _pct(s.memory.usedPct)
+    out.rings.push({ id: "memory", caption: "Memory", pct: m, level: m / 100, tone: ringTone("memory", m, false), charging: false })
+  }
+  if (s.network && s.network.iface) {
+    out.chips.push({ id: "network", icon: s.network.type === "wifi" ? "wifi" : "ethernet", on: true, action: "",
+                     text: s.network.name || NET_KIND[s.network.type] || "Network" })
+  }
+  if (s.tailscale) {
+    var t = s.tailscale
+    var up = _tailscaleUp(t)
+    out.chips.push({ id: "tailscale", icon: "vpn", on: up, action: "",
+                     text: up ? t.peers + (t.peers === 1 ? " peer" : " peers") : "Off" })
+  }
+  if (s.fan || s.fanPanel === true) {
+    out.chips.push({ id: "fan", icon: "fan", on: true, action: s.fanPanel === true ? "fan" : "", text: s.fan ? _cap(s.fan) : "Fan" })
+  }
+  var parsed = parseProfiles(s.profiles)
+  var names = parsed.names.length > 0 ? parsed.names : PROFILE_NAMES
+  for (var i = 0; i < names.length; i++) {
+    out.profiles.names.push({ name: names[i], label: PROFILE_LABEL[names[i]] || _cap(names[i].replace(/-/g, " ")),
+                              hint: PROFILE_HINT[names[i]] || _cap(names[i].replace(/-/g, " ")) })
+  }
+  out.profiles.active = String(s.profile || parsed.active || "")
+  out.profiles.available = parsed.names.length > 0
+  return out
+}
+
+if (typeof module !== "undefined") module.exports = {
+  weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, glance: glance, systemRows: systemRows,
+  parseProfiles: parseProfiles, profileArgv: profileArgv, ringTone: ringTone, system: system
+}

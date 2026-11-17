@@ -32,6 +32,7 @@ Item {
     { key: "calendar", label: "Calendar" },
     { key: "alerts", label: "Alerts" },
     { key: "weather", label: "Weather" },
+    { key: "sansFont", label: "Sans font" },
     { key: "agents", label: "Agents" },
     { key: "messages", label: "Messages" },
     { key: "dayflow", label: "Dayflow" },
