@@ -166,7 +166,7 @@ def test_more_skips_sources_turned_off(tmp_path):
     df = json.dumps({"capture_state": "recording"})
     marker = tmp_path / "ran"
     out = run_args(tmp_path, ["more", "--skip", "dayflow,shots"],
-                   tools={"dayflow": f"touch {marker}; echo '{df}'", "snapdex-ctl": "exit 0"})
+                   tools={"dayflow": f": > {marker}; echo '{df}'", "snapdex-ctl": "exit 0"})
     assert out == {"dayflow": None, "shots": None}
     assert not marker.exists()
 

@@ -139,3 +139,46 @@ def test_shots_unavailable_first_read_sets_no_baseline():
     # Snapdex appears later: its existing screenshots are the baseline, not "new".
     m = js(f"M.shotsStep(M.shotsStep(M.shotsInitial(), null), {json.dumps(SHOTS1)})")
     assert js(f"M.shotsLive({json.dumps(m)})") is False
+
+
+def test_shots_ack_without_inventory_keeps_watermark():
+    # inventory, then unreadable, then a frozen Shots entry acknowledged, then
+    # inventory back: the old screenshot must not read as new.
+    m = js(f"M.shotsStep(M.shotsStep(M.shotsInitial(), {json.dumps(SHOTS1)}), null)")
+    acked = js(f"M.shotsSeen({json.dumps(m)})")
+    assert acked["seen"] == SHOTS1["items"][0]["name"]
+    back = js(f"M.shotsStep({json.dumps(acked)}, {json.dumps(SHOTS1)})")
+    assert js(f"M.shotsLive({json.dumps(back)})") is False
+
+
+def test_shots_ack_on_uninitialized_model_stays_uninitialized():
+    m = js("M.shotsSeen(M.shotsStep(M.shotsInitial(), null))")
+    assert m["seen"] is None
+    back = js(f"M.shotsStep({json.dumps(m)}, {json.dumps(SHOTS1)})")
+    assert js(f"M.shotsLive({json.dumps(back)})") is False
+
+
+def test_one_on_one_chat_takes_name_from_group_participant_names():
+    state = {"unreadCounts": {"+15551110001": 1, "+15551110002": 1, "+15551110003": 1, "+15551110004": 1},
+             "groups": {"g1": {"name": "Crew", "participantNames": {
+                 "+15551110001": "Ada Fixture", "+15551110002": "+15551110002",
+                 "+15551110003": "ada@example.test"}}}}
+    labels = {r["chat"]: r["label"] for r in messages(state)["rows"]}
+    assert labels["+15551110001"] == "Ada Fixture"
+    # a raw handle or an email is not a name; no entry at all stays masked
+    assert labels["+15551110002"] == "Chat ending 0002"
+    assert labels["+15551110003"] == "Chat ending 0003"
+    assert labels["+15551110004"] == "Chat ending 0004"
+
+
+def test_participant_names_tolerate_bad_shapes():
+    state = {"unreadCounts": {"+15551110001": 1},
+             "groups": {"a": "x", "b": {"participantNames": ["y"]}, "c": {"participantNames": {"+15551110001": 7}}}}
+    assert messages(state)["rows"][0]["label"] == "Chat ending 0001"
+
+
+def test_shot_file_accepts_only_plain_names():
+    assert js("M.shotFile('2026-11-16_09-00-00_b.png')") == "2026-11-16_09-00-00_b.png"
+    for bad in ("../x.png", "a/b.png", ".hidden.png", "", "a..b.png"):
+        assert js(f"M.shotFile({json.dumps(bad)})") == ""
+    assert js("M.shotFile(null)") == ""

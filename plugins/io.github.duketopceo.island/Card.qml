@@ -186,17 +186,13 @@ Item {
       onOpenPage: function(id) { card.open(id) }
     }
 
-    ListPage {
+    ShotsPage {
       id: shotsPage
       visible: card.page === "shots"
       width: parent.width
       height: parent.height
+      island: card.island
       maxRows: card.maxRows
-      summary: card.island && card.island.shots ? card.island.shots.total + " captioned screenshots" : ""
-      emptyText: "No captioned screenshots yet"
-      rowHint: "Open this screenshot"
-      rows: card.island ? card.island.shotRows : []
-      onActivated: function(row) { if (card.island) card.island.openShot(row.name) }
     }
 
     MessagesPage {

@@ -93,9 +93,19 @@ def battery(root: Path) -> dict | None:
 PROFILE_HEADER = re.compile(r"^[* ] [a-z][a-z-]{0,31}:\s*$")
 
 
+_DAEMON_DOWN: list[bool] = []
+
+
 def profiles_daemon_down() -> bool:
     """True when systemd says power-profiles-daemon is not running: asking it
-    anyway would make D-Bus try to start it and stall the call for seconds."""
+    anyway would make D-Bus try to start it and stall the call for seconds.
+    Checked once per run, so a hung systemctl cannot eat the packet deadline twice."""
+    if not _DAEMON_DOWN:
+        _DAEMON_DOWN.append(_daemon_down())
+    return _DAEMON_DOWN[0]
+
+
+def _daemon_down() -> bool:
     exe = which("systemctl")
     if not exe:
         return False

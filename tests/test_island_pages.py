@@ -130,3 +130,11 @@ def test_opening_a_promoted_page_does_not_reorder_chips():
     home = js(f"P.chips({json.dumps(avail)}, {live}, 'home')")["chips"]
     day = js(f"P.chips({json.dumps(avail)}, {live}, 'dayflow')")["chips"]
     assert home == day == ["home", "agents", "system", "messages", "dayflow", "more"]
+
+
+def test_named_summon_resolves_against_what_exists_now():
+    # IslandWindow.summon uses Pages.reachable: unknown and unavailable names open Home.
+    assert js("P.reachable('bogus', {})") == "home"
+    assert js("P.reachable('music', {music: false})") == "home"
+    assert js("P.reachable('music', {music: true})") == "music"
+    assert js("P.reachable('settings', {})") == "settings"

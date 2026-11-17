@@ -35,24 +35,31 @@ Item {
   readonly property color ink: Commons.Color.popups.text
 
   opacity: btn.look.opacity
-  scale: btn.look.scale
-  Behavior on scale { NumberAnimation { duration: Commons.Style.duration(70) } }
 
-  Rectangle {
-    id: plate
-    anchors.fill: parent
-    radius: btn.radius
-    color: btn.look.fill === "pressed" ? Qt.alpha(btn.ink, 0.18)
-         : (btn.look.fill === "selected" ? Commons.Color.menu.selectedBackground
-         : (btn.look.fill === "hover" ? Qt.alpha(btn.ink, 0.10) : "transparent"))
-    border.width: btn.outlined ? Commons.Style.normalBorderWidth : 0
-    border.color: btn.selected ? btn.selectedBorder
-                : (btn.look.fill === "hover" || btn.look.fill === "pressed" ? Qt.alpha(btn.ink, 0.55) : btn.idleBorder)
-  }
-
+  // Only the visuals scale on press; the root and the MouseArea keep their
+  // size, so a small pointer move while pressed never leaves the target.
   Item {
-    id: body
+    id: visual
     anchors.fill: parent
+    scale: btn.look.scale
+    Behavior on scale { NumberAnimation { duration: Commons.Style.duration(70) } }
+
+    Rectangle {
+      id: plate
+      anchors.fill: parent
+      radius: btn.radius
+      color: btn.look.fill === "pressed" ? Qt.alpha(btn.ink, 0.18)
+           : (btn.look.fill === "selected" ? Commons.Color.menu.selectedBackground
+           : (btn.look.fill === "hover" ? Qt.alpha(btn.ink, 0.10) : "transparent"))
+      border.width: btn.outlined ? Commons.Style.normalBorderWidth : 0
+      border.color: btn.selected ? btn.selectedBorder
+                  : (btn.look.fill === "hover" || btn.look.fill === "pressed" ? Qt.alpha(btn.ink, 0.55) : btn.idleBorder)
+    }
+
+    Item {
+      id: body
+      anchors.fill: parent
+    }
   }
 
   MouseArea {
