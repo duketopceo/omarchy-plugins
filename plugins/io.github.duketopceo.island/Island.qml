@@ -333,7 +333,6 @@ Item {
     Quickshell.execDetached(argv)
     reread.restart()
   }
-  function openDayflowPanel() { Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.duketopceo.dayflow"]) }
   readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
   readonly property var shotRows: More.shotsRows(root.shots)
   property var shotsModel: More.shotsInitial()

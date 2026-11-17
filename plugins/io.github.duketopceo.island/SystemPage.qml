@@ -28,8 +28,11 @@ Item {
   function count() { return page.rings.length > 0 ? 1 : 0 }
   function heightFor(n) {
     if (n <= 0) return page.rowH
-    return page.ringTileH + page.gap + page.rowH + page.gap + page.rowH
+    return page.ringTileH + page.gap + page.rowH + (page.profilesOn ? page.gap + page.rowH : 0)
   }
+  // The profile control exists only while power-profiles-daemon answers:
+  // a dead control would be a fake button.
+  readonly property bool profilesOn: page.profiles !== null && page.profiles.available
 
   // ---- one ring tile ----
   component RingTile: Item {
@@ -91,12 +94,17 @@ Item {
       anchors.fill: parent
       radius: height / 2
     }
+    // Only the fan chip is a button; the others are display-only.
     HoverButton {
       anchors.fill: parent
+      z: 1
       radius: height / 2
-      passive: !chip.clickable
-      hint: chip.clickable ? "Open the fan panel" : ""
-      onClicked: if (chip.clickable) page.island.openFanPanel()
+      visible: chip.clickable
+      hint: "Open the fan panel"
+      onClicked: page.island.openFanPanel()
+    }
+    Item {
+      anchors.fill: parent
 
       Row {
         id: chipRow
@@ -159,12 +167,13 @@ Item {
       }
     }
 
-    // The power profile: a segmented control. Dimmed when the daemon is not
+    // The power profile: a segmented control. Hidden when the daemon is not
     // running (nothing to set); the active profile is the filled segment.
     Item {
       id: seg
       width: parent.width
       height: page.rowH
+      visible: page.profilesOn
       readonly property var names: page.profiles ? page.profiles.names : []
       readonly property bool available: page.profiles !== null && page.profiles.available
       readonly property string active: page.profiles ? page.profiles.active : ""

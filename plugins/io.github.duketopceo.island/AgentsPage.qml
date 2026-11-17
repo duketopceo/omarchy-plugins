@@ -174,15 +174,20 @@ Item {
             opacity: cell.isMore ? 0.5 : (cell.status === "idle" ? 0.7 : 1)
           }
 
+          // Only a tile with a window or terminal to focus is a button; the
+          // others are display-only and have no hover, cursor or hint.
           HoverButton {
-            id: item
             anchors.fill: parent
-            passive: cell.isMore || !(cell.row !== null && cell.row.focusable)
-            hint: cell.row && cell.row.focusable
-                  ? (cell.row.status === "needs" ? "Needs you. Focus this session" : "Focus this session's terminal")
-                  : ""
+            z: 1
+            visible: cell.row !== null && cell.row.focusable
+            hint: cell.row && cell.row.status === "needs" ? "Needs you. Focus this session" : "Focus this session's terminal"
             radius: Commons.Style.cornerRadius + Commons.Style.spacing.xxl
             onClicked: if (page.island && cell.row) page.island.focusAgent(cell.row)
+          }
+
+          Item {
+            id: item
+            anchors.fill: parent
 
             // ---- an agent ----
             AgentIcon {

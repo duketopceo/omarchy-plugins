@@ -173,13 +173,6 @@ Item {
         spacing: Commons.Style.spacing.lg
 
         Action {
-          visible: page.view !== null && page.view.panel
-          glyph: Glyphs.GLYPHS.open
-          label: "Open Dayflow"
-          hint: "Open the Dayflow panel"
-          onClicked: if (page.island) page.island.openDayflowPanel()
-        }
-        Action {
           visible: page.view !== null && page.view.action !== ""
           glyph: page.view && page.view.action === "resume" ? Glyphs.GLYPHS.play : Glyphs.GLYPHS.pause
           label: page.view && page.view.action === "resume" ? "Resume" : "Pause"
