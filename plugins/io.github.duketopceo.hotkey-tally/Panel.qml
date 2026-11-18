@@ -72,6 +72,8 @@ Panel {
   }
 
   onOpenedChanged: if (opened) root.refresh()
+  Component.onCompleted: root.refresh()
+  Timer { interval: 60000; running: true; repeat: true; onTriggered: root.refresh() }
 
   Process {
     id: listProc
@@ -104,29 +106,33 @@ Panel {
     onExited: root.refresh()
   }
 
+  implicitWidth: barFace.implicitWidth
+  implicitHeight: barFace.implicitHeight
+
   // Bar face
   Item {
-    implicitWidth: barRow.implicitWidth + Style.margin(1.4)
-    implicitHeight: bar ? bar.barHeight : 26
+    id: barFace
+    implicitWidth: barRow.implicitWidth + Style.space(11)
+    implicitHeight: Math.max(barRow.implicitHeight, Style.space(22))
 
     RowLayout {
       id: barRow
       anchors.centerIn: parent
-      spacing: Style.margin(0.6)
+      spacing: Style.space(5)
 
       Text {
         textFormat: Text.PlainText
         text: "\u2328"
         color: root.opened ? root.accent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.fontSize
+        font.pixelSize: Style.font.body
       }
       Text {
         textFormat: Text.PlainText
         text: root.loaded ? String(root.total) : "\u2026"
         color: root.opened ? root.accent : root.foreground
         font.family: root.fontFamily
-        font.pixelSize: Style.fontSize
+        font.pixelSize: Style.font.body
       }
     }
 
@@ -139,9 +145,9 @@ Panel {
 
   // Popup
   PopupWindow {
-    anchor.window: root.bar ? root.bar : null
-    anchor.rect.x: root.bar ? root.bar.width - 460 : 0
-    anchor.rect.y: root.bar ? root.bar.height : 0
+    anchor.item: barFace
+    anchor.rect.x: barFace.width - 440
+    anchor.rect.y: barFace.height
     visible: root.opened
     implicitWidth: 440
     implicitHeight: Math.min(520, 120 + root.filtered.length * 30)
@@ -152,23 +158,23 @@ Panel {
       color: Commons.Color.background
       border.color: Commons.Color.menu.border
       border.width: 1
-      radius: Style.radius
+      radius: Style.cornerRadius
 
       ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Style.margin(1.2)
-        spacing: Style.margin(0.8)
+        anchors.margins: Style.space(10)
+        spacing: Style.space(6)
 
         RowLayout {
           Layout.fillWidth: true
-          spacing: Style.margin(0.8)
+          spacing: Style.space(6)
 
           TextInput {
             id: search
             Layout.fillWidth: true
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.fontSize
+            font.pixelSize: Style.font.body
             selectionColor: root.accent
             selectedTextColor: Commons.Color.background
             onTextChanged: root.query = text
@@ -187,7 +193,7 @@ Panel {
             text: "clear"
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.fontSize - 1
+            font.pixelSize: Style.font.bodySmall
             MouseArea {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
@@ -207,19 +213,19 @@ Panel {
           Layout.fillHeight: true
           model: root.filtered
           clip: true
-          spacing: Style.margin(0.3)
+          spacing: Style.space(2)
 
           delegate: RowLayout {
             required property var modelData
             width: ListView.view.width
-            spacing: Style.margin(0.8)
+            spacing: Style.space(6)
 
             Text {
               textFormat: Text.PlainText
               text: modelData.key || modelData.id
               color: root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
               Layout.preferredWidth: 150
             }
@@ -228,7 +234,7 @@ Panel {
               text: modelData.label || ""
               color: root.dim
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
               elide: Text.ElideRight
               Layout.fillWidth: true
             }
@@ -237,14 +243,14 @@ Panel {
               text: String(modelData.count)
               color: root.accent
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 1
+              font.pixelSize: Style.font.bodySmall
             }
             Text {
               textFormat: Text.PlainText
               text: root.fmtAge(modelData.last)
               color: root.dim
               font.family: root.fontFamily
-              font.pixelSize: Style.fontSize - 2
+              font.pixelSize: Style.font.caption
               Layout.preferredWidth: 52
               horizontalAlignment: Text.AlignRight
             }
@@ -259,7 +265,7 @@ Panel {
                           : "no bindings are wrapped yet — see the README"
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.fontSize - 1
+          font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
         }
 
@@ -270,7 +276,7 @@ Panel {
           text: root.lastError
           color: Commons.Color.urgent
           font.family: root.fontFamily
-          font.pixelSize: Style.fontSize - 1
+          font.pixelSize: Style.font.bodySmall
         }
       }
     }
