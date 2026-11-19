@@ -2,17 +2,39 @@
 // Snapdex screenshots. ES5, no Qt types; node tests load it with require().
 //
 // Blip state (~/.local/state/blip/state.json, written by Blip): only
-// unreadCounts, groups[chat].name and mutedChats are read. Message text is
-// never read; a chat without a group name shows as its handle's last four
-// characters, so phone numbers are not drawn whole.
+// unreadCounts, groups[chat].name, groups[*].participantNames and mutedChats
+// are read. Message text is never read. A one-on-one chat takes its name from
+// the participantNames of any group that person is in (Blip stores no other
+// names); with none it shows as its handle's last four characters, so phone
+// numbers are not drawn whole.
 
 var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 function _obj(v) { return v !== null && typeof v === "object" && !Array.isArray(v) }
 
+// A person's stored name from the groups they share with the owner; "" when
+// none is a real name (Blip stores the raw handle for unknown numbers).
+function _personName(chat, groups) {
+  var keys = [String(chat), "+" + String(chat).replace(/^\+/, "")]
+  for (var id in groups) {
+    var g = groups[id]
+    var names = _obj(g) && _obj(g.participantNames) ? g.participantNames : null
+    if (!names) continue
+    for (var i = 0; i < keys.length; i++) {
+      var n = names[keys[i]]
+      if (typeof n !== "string") continue
+      n = n.trim()
+      if (n !== "" && n !== keys[i] && !/^[+\d\s().-]+$/.test(n) && n.indexOf("@") < 0) return n
+    }
+  }
+  return ""
+}
+
 function _label(chat, groups) {
   var g = groups[chat]
   if (_obj(g) && typeof g.name === "string" && g.name) return g.name
+  var who = _personName(chat, groups)
+  if (who !== "") return who
   return "Chat ending " + String(chat).slice(-4)
 }
 
@@ -159,7 +181,19 @@ function shotsStep(model, shots) {
 
 function shotsLive(model) { return !!model && model.seen !== null && model.newest !== "" && model.newest > model.seen }
 
-function shotsSeen(model) { return { seen: model ? model.newest : "", newest: model ? model.newest : "" } }
+// Acknowledging with no inventory (a frozen Shots entry opened while Snapdex
+// is unreadable) keeps the model as it is: it must not clear the watermark.
+function shotsSeen(model) {
+  if (!model || model.newest === "") return model || shotsInitial()
+  return { seen: model.newest, newest: model.newest }
+}
+
+// A screenshot file name Snapdex's index gave, or "" when it is not a plain
+// file name (no path, no leading dot): the only form opened or loaded.
+function shotFile(name) {
+  var n = String(name === null || name === undefined ? "" : name)
+  return /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,200}$/.test(n) && n.indexOf("..") < 0 ? n : ""
+}
 
 function _when(name) {
   var m = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/.exec(String(name || ""))
@@ -181,5 +215,5 @@ function shotsRows(shots) {
 if (typeof module !== "undefined") module.exports = {
   messages: messages, blipChatArgv: blipChatArgv, unreadText: unreadText, badgeText: badgeText, initials: initials, relTime: relTime,
   dayflowView: dayflowView, dayflowArgv: dayflowArgv, dayflowState: dayflowState, dayflowLive: dayflowLive, dayflowRows: dayflowRows,
-  shotsInitial: shotsInitial, shotsStep: shotsStep, shotsLive: shotsLive, shotsSeen: shotsSeen, shotsRows: shotsRows
+  shotsInitial: shotsInitial, shotsStep: shotsStep, shotsLive: shotsLive, shotsSeen: shotsSeen, shotsRows: shotsRows, shotFile: shotFile
 }

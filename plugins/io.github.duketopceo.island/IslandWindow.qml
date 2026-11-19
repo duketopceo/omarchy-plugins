@@ -226,8 +226,10 @@ PanelWindow {
 
   // IPC entry points (the root picks the window).
   function summon(pageId) {
-    var p = Pages.normalize(pageId)
-    if (p !== "") win.page = p
+    // A named page resolves against what exists now (unknown or unavailable
+    // names open Home); no name keeps the page the card was on.
+    if (String(pageId === null || pageId === undefined ? "" : pageId) !== "")
+      win.page = Pages.reachable(pageId, win.island ? win.island.pageAvail : ({}))
     win.send("summon")
     // A refused summon (fullscreen) must not leave the next open on that page.
     if (!win.cardShown) win.page = "home"
@@ -390,6 +392,7 @@ PanelWindow {
           topActivity: win.layout.top
           dnd: win.island ? win.island.dndOn : false
           unread: win.island ? win.island.messages.live === true : false
+          weather: win.island ? win.island.pillWeather : ""
           micInUse: win.island ? win.island.micInUse : false
           cameraInUse: win.island ? win.island.cameraInUse : false
           Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(120) } }

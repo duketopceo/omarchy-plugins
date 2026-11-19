@@ -32,13 +32,38 @@ function appKey(app) {
 }
 
 // Icon-theme names to try for an app, in order. Claude and Antigravity ship no
-// theme icon on this machine, so the tile falls back to a lettered circle.
+// theme icon on this machine; they use Omarchy's agent marks (below), and the
+// tile falls back to a lettered circle when neither resolves.
 var ICONS = {
   claude: ["claude-code", "claude", "anthropic-claude"], codex: ["codex-desktop", "codex", "openai-codex"],
   opencode: ["ai.opencode", "opencode", "opencode-desktop"], antigravity: ["antigravity", "google-antigravity"],
   gemini: ["gemini"], cursor: ["cursor"], grok: ["grok"], devin: ["devin"]
 }
 function iconNames(app) { return ICONS[appKey(app)] || [] }
+
+// Omarchy's own agent marks, looked up at run time (nothing is copied into this
+// plugin): /usr/share/omarchy/shell/plugins/agents/assets/<id>.svg, plus a
+// "-light" twin for light surfaces. An id that has no file simply fails to load
+// and the tile keeps its lettered circle.
+var ASSET_DIR = "/usr/share/omarchy/shell/plugins/agents/assets/"
+var ASSET_ID = { antigravity: "agy" }
+
+// -> file URLs to try in order, for a dark or a light card surface.
+function assetCandidates(app, lightSurface) {
+  var k = appKey(app)
+  if (k === "") return []
+  var id = ASSET_ID[k] || k
+  var out = []
+  if (lightSurface === true) out.push("file://" + ASSET_DIR + id + "-light.svg")
+  out.push("file://" + ASSET_DIR + id + ".svg")
+  return out
+}
+
+// WCAG relative luminance of a colour (r, g, b in 0..1) >= 0.5: a light surface.
+function isLight(r, g, b) {
+  function ch(v) { v = Number(v); if (!isFinite(v)) return 0; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b) >= 0.5
+}
 
 // The small muted line of a tile: the machine of "Space @ machine", else the
 // space or folder name.
@@ -136,6 +161,6 @@ function focusCommands(row) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  normStatus: normStatus, appName: appName, appKey: appKey, iconNames: iconNames, hostOf: hostOf, rows: rows,
+  normStatus: normStatus, appName: appName, appKey: appKey, iconNames: iconNames, assetCandidates: assetCandidates, isLight: isLight, hostOf: hostOf, rows: rows,
   countsText: countsText, tiles: tiles, pills: pills, initial: initial, focusCommands: focusCommands
 }

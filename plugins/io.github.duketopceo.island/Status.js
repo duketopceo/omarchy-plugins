@@ -37,6 +37,14 @@ function weatherInBar(shellJson) {
   return false
 }
 
+// The pill's short temperature from weather(): "12°C" -> "12°", "-3°F" -> "-3°";
+// "" when there is no reading.
+function pillTemp(w) {
+  if (!w || typeof w.temp !== "string") return ""
+  var m = /^(-?\d+)(?:\.\d+)?°[CF]$/.exec(w.temp)
+  return m ? m[1] + "°" : ""
+}
+
 function _tailscaleUp(t) { return !!t && t.state === "Running" && t.online === true }
 
 // -> [{ id, text, on }]: battery, Tailscale, and VPN only while one is up.
@@ -182,6 +190,6 @@ function system(s) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  weather: weather, weatherInBar: weatherInBar, homeDots: homeDots, glance: glance, systemRows: systemRows,
+  weather: weather, weatherInBar: weatherInBar, pillTemp: pillTemp, homeDots: homeDots, glance: glance, systemRows: systemRows,
   parseProfiles: parseProfiles, profileArgv: profileArgv, ringTone: ringTone, system: system
 }

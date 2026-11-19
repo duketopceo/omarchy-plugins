@@ -56,6 +56,7 @@ Scope {
     }
     onExited: {
       stall.stop()
+      kill.stop()
       if (src.pending) { src.pending = false; proc.running = true; stall.restart(); return }
       if (src.active && src.interval > 0) again.restart()
     }
@@ -64,7 +65,14 @@ Scope {
   Timer {
     id: stall
     interval: Math.max(1000, src.deadline)
-    onTriggered: if (proc.running) proc.running = false
+    onTriggered: if (proc.running) { proc.running = false; kill.restart() }
+  }
+
+  // SIGTERM can be ignored; a run still alive shortly after it is killed.
+  Timer {
+    id: kill
+    interval: 2000
+    onTriggered: if (proc.running) proc.signal(9)
   }
 
   Timer {

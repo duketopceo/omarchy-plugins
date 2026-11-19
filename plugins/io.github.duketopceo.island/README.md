@@ -8,7 +8,7 @@ cutout; on other screens it is a virtual pill of the same shape.
 P1 is the shell (pill, hover open and close, fixed-size card, fullscreen
 step-aside, settings). P2 adds the live activities below. 0.3.0 brings it
 close to Apple's Dynamic Island (see Presentation). 0.4.0 splits the card into
-pages (see Pages). 0.4.1 polishes every surface (see Controls) and puts Blip in the Island. 0.4.2 redraws Agents,
+pages (see Pages). 0.4.1 polishes every surface (see Controls) and puts Blip in the Island. 0.4.3 adds Omarchy's agent marks (looked up at run time) for Claude and Antigravity, a thumbnail grid for Shots, and contact names for one-on-one chats from Blip's stored group names. 0.4.2 redraws Agents,
 System, Dayflow, More and Messages as tiles, rings and badges in a proportional sans face
 (`sansFont`).
 
@@ -29,7 +29,7 @@ are fixed when the card opens or the page changes, never while it is open.
 | Music | the Now Playing view (art, scrubber, controls) | MPRIS | a player has a track |
 | Agents | a grid of tiles (three columns, six at most): app icon or lettered circle, session name, host and one status mark (urgent dot needs you, pulsing accent dot working, check done, dim dot idle); needs-you, working, done first; the rest fold into a "+N idle" tile; click focuses the terminal window | `bin/island-agents` (`herdr-app ls`, `~/.claude/sessions`, `hyprctl clients`) | `herdr-app` exists or `~/.claude/sessions` exists |
 | System | three rings (battery with a bolt while charging, CPU, memory), chips for network, Tailscale and fan mode (the fan chip opens the Resource & Fan panel), and a power-profile segmented control (`powerprofilesctl set`, only names `powerprofilesctl list` printed; hidden while power-profiles-daemon is not running) | `bin/island-status system` | always |
-| Shots | the newest Snapdex screenshots and captions; click opens one | `~/Pictures/Screenshots/index.md` | `snapdex-ctl` exists |
+| Shots | a grid of the newest Snapdex screenshot thumbnails (two rows of four, rounded, decoded small); the caption is the hover hint; click opens one | `~/Pictures/Screenshots/index.md` | `snapdex-ctl` exists |
 | Messages | unread chats as tiles: avatar (initials, or a person glyph for an unnamed chat), name, unread badge; Open Blip. Never message text | Blip's `~/.local/state/blip/state.json` | that file exists |
 | Dayflow | a recording indicator (pulsing dot, or a pause glyph), Pause or Resume (`dayflow pause`, `dayflow resume`) and tiles for frames today, last frame ("2 min ago") and storage; blocks pending only when above zero | `dayflow status --json` | `dayflow` exists |
 
@@ -261,6 +261,25 @@ The Island never runs it and never edits the bar layout.
 exist, including Omarchy's own commands in `/usr/share/omarchy/bin`, display
 cutouts, device model, battery and backlight names). It checks existence only
 and makes no network calls.
+
+## Omacontrol shortcuts
+
+The Island can open Omacontrol
+(`io.github.twiking.omacontrol`), the third-party settings window, on one page.
+The controls show only while its manifest is in `~/.config/omarchy/plugins/`
+and `shell.json` does not list it in `disabledPlugins`; otherwise nothing
+omacontrol-related is drawn. No Omacontrol code is copied here.
+
+- Settings page: a row of shortcuts under the toggles (Network, Bluetooth,
+  Sound, Displays, Power, Keyboard, Appearance, All settings), each with a hint.
+- More page: an "Omacontrol" tile that opens the window on its last page.
+- Each click runs `qs -p /usr/share/omarchy/shell ipc call omacontrol showPage <page>`
+  (or `open`) as an argv list, with the page id taken from the fixed list in
+  `Omacontrol.js`, then closes the card so the window is not covered.
+- IPC: `act omacontrol <page>` does the same and returns `unknown` for an id
+  outside the list or when Omacontrol is unavailable. The tile uses `open`,
+  not `show`: the `qs` client reads a bare `show` itself and never reaches
+  Omacontrol's `show()`.
 
 ## IPC
 
