@@ -262,10 +262,21 @@ Item {
     deadline: 8000
   }
   readonly property var weather: root.weatherOn ? Status.weather(weatherSrc.text) : null
+  // The idle pill's right ear shows the temperature beside the date ("41°").
+  readonly property string pillWeather: Status.pillTemp(root.weather)
   function refreshWeather() {
     if (!root.weatherOn || Date.now() - root.weatherAt < 1800000) return
     root.weatherAt = Date.now()
     weatherSrc.refresh()
+  }
+  // The pill shows the temperature all the time, so poll on the same 30-minute
+  // budget even when Home is never opened (refreshWeather() keeps the limit).
+  Timer {
+    interval: 1800000
+    running: root.weatherOn
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshWeather()
   }
 
   // System: once at load (so the page sizes from real rows), then every 2 s
