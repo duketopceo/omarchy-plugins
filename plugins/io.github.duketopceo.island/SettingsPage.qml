@@ -1,6 +1,8 @@
 import QtQuick 6.11
 import qs.Commons as Commons
 import qs.Ui
+import "Omacontrol.js" as Omacontrol
+import "Glyphs.js" as Glyphs
 
 // Settings: both hover delays and one toggle per live-activity integration
 // (KTD12). Edits save once per commit (one spin step, one finished text entry
@@ -19,6 +21,7 @@ Item {
 
   readonly property int openDelay: island && island.settings ? island.settings.openDelay : 140
   readonly property int closeDelay: island && island.settings ? island.settings.closeDelay : 450
+  readonly property bool omacontrol: !!island && island.omacontrolAvailable === true
   readonly property bool needsEntry: (island && !island.entryExists) || page.lastResult === "noentry"
   readonly property var toggles: [
     { key: "dictation", label: "Dictation" },
@@ -118,9 +121,9 @@ Item {
         Toggle {
           required property var modelData
           width: (page.width - Commons.Style.spacing.huge * 6) / 4
-          // Fifteen toggles in four columns: shorter than the Ui default so
-          // the page fits the card without scrolling.
-          height: Commons.Style.spacing.controlHeight + Commons.Style.spacing.huge
+          // Sixteen toggles in four columns: shorter than the Ui default so
+          // the page and the Omacontrol row fit the card without scrolling.
+          height: Commons.Style.spacing.controlHeight + Commons.Style.spacing.lg
           label: modelData.label
           titleSize: Commons.Style.font.bodySmall
           checked: page.island && page.island.settings ? page.island.settings[modelData.key] === true : true
@@ -129,6 +132,56 @@ Item {
             var edit = {}
             edit[modelData.key] = !checked
             page.commit(edit)
+          }
+        }
+      }
+    }
+
+    // System settings: shortcuts into Omacontrol, drawn only while it is
+    // available. Each opens its window on one page and closes the card.
+    Row {
+      id: shortcuts
+      visible: page.omacontrol
+      spacing: Commons.Style.spacing.sm
+      readonly property real cellW: (page.width - Commons.Style.spacing.sm * (Omacontrol.SHORTCUTS.length - 1)) / Omacontrol.SHORTCUTS.length
+
+      Repeater {
+        model: Omacontrol.SHORTCUTS
+
+        Item {
+          id: shortcut
+          required property var modelData
+          width: shortcuts.cellW
+          height: Commons.Style.space(48)
+
+          Plate {
+            anchors.fill: parent
+          }
+
+          HoverButton {
+            anchors.fill: parent
+            hint: Omacontrol.hint(shortcut.modelData.id)
+            onClicked: page.island.openOmacontrol(shortcut.modelData.id)
+
+            Txt {
+              icon: true
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.top: parent.top
+              anchors.topMargin: Commons.Style.spacing.md
+              width: implicitWidth
+              font.pixelSize: Commons.Style.font.heading
+              text: Glyphs.glyph(shortcut.modelData.glyph)
+            }
+
+            Txt {
+              kind: "caption"
+              anchors.horizontalCenter: parent.horizontalCenter
+              anchors.bottom: parent.bottom
+              anchors.bottomMargin: Commons.Style.spacing.sm
+              width: Math.min(implicitWidth, parent.width - Commons.Style.spacing.md * 2)
+              horizontalAlignment: Text.AlignHCenter
+              text: shortcut.modelData.label
+            }
           }
         }
       }

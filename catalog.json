@@ -124,7 +124,7 @@
     {
       "id": "io.github.duketopceo.island",
       "path": "plugins/io.github.duketopceo.island",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "kinds": [
         "panel"
       ],

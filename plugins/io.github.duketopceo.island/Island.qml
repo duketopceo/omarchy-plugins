@@ -12,6 +12,7 @@ import "Alert.js" as Alert
 import "Dnd.js" as Dnd
 import "Pages.js" as Pages
 import "More.js" as More
+import "Omacontrol.js" as Omacontrol
 import "Agents.js" as Agents
 import "Status.js" as Status
 import "Calendar.js" as Calendar
@@ -355,6 +356,28 @@ Item {
     return n === "" ? "" : "file://" + Quickshell.env("HOME") + "/Pictures/Screenshots/" + n
   }
 
+  // Omacontrol shortcuts (Omacontrol.js): shown only while its manifest exists
+  // and shell.json does not disable it. The window opens through its own IPC
+  // target, as an argv list from a fixed page list, and the card closes so
+  // the window is not covered.
+  property bool omacontrolManifest: false
+  FileView {
+    id: omacontrolFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + Omacontrol.PLUGIN_ID + "/manifest.json"
+    printErrors: false
+    onLoaded: root.omacontrolManifest = true
+    onLoadFailed: root.omacontrolManifest = false
+  }
+  readonly property bool omacontrolAvailable: Omacontrol.available(root.shellText, root.omacontrolManifest)
+  // "ok" or "unknown" (an id outside the list, or Omacontrol not available).
+  function openOmacontrol(page) {
+    var argv = root.omacontrolAvailable ? Omacontrol.command(page) : null
+    if (!argv) return "unknown"
+    Quickshell.execDetached(argv)
+    root.close()
+    return "ok"
+  }
+
   // Messages: Blip's own state file, counts only (More.js).
   property string blipText: ""
   FileView {
@@ -445,6 +468,7 @@ Item {
       if (action === "cancel") { root.timerUpdate(IslandTimer.cancel(root.timerModel)); return "ok" }
     }
     if (id === "calendar" && action === "join") { calendar.join(); return "ok" }
+    if (id === "omacontrol") return root.openOmacontrol(action)
     return "unknown"
   }
 

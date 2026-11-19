@@ -262,6 +262,25 @@ exist, including Omarchy's own commands in `/usr/share/omarchy/bin`, display
 cutouts, device model, battery and backlight names). It checks existence only
 and makes no network calls.
 
+## Omacontrol shortcuts
+
+The Island can open Omacontrol
+(`io.github.twiking.omacontrol`), the third-party settings window, on one page.
+The controls show only while its manifest is in `~/.config/omarchy/plugins/`
+and `shell.json` does not list it in `disabledPlugins`; otherwise nothing
+omacontrol-related is drawn. No Omacontrol code is copied here.
+
+- Settings page: a row of shortcuts under the toggles (Network, Bluetooth,
+  Sound, Displays, Power, Keyboard, Appearance, All settings), each with a hint.
+- More page: an "Omacontrol" tile that opens the window on its last page.
+- Each click runs `qs -p /usr/share/omarchy/shell ipc call omacontrol showPage <page>`
+  (or `open`) as an argv list, with the page id taken from the fixed list in
+  `Omacontrol.js`, then closes the card so the window is not covered.
+- IPC: `act omacontrol <page>` does the same and returns `unknown` for an id
+  outside the list or when Omacontrol is unavailable. The tile uses `open`,
+  not `show`: the `qs` client reads a bare `show` itself and never reaches
+  Omacontrol's `show()`.
+
 ## IPC
 
 One target, `island`. Calls act on the screen under the pointer (read once

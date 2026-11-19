@@ -228,3 +228,21 @@ Not verified live:
 | Bluetooth activity and alert | Dropped by the owner for now ("no bluetooth as of now"); only `preview bluetooth` has run |
 | Odyssey ultrawide on DP-3 | Not run: the multi-display run used the work dock (Dell on HDMI-A-1, Samsung LS27A800U 4K on DP-3). Waits for the home dock |
 | WordInk pill alongside the Island | WordInk's own bottom pill (layer `hex-hud`, 304x80) had stopped drawing after several dock and undock cycles while WordInk kept running; a `wordink.service` restart brought it back (seen in a test dictation stopped with `--print`). The Island does not touch WordInk settings. Lasting fix belongs in WordInk's HUD (recreate the surface when its output goes away) |
+
+## Omacontrol shortcuts (0.4.4)
+
+Run 2026-11-19 on omarchy-max (eDP-1, HDMI-A-1 and DP-3 live; the card opened on HDMI-A-1, origin x 2316, window 744x392). Island dir copied live with `rsync` (not `install.sh --copy`, so the live netline and hotkey-tally fixes stay), shell restarted, live manifest 0.4.4. IPC `open settings|more|state|close` plus `grim` only, saved to `~/Inbox/claude/island-omacontrol/`; no pointer moved, no input injected, `bin/island-hover-check` not run.
+
+| Control | Argv | How verified |
+|---|---|---|
+| Settings row: Network, Bluetooth, Sound, Displays, Power, Keyboard, Appearance, All settings | `qs -p /usr/share/omarchy/shell ipc call omacontrol showPage <network\|bluetooth\|audio\|displays\|power\|keyboard\|theme\|overview>` | `island act omacontrol <page>` (same allowlist and code path as the click) returned `ok`, an `omacontrol` layer appeared in `hyprctl -j layers`, the Island card was closed, then `omacontrol hide` |
+| More tile "Omacontrol" | `... ipc call omacontrol open` | argv run by hand: layer appeared, `hide` removed it; tile drawn in `more.png`. The click itself was not made |
+| Unknown id (`x;reboot`) | none | `act omacontrol 'x;reboot'` returned `unknown`; node tests refuse 9 bad ids |
+
+Findings:
+- `qs ipc call omacontrol show` does not open the window: the `qs` client reads a bare `show` itself and prints the target listing. The More tile uses `open`, which works.
+- KTD2: with the row added the Settings page overflowed the 380 px card and clipped it. The sixteen toggles now use `controlHeight + lg` instead of `controlHeight + huge`; row, labels and all toggles fit (`settings.png`).
+- With Omacontrol unavailable (manifest missing or in `disabledPlugins`) the row and tile are not drawn; `Omacontrol.available()` is node-tested, the live "missing" state was not exercised.
+- The first shell restart after the layout changed logged `Binding loop detected for property "height"` on `Pill` (IslandWindow.qml:381). Pill geometry was not touched by this change; not investigated.
+
+Not verified live: a real pointer click on a shortcut or the tile (clicks avoided by rule), the unavailable state, light theme.
