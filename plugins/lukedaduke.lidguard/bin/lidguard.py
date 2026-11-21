@@ -10,6 +10,13 @@ Verbs:
     status              report current state
     arm <seconds|inf>   arm (or re-arm) the inhibitor
     disarm              release it now
+    hold <seconds|inf>  internal: the process that owns the inhibitor
+
+AC behaviour: if armed while on AC power, the hold ends as soon as AC has
+been offline for 2 consecutive ticks (so a bagged laptop cannot stay awake
+and hot). If armed while already on battery (a deliberate choice) the hold
+ends only on time or disarm. With no readable Mains supply (desktop, test
+rigs) AC is treated as unknown and never disarms.
 
 Output: exactly one JSON object on stdout. Exit 0 on success, 2 on
 bad arguments, 1 on control failure.
@@ -26,9 +33,65 @@ UNIT = "lidguard.service"
 SYSTEMD_RUN = "/usr/bin/systemd-run"
 SYSTEMCTL = "/usr/bin/systemctl"
 SYSTEMD_INHIBIT = "/usr/bin/systemd-inhibit"
-SLEEP = "/usr/bin/sleep"
 
 MAX_SECONDS = 7 * 24 * 3600
+TICK_DEFAULT = 5.0
+OFFLINE_TICKS = 2
+PS_DIR_ENV = "LIDGUARD_POWER_SUPPLY_DIR"
+
+
+def ac_online():
+    """True/False for Mains supply state, None if no Mains supply readable."""
+    base = os.environ.get(PS_DIR_ENV) or "/sys/class/power_supply"
+    seen = None
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return None
+    for name in names:
+        d = os.path.join(base, name)
+        try:
+            if open(os.path.join(d, "type")).read().strip() != "Mains":
+                continue
+            val = open(os.path.join(d, "online")).read().strip()
+        except OSError:
+            continue
+        if val == "1":
+            return True
+        if val == "0":
+            seen = False
+    return seen
+
+
+def _tick() -> float:
+    try:
+        return max(0.001, float(os.environ.get("LIDGUARD_TICK", TICK_DEFAULT)))
+    except ValueError:
+        return TICK_DEFAULT
+
+
+def hold(seconds) -> int:
+    """Block until time is up, or AC drops (only if AC was online at start)."""
+    if seconds == "inf":
+        deadline = None
+    else:
+        try:
+            deadline = time.monotonic() + float(seconds)
+        except (TypeError, ValueError):
+            return 2
+    watch_ac = ac_online() is True
+    tick = _tick()
+    offline = 0
+    while deadline is None or time.monotonic() < deadline:
+        step = tick if deadline is None else min(tick, max(0.0, deadline - time.monotonic()))
+        time.sleep(step)
+        if watch_ac:
+            offline = offline + 1 if ac_online() is False else 0
+            if offline >= OFFLINE_TICKS:
+                sys.stderr.write("lidguard: disarmed: AC unplugged\n")
+                sys.stderr.flush()
+                return 0
+    return 0
 
 
 def _home() -> str:
@@ -144,7 +207,8 @@ def arm(seconds) -> dict:
         "--unit=lidguard",
         SYSTEMD_INHIBIT, "--what=handle-lid-switch",
         "--who=lidguard", "--why=lid-close stay-awake",
-        SLEEP, dur,
+        sys.executable if os.path.isabs(sys.executable) else "/usr/bin/python3",
+        os.path.abspath(__file__), "hold", dur,
     ])
     if proc.returncode != 0:
         return {"ok": False, "error": (proc.stderr or proc.stdout).strip()[:300]}
@@ -176,6 +240,8 @@ def main() -> int:
         out = arm(argv[1])
         _emit(out)
         return 0 if out.get("ok") else 1
+    if verb == "hold" and len(argv) == 2:
+        return hold("inf" if argv[1] in ("inf", "infinity") else argv[1])
     if verb == "disarm":
         out = disarm()
         _emit(out)
