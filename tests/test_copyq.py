@@ -207,6 +207,10 @@ def test_list_preview_truncation(list_mod) -> None:
     assert len(preview) == 161
 
 
+def test_list_preview_trims_and_collapses_whitespace(list_mod) -> None:
+    assert list_mod._preview("\n   Apps  Xcode\t\nCloud  ") == "Apps Xcode Cloud"
+
+
 def test_list_limit_clamps(list_mod, monkeypatch) -> None:
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py", "0"])
     assert list_mod._limit_from_argv() == 1
@@ -386,6 +390,8 @@ def test_hot_vault_roundtrip(hot_mod, tmp_path: Path) -> None:
     rows = hot_mod.list_overlay_entries()
     assert len(rows) == 1
     assert rows[0]["hotId"] == item["id"]
+    # The overlay draws the ⏱ marker itself; the preview must not repeat it.
+    assert "⏱" not in rows[0]["preview"]
     assert hot_mod.get_secret(item["id"]) == secret
     assert hot_mod.drop_secret(item["id"]) is True
     assert hot_mod.list_overlay_entries() == []
@@ -495,18 +501,36 @@ def test_remove_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     spec = importlib.util.spec_from_loader("copyq_hotkeys_drop", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
-    item = module.upsert_secret("sk-" + ("g" * 40))
+    secret = "sk-" + ("g" * 40)
+    item = module.upsert_secret(secret)
     assert item is not None
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(
+        tmp_path,
+        f'''
+printf "argv1:%s\\n" "$1" >> "{log}"
+printf "stdin:" >> "{log}"
+cat >> "{log}"
+printf "\\n" >> "{log}"
+echo 2
+''',
+    )
     proc = subprocess.run(
         [str(REMOVE_HELPER), "--hot-id", item["id"]],
         check=False,
-        env={**os.environ, "XDG_RUNTIME_DIR": str(tmp_path)},
+        env={**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "COPYQ_BIN": str(fake)},
         capture_output=True,
         text=True,
     )
     assert proc.returncode == 0
     assert module.list_overlay_entries() == []
-    assert module.upsert_secret("sk-" + ("g" * 40)) is None
+    assert module.upsert_secret(secret) is None
+    # Delete also purges the plaintext copies from CopyQ history, handing the
+    # secret over stdin only.
+    lines = log.read_text().splitlines()
+    assert lines[0] == "argv1:eval"
+    assert f"stdin:{secret}" in lines
+    assert all(secret not in line for line in lines if not line.startswith("stdin:"))
 
 
 def test_expired_secret_is_not_reharvested(hot_mod) -> None:
