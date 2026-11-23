@@ -12,6 +12,7 @@ import "Alert.js" as Alert
 import "Dnd.js" as Dnd
 import "Pages.js" as Pages
 import "More.js" as More
+import "Omacontrol.js" as Omacontrol
 import "Agents.js" as Agents
 import "Status.js" as Status
 import "Calendar.js" as Calendar
@@ -261,10 +262,21 @@ Item {
     deadline: 8000
   }
   readonly property var weather: root.weatherOn ? Status.weather(weatherSrc.text) : null
+  // The idle pill's right ear shows the temperature beside the date ("41°").
+  readonly property string pillWeather: Status.pillTemp(root.weather)
   function refreshWeather() {
     if (!root.weatherOn || Date.now() - root.weatherAt < 1800000) return
     root.weatherAt = Date.now()
     weatherSrc.refresh()
+  }
+  // The pill shows the temperature all the time, so poll on the same 30-minute
+  // budget even when Home is never opened (refreshWeather() keeps the limit).
+  Timer {
+    interval: 1800000
+    running: root.weatherOn
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refreshWeather()
   }
 
   // System: once at load (so the page sizes from real rows), then every 2 s
@@ -328,10 +340,16 @@ Item {
   // Pause or resume capture through Dayflow's own CLI (argv, fixed words).
   function dayflowAction(action) {
     var argv = More.dayflowArgv(action)
-    if (argv.length === 0) return
-    argv[0] = Quickshell.env("HOME") + "/.local/bin/dayflow"
-    Quickshell.execDetached(argv)
-    reread.restart()
+    if (argv.length === 0 || dayflowRun.running) return
+    // The same executable island-status detects: PATH first, then ~/.local/bin.
+    dayflowRun.command = ["/bin/sh", "-c",
+      'd=$(command -v dayflow) || d="$HOME/.local/bin/dayflow"; exec "$d" "$1"', "island-dayflow", argv[1]]
+    dayflowRun.running = true
+  }
+  // The page re-reads when the command has finished, never on a timer guess.
+  Process {
+    id: dayflowRun
+    onExited: root.refreshMore()
   }
   readonly property var shots: root.settings.shots === true && moreStatus.data ? moreStatus.data.shots : null
   readonly property var shotRows: More.shotsRows(root.shots)
@@ -339,9 +357,36 @@ Item {
   function markShotsSeen() { root.shotsModel = More.shotsSeen(root.shotsModel) }
   // Opens one Snapdex screenshot; the name comes from Snapdex's own index.
   function openShot(name) {
-    var n = String(name || "")
-    if (n === "" || n.indexOf("/") >= 0 || n.charAt(0) === ".") return
+    var n = More.shotFile(name)
+    if (n === "") return
     Quickshell.execDetached(["xdg-open", Quickshell.env("HOME") + "/Pictures/Screenshots/" + n])
+  }
+  // The thumbnail's file URL; "" for a name that is not a plain file name.
+  function shotUrl(name) {
+    var n = More.shotFile(name)
+    return n === "" ? "" : "file://" + Quickshell.env("HOME") + "/Pictures/Screenshots/" + n
+  }
+
+  // Omacontrol shortcuts (Omacontrol.js): shown only while its manifest exists
+  // and shell.json does not disable it. The window opens through its own IPC
+  // target, as an argv list from a fixed page list, and the card closes so
+  // the window is not covered.
+  property bool omacontrolManifest: false
+  FileView {
+    id: omacontrolFile
+    path: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + Omacontrol.PLUGIN_ID + "/manifest.json"
+    printErrors: false
+    onLoaded: root.omacontrolManifest = true
+    onLoadFailed: root.omacontrolManifest = false
+  }
+  readonly property bool omacontrolAvailable: Omacontrol.available(root.shellText, root.omacontrolManifest)
+  // "ok" or "unknown" (an id outside the list, or Omacontrol not available).
+  function openOmacontrol(page) {
+    var argv = root.omacontrolAvailable ? Omacontrol.command(page) : null
+    if (!argv) return "unknown"
+    Quickshell.execDetached(argv)
+    root.close()
+    return "ok"
   }
 
   // Messages: Blip's own state file, counts only (More.js).
@@ -434,6 +479,7 @@ Item {
       if (action === "cancel") { root.timerUpdate(IslandTimer.cancel(root.timerModel)); return "ok" }
     }
     if (id === "calendar" && action === "join") { calendar.join(); return "ok" }
+    if (id === "omacontrol") return root.openOmacontrol(action)
     return "unknown"
   }
 

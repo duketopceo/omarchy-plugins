@@ -36,11 +36,21 @@ var GLYPHS = {
   leaf: cp(0xF032A),      // nf-md-leaf
   balance: cp(0xF05D1),   // nf-md-scale_balance
   speed: cp(0xF04C5),     // nf-md-speedometer
-  open: cp(0xF03CC)       // nf-md-open_in_new
+  open: cp(0xF03CC),      // nf-md-open_in_new
+  // Omacontrol shortcuts.
+  bluetooth: cp(0xF00AF), // nf-md-bluetooth
+  sound: cp(0xF057E),     // nf-md-volume_high
+  display: cp(0xF0379),   // nf-md-monitor
+  power: cp(0xF0425),     // nf-md-power
+  keyboard: cp(0xF030C),  // nf-md-keyboard
+  theme: cp(0xF03D8),     // nf-md-palette
+  tune: cp(0xF062E)       // nf-md-tune
 }
 
 // The icon a page shows in the More launcher.
-var PAGE_GLYPH = { messages: "message", dayflow: "clock", shots: "camera", settings: "settings" }
+var PAGE_GLYPH = { messages: "message", dayflow: "clock", shots: "camera", settings: "settings", omacontrol: "tune" }
+// A glyph by name; the open-in-new glyph for an unknown name.
+function glyph(name) { return GLYPHS[name] || GLYPHS.open }
 function pageGlyph(id) { return GLYPHS[PAGE_GLYPH[id]] || GLYPHS.open }
 
 // The icon of a power profile segment.
@@ -105,5 +115,5 @@ function controlHint(action, a) {
 
 if (typeof module !== "undefined") module.exports = {
   GLYPHS: GLYPHS, primaryControl: primaryControl, rowControls: rowControls, controlLabel: controlLabel,
-  controlHint: controlHint, pageGlyph: pageGlyph, profileGlyph: profileGlyph
+  controlHint: controlHint, pageGlyph: pageGlyph, glyph: glyph, profileGlyph: profileGlyph
 }

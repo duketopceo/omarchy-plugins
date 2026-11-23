@@ -22,7 +22,11 @@ Item {
   readonly property int tileH: Commons.Style.space(96)
   readonly property int iconSize: Commons.Style.space(44)
 
-  function count() { return page.entries.length }
+  // Omacontrol joins the grid as the last tile while it is available.
+  readonly property bool omacontrol: !!island && island.omacontrolAvailable === true
+  readonly property var tiles: page.omacontrol ? page.entries.concat(["omacontrol"]) : page.entries
+
+  function count() { return page.tiles.length }
   function heightFor(n) {
     var r = Math.ceil(Math.max(1, n) / page.cols)
     return r * page.tileH + (r - 1) * page.gap
@@ -44,13 +48,13 @@ Item {
   Grid {
     id: grid
     anchors.horizontalCenter: parent.horizontalCenter
-    columns: Math.min(page.cols, Math.max(1, page.entries.length))
+    columns: Math.min(page.cols, Math.max(1, page.tiles.length))
     columnSpacing: page.gap
     rowSpacing: page.gap
     readonly property int tileW: Math.floor((page.width - page.gap * (page.cols - 1)) / page.cols)
 
     Repeater {
-      model: page.entries
+      model: page.tiles
 
       Item {
         id: cell
@@ -65,9 +69,12 @@ Item {
         HoverButton {
           id: item
           anchors.fill: parent
-          hint: "Open " + Pages.label(cell.modelData)
+          hint: cell.modelData === "omacontrol" ? "Open Omacontrol settings" : "Open " + Pages.label(cell.modelData)
           radius: Commons.Style.cornerRadius + Commons.Style.spacing.xxl
-          onClicked: page.openPage(cell.modelData)
+          onClicked: {
+            if (cell.modelData === "omacontrol") page.island.openOmacontrol("open")
+            else page.openPage(cell.modelData)
+          }
 
           Rectangle {
             id: disc
@@ -102,7 +109,7 @@ Item {
             anchors.topMargin: Commons.Style.spacing.lg
             width: Math.min(implicitWidth, parent.width - Commons.Style.spacing.xxl * 2)
             horizontalAlignment: Text.AlignHCenter
-            text: Pages.label(cell.modelData)
+            text: cell.modelData === "omacontrol" ? "Omacontrol" : Pages.label(cell.modelData)
           }
         }
       }

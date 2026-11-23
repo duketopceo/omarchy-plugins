@@ -50,12 +50,13 @@ Item {
     return page.headerH + page.gap + r * page.tileH + (r - 1) * page.gap
   }
 
-  // The app's icon from the icon theme, or a lettered circle.
+  // The app's icon: the icon theme, else Omarchy's agent mark (a file looked
+  // up at run time), else a lettered circle.
   component AgentIcon: Item {
     id: icon
     property string app: ""
     property string letter: ""
-    readonly property string src: {
+    readonly property string themeSrc: {
       var names = Agents.iconNames(icon.app)
       for (var i = 0; i < names.length; i++) {
         var p = Quickshell.iconPath(names[i], true)
@@ -63,18 +64,31 @@ Item {
       }
       return ""
     }
+    readonly property var assets: {
+      var c = Commons.Color.popups.background
+      return Agents.assetCandidates(icon.app, Agents.isLight(c.r, c.g, c.b))
+    }
+    // Which asset candidate is being tried; a load error moves to the next.
+    property int tryIdx: 0
+    onAssetsChanged: icon.tryIdx = 0
+    readonly property string src: icon.themeSrc !== "" ? icon.themeSrc
+                                 : (icon.tryIdx < icon.assets.length ? icon.assets[icon.tryIdx] : "")
+    readonly property bool ready: icon.src !== "" && img.status !== Image.Error
 
     Image {
-      visible: icon.src !== ""
+      id: img
+      visible: icon.ready
       anchors.fill: parent
       source: icon.src
       sourceSize.width: width * 2
       sourceSize.height: height * 2
       fillMode: Image.PreserveAspectFit
       smooth: true
+      asynchronous: true
+      onStatusChanged: if (img.status === Image.Error && icon.themeSrc === "") icon.tryIdx++
     }
     Rectangle {
-      visible: icon.src === ""
+      visible: !icon.ready
       anchors.fill: parent
       radius: width / 2
       color: Qt.alpha(Commons.Color.popups.text, 0.12)

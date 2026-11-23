@@ -27,7 +27,8 @@ Item {
 
   function count() { return page.rings.length > 0 ? 1 : 0 }
   function heightFor(n) {
-    if (n <= 0) return page.rowH
+    // No rings yet: reserve the full layout, because the card does not
+    // re-measure when the first reading arrives.
     return page.ringTileH + page.gap + page.rowH + (page.profilesOn ? page.gap + page.rowH : 0)
   }
   // The profile control exists only while power-profiles-daemon answers:

@@ -200,6 +200,25 @@ Not verified live:
 - No second display this run (only eDP-1 was connected); the card is 720 wide at most, so a 1920 screen draws the same card.
 - Shots still uses the old list page (not in the redesign scope); it picks up only the new face.
 
+## Follow-ups (0.4.3)
+
+Run 2026-11-17 on omarchy-max (HDMI-A-1 live, window 744 wide). Copy install, shell restarted, live manifest 0.4.3, no Island warnings in the journal. IPC `open <page>` plus `grim` only, saved to `~/Inbox/claude/island-followups/`; no pointer moved, no input injected, `bin/island-hover-check` not run. Screenshots of Messages use invented names (fixture harness); no real contact, number or message text was saved.
+
+| Item | Result | Evidence |
+|---|---|---|
+| CodeRabbit comments on PR #80 | 22 inline plus 1 outside-diff comment checked against main; 13 fixed, 10 skipped as already fixed or optional (table in the PR) | PR body, tests |
+| Agent logos | Claude and Antigravity now show Omarchy's own agent marks, found at run time under `/usr/share/omarchy/shell/plugins/agents/assets/` (`claude.svg`, `agy.svg`, `-light` twins for light cards); nothing is copied into this repo; the lettered circle stays the fallback. Codex, OpenCode, Cursor and Gemini keep their theme icons | `agents.png` (live) |
+| Shots tiles | New `ShotsPage.qml`: two rows of four rounded thumbnails, newest first, decoded at 320x200 asynchronously; caption is the hover hint; click opens (name checked by `More.shotFile`); the unseen dot is unchanged. `ListPage.qml` removed (no users left) | `shots-fixture.png`, `shots-empty-fixture.png` (fixture) |
+| Messages names | One-on-one chats take a name from `groups[*].participantNames` in Blip's `state.json`, which the Island already reads; raw numbers and emails are not names. Blip keeps no other stored name file (the contact dump is a 60 s runtime cache of the whole address book, not read). Coverage is partial: only people who share a group with the owner | `messages-names-fixture.png` (fixture) |
+
+Not verified live:
+
+- Shots: this machine has no `snapdex-ctl`, so the page is not available live; the thumbnail grid and the empty state were rendered from the fixture harness (same page file, invented data). The click to open a screenshot was not run.
+- Messages names: only the fixture was shot; the live state has one unread chat whose person is in no stored group name, so it still reads "Chat ending NNNN".
+- Pressed-scale change in `HoverButton` (scale on the visuals only): no pointer input allowed, so hover and press were not exercised.
+- Dayflow Pause and Resume through the new `Process` were not clicked.
+- Light card surface (the `-light` agent mark order) was not shot.
+
 ### Owner checks (2026-11-16)
 
 | Check | Result |
@@ -209,3 +228,21 @@ Not verified live:
 | Bluetooth activity and alert | Dropped by the owner for now ("no bluetooth as of now"); only `preview bluetooth` has run |
 | Odyssey ultrawide on DP-3 | Not run: the multi-display run used the work dock (Dell on HDMI-A-1, Samsung LS27A800U 4K on DP-3). Waits for the home dock |
 | WordInk pill alongside the Island | WordInk's own bottom pill (layer `hex-hud`, 304x80) had stopped drawing after several dock and undock cycles while WordInk kept running; a `wordink.service` restart brought it back (seen in a test dictation stopped with `--print`). The Island does not touch WordInk settings. Lasting fix belongs in WordInk's HUD (recreate the surface when its output goes away) |
+
+## Omacontrol shortcuts (0.4.4)
+
+Run 2026-11-19 on omarchy-max (eDP-1, HDMI-A-1 and DP-3 live; the card opened on HDMI-A-1, origin x 2316, window 744x392). Island dir copied live with `rsync` (not `install.sh --copy`, so the live netline and hotkey-tally fixes stay), shell restarted, live manifest 0.4.4. IPC `open settings|more|state|close` plus `grim` only, saved to `~/Inbox/claude/island-omacontrol/`; no pointer moved, no input injected, `bin/island-hover-check` not run.
+
+| Control | Argv | How verified |
+|---|---|---|
+| Settings row: Network, Bluetooth, Sound, Displays, Power, Keyboard, Appearance, All settings | `qs -p /usr/share/omarchy/shell ipc call omacontrol showPage <network\|bluetooth\|audio\|displays\|power\|keyboard\|theme\|overview>` | `island act omacontrol <page>` (same allowlist and code path as the click) returned `ok`, an `omacontrol` layer appeared in `hyprctl -j layers`, the Island card was closed, then `omacontrol hide` |
+| More tile "Omacontrol" | `... ipc call omacontrol open` | argv run by hand: layer appeared, `hide` removed it; tile drawn in `more.png`. The click itself was not made |
+| Unknown id (`x;reboot`) | none | `act omacontrol 'x;reboot'` returned `unknown`; node tests refuse 9 bad ids |
+
+Findings:
+- `qs ipc call omacontrol show` does not open the window: the `qs` client reads a bare `show` itself and prints the target listing. The More tile uses `open`, which works.
+- KTD2: with the row added the Settings page overflowed the 380 px card and clipped it. The sixteen toggles now use `controlHeight + lg` instead of `controlHeight + huge`; row, labels and all toggles fit (`settings.png`).
+- With Omacontrol unavailable (manifest missing or in `disabledPlugins`) the row and tile are not drawn; `Omacontrol.available()` is node-tested, the live "missing" state was not exercised.
+- The first shell restart after the layout changed logged `Binding loop detected for property "height"` on `Pill` (IslandWindow.qml:381). Pill geometry was not touched by this change; not investigated.
+
+Not verified live: a real pointer click on a shortcut or the tile (clicks avoided by rule), the unavailable state, light theme.

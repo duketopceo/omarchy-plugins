@@ -6,7 +6,8 @@ import "Presentation.js" as Presentation
 
 // The compact pill's content. Left ear: the time (with the Do Not Disturb
 // glyph beside it when on). Right ear: the top live activity (glyph and short
-// ear text), or the short date when nothing is live. While media is the top
+// ear text), or the short date when nothing is live. The temperature sits
+// beside the time in the left ear, so it stays visible while media plays. While media is the top
 // activity the right ear takes the Dynamic Island look instead: a rounded
 // album-art thumbnail and equalizer bars tinted from the art, with no title
 // text (the title is on the card). The time always stays left. The second activity
@@ -31,6 +32,8 @@ Item {
   property bool dnd: false
   // Unmuted unread messages (Blip): one small accent dot beside the time.
   property bool unread: false
+  // Short temperature ("41°") beside the time in the left ear; "" hides it.
+  property string weather: ""
   property bool micInUse: false
   property bool cameraInUse: false
 
@@ -38,7 +41,8 @@ Item {
   // Width beside the time in the left ear: the Do Not Disturb glyph and the
   // unread dot, each with its gap. The time itself never moves or goes away.
   readonly property int dotSize: Presentation.DOT_SIZE - 2
-  readonly property int leftExtras: (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0)
+  readonly property int leftExtras: (weatherText.visible ? weatherText.implicitWidth + Commons.Style.spacing.sm : 0)
+    + (dndGlyph.visible ? dndGlyph.implicitWidth + Commons.Style.spacing.sm : 0)
     + (pill.unread ? pill.dotSize + Commons.Style.spacing.sm : 0)
   readonly property bool mediaTop: pill.topActivity !== null && pill.topActivity.id === "media"
   readonly property int thumbSize: Math.max(16, pill.height - Commons.Style.spacing.lg)
@@ -80,6 +84,21 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
   }
 
+  // Temperature beside the time, dimmer so the time stays the anchor.
+  Face {
+    id: weatherText
+    visible: pill.weather !== ""
+    textFormat: Text.PlainText
+    text: pill.weather
+    color: pill.textColor
+    opacity: 0.7
+    font.pixelSize: Commons.Style.font.bodySmall
+    font.features: { "tnum": 1 }
+    anchors.left: timeText.right
+    anchors.leftMargin: Commons.Style.spacing.sm
+    anchors.verticalCenter: parent.verticalCenter
+  }
+
   Text {
     id: dndGlyph
     visible: pill.dnd
@@ -89,7 +108,7 @@ Item {
     opacity: 0.8
     font.family: Commons.Style.font.family
     font.pixelSize: Commons.Style.font.bodySmall
-    anchors.left: timeText.right
+    anchors.left: weatherText.visible ? weatherText.right : timeText.right
     anchors.leftMargin: Commons.Style.spacing.sm
     anchors.verticalCenter: parent.verticalCenter
   }
@@ -101,7 +120,7 @@ Item {
     height: pill.dotSize
     radius: width / 2
     color: Commons.Color.accent
-    anchors.left: dndGlyph.visible ? dndGlyph.right : timeText.right
+    anchors.left: dndGlyph.visible ? dndGlyph.right : (weatherText.visible ? weatherText.right : timeText.right)
     anchors.leftMargin: Commons.Style.spacing.sm
     anchors.verticalCenter: parent.verticalCenter
   }

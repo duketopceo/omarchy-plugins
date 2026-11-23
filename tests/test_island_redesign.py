@@ -256,3 +256,21 @@ def test_helper_skips_profiles_when_daemon_is_down(tmp_path):
 def test_helper_profiles_with_active_daemon(tmp_path):
     out = run_system(tmp_path, {"powerprofilesctl": PPD, "systemctl": "exit 0"})
     assert out["profile"] == "balanced" and out["profiles"].count("\n") == 2
+
+
+def test_font_family_accepts_list_like_sequences():
+    # Qt.fontFamilies() is a sequence, not an Array.
+    assert js("Fonts.js", "M.family(true, 'mono', {length: 1, 0: 'x'})") == "mono"
+    assert js("Fonts.js", "M.family(true, 'mono', {length: 2, 0: 'x', 1: 'Adwaita Sans'})") == "Adwaita Sans"
+
+
+def test_agent_marks_resolve_by_file_at_run_time():
+    assert js("Agents.js", "M.assetCandidates('antigravity', false)") == [
+        "file:///usr/share/omarchy/shell/plugins/agents/assets/agy.svg"]
+    assert js("Agents.js", "M.assetCandidates('claude-code', true)") == [
+        "file:///usr/share/omarchy/shell/plugins/agents/assets/claude-light.svg",
+        "file:///usr/share/omarchy/shell/plugins/agents/assets/claude.svg"]
+    assert js("Agents.js", "M.assetCandidates('../x', false)") == []
+    assert js("Agents.js", "M.assetCandidates('', false)") == []
+    assert js("Agents.js", "M.isLight(0.1, 0.1, 0.1)") is False
+    assert js("Agents.js", "M.isLight(0.95, 0.95, 0.95)") is True

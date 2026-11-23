@@ -157,3 +157,14 @@ def test_glance_full_and_discharging():
 @pytest.mark.parametrize("h", ["null", "{}", '{"cpu":null,"memory":null,"battery":null}'])
 def test_glance_missing_sources_empty(h):
     assert js(f"S.glance({h})") == []
+
+
+# ---- pill temperature ----
+@pytest.mark.parametrize("temp,want", [("12°C", "12°"), ("-3°F", "-3°"), ("41°F", "41°"), ("12.5°C", "12°")])
+def test_pill_temp_short(temp, want):
+    assert js(f"S.pillTemp({{place:'x',temp:{json.dumps(temp)}}})") == want
+
+
+@pytest.mark.parametrize("w", ["null", "{}", "{temp:'warm'}", "{temp:12}"])
+def test_pill_temp_missing_is_empty(w):
+    assert js(f"S.pillTemp({w})") == ""
