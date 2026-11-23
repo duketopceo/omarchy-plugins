@@ -501,18 +501,36 @@ def test_remove_hot_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     spec = importlib.util.spec_from_loader("copyq_hotkeys_drop", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
-    item = module.upsert_secret("sk-" + ("g" * 40))
+    secret = "sk-" + ("g" * 40)
+    item = module.upsert_secret(secret)
     assert item is not None
+    log = tmp_path / "log.txt"
+    fake = _write_fake_copyq(
+        tmp_path,
+        f'''
+printf "argv1:%s\\n" "$1" >> "{log}"
+printf "stdin:" >> "{log}"
+cat >> "{log}"
+printf "\\n" >> "{log}"
+echo 2
+''',
+    )
     proc = subprocess.run(
         [str(REMOVE_HELPER), "--hot-id", item["id"]],
         check=False,
-        env={**os.environ, "XDG_RUNTIME_DIR": str(tmp_path)},
+        env={**os.environ, "XDG_RUNTIME_DIR": str(tmp_path), "COPYQ_BIN": str(fake)},
         capture_output=True,
         text=True,
     )
     assert proc.returncode == 0
     assert module.list_overlay_entries() == []
-    assert module.upsert_secret("sk-" + ("g" * 40)) is None
+    assert module.upsert_secret(secret) is None
+    # Delete also purges the plaintext copies from CopyQ history, handing the
+    # secret over stdin only.
+    lines = log.read_text().splitlines()
+    assert lines[0] == "argv1:eval"
+    assert f"stdin:{secret}" in lines
+    assert all(secret not in line for line in lines if not line.startswith("stdin:"))
 
 
 def test_expired_secret_is_not_reharvested(hot_mod) -> None:

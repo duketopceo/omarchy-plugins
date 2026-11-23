@@ -252,8 +252,11 @@ Item {
       root.dismiss()
       event.accepted = true
     } else if (event.key === Qt.Key_Delete) {
-      // Never delete history while the search field owns the key (char delete).
-      if (fromFilter) return
+      // The search field always holds focus, so Delete has to work from there.
+      // With the text cursor mid-query it still deletes a character; at the
+      // end (always true for an empty query) there is nothing to delete, so
+      // it removes the selected row.
+      if (fromFilter && filterField.cursorPosition < filterField.text.length) return
       root.removeSelected()
       event.accepted = true
     } else if (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) {

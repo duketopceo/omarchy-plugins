@@ -303,6 +303,45 @@ def drop_secret(hot_id: str) -> bool:
     return True
 
 
+# Removes every clipboard/Pins row whose trimmed text equals the secret read
+# from stdin. Walks from the end so indexes stay valid while removing.
+# Pass it after `--`: without it CopyQ unescapes the argument (\s -> s).
+_PURGE_SCRIPT = """
+var s = str(input()).trim();
+var n = 0;
+["&clipboard", "Pins"].forEach(function(name) {
+  if (tab().indexOf(name) === -1) return;
+  tab(name);
+  for (var i = count() - 1; i >= 0; i--) {
+    if (str(read(i)).trim() === s) { remove(i); n++; }
+  }
+});
+print(String(n));
+"""
+
+
+def purge_plaintext(secret: str) -> int:
+    """Delete plaintext copies of a dropped key from CopyQ history.
+
+    Returns rows removed, or -1 when CopyQ is unavailable. The secret goes to
+    CopyQ on stdin; argv carries only the fixed script.
+    """
+    if not secret.strip():
+        return 0
+    if not os.path.isfile(COPYQ) or not os.access(COPYQ, os.X_OK):
+        return -1
+    try:
+        proc = _copyq_stdin([COPYQ, "eval", "--", _PURGE_SCRIPT], secret)
+    except (OSError, subprocess.SubprocessError):
+        return -1
+    if proc.returncode != 0:
+        return -1
+    try:
+        return int(proc.stdout.decode().strip() or "0")
+    except ValueError:
+        return -1
+
+
 def _copyq_stdin(args: list[str], secret: str) -> subprocess.CompletedProcess[bytes]:
     """Hand plaintext to CopyQ on stdin. `copy -` / `add -` read it; argv stays empty of the secret."""
     return subprocess.run(
@@ -385,7 +424,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "activate":
         return activate(args.id, paste=not args.copy_only)
     if args.cmd == "drop":
+        secret = get_secret(args.id)
         ok = drop_secret(args.id)
+        if ok and secret:
+            purge_plaintext(secret)
         print(json.dumps({"ok": ok}))
         return 0 if ok else 1
     return 2
