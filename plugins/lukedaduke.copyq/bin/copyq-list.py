@@ -72,7 +72,8 @@ function dump(tabName, limit, pinned) {
     var trimmed = one.replace(/^\s+|\s+$/g, "");
     var keyish = /^(sk-|sk-or-v1-|sk-ant-|gh[pousr]_|github_pat_|xox[baprs]-|AIza|AKIA|Bearer\s)/i.test(trimmed);
     if (keyish && trimmed.length > 512) keyish = false;
-    var prev = one;
+    // Preview only: collapse whitespace runs and trim so rows align.
+    var prev = one.replace(/\s+/g, " ").replace(/^ | $/g, "");
     if (!keyish && prev.length > 160) prev = prev.substring(0, 160) + "…";
     rows.push({
       index: i,
@@ -179,7 +180,7 @@ def _run(
 
 
 def _preview(text: str) -> str:
-    one = text.replace("\r", "").replace("\n", " ")
+    one = " ".join(text.split())
     if len(one) > 160:
         return one[:160] + "…"
     return one
@@ -318,6 +319,9 @@ def main() -> int:
                 short = text[:160] + "…"
                 entry["preview"] = short
                 entry["text"] = short
+            if entry.get("type") == "text":
+                # Leading spaces/newlines pushed rows out of line in the overlay.
+                entry["preview"] = _preview(str(entry.get("preview") or text))
             kept.append(entry)
 
         vault_error: str | None = None

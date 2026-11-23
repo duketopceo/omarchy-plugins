@@ -13,7 +13,6 @@ Item {
   property var shell: null
   property var manifest: null
   property bool opened: false
-  property string uiMode: "center" // center | cursor
   property string filterText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -21,8 +20,6 @@ Item {
   property string statusText: "Loading…"
   property string errorText: ""
   property bool listInFlight: false
-  property real cursorScreenX: -1
-  property real cursorScreenY: -1
 
   readonly property string pluginDir: {
     var url = Qt.resolvedUrl(".")
@@ -45,38 +42,19 @@ Item {
   property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
   property int contentSpacing: Style.spacing.md
   property int thumbSize: Style.space(36)
-  property bool isCursorMode: root.uiMode === "cursor"
-  property int cardWidth: Math.min(
-    root.isCursorMode ? Style.space(420) : Style.space(720),
-    panel.width - Style.gapsOut * 2
-  )
-  property int cardHeight: Math.min(
-    root.isCursorMode ? Style.space(360) : Style.space(560),
-    panel.height - Style.gapsOut * 2
-  )
+  property int cardWidth: Math.min(Style.space(720), panel.width - Style.gapsOut * 2)
+  property int cardHeight: Math.min(Style.space(560), panel.height - Style.gapsOut * 2)
   property int rowHeight: Math.max(Style.space(48), Style.font.body + Style.spacing.rowPaddingX * 2)
 
-  function parsePayload(payloadJson) {
-    try {
-      var payload = typeof payloadJson === "string"
-        ? JSON.parse(payloadJson || "{}")
-        : (payloadJson || {})
-      if (payload && payload.mode === "cursor") return "cursor"
-    } catch (e) {}
-    return "center"
-  }
-
+  // One window. Any summon payload (including the retired {"mode":"cursor"})
+  // opens the same centered picker, so old keybindings keep working.
   function open(payloadJson) {
-    root.uiMode = root.parsePayload(payloadJson)
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
     root.cursorActive = true
     root.errorText = ""
-    root.cursorScreenX = -1
-    root.cursorScreenY = -1
     Quickshell.execDetached(["/usr/bin/copyq", "hide"])
-    if (root.isCursorMode) cursorPosProc.running = true
     root.reloadList()
     Qt.callLater(function() {
       keyCatcher.forceActiveFocus()
@@ -260,35 +238,6 @@ Item {
     reloadAfterMutate.restart()
   }
 
-  function applyCursorPos(raw) {
-    var text = String(raw || "").trim()
-    // Prefer "x,y mon:N" from hyprctl; fall back to "x,y".
-    var parts = text.split(/\s+/)[0].split(",")
-    if (parts.length < 2) return
-    var x = Number(parts[0])
-    var y = Number(parts[1])
-    if (!isFinite(x) || !isFinite(y)) return
-    // Panel is screen-local; subtract the focused monitor origin when known.
-    root.cursorScreenX = Math.max(0, x - panel.screen.x)
-    root.cursorScreenY = Math.max(0, y - panel.screen.y)
-  }
-
-  function cardX() {
-    if (!root.isCursorMode || root.cursorScreenX < 0)
-      return Math.round((panel.width - card.width) / 2)
-    var x = root.cursorScreenX + Style.space(12)
-    var maxX = panel.width - card.width - Style.gapsOut
-    return Math.max(Style.gapsOut, Math.min(x, maxX))
-  }
-
-  function cardY() {
-    if (!root.isCursorMode || root.cursorScreenY < 0)
-      return Math.round((panel.height - card.height) / 2)
-    var y = root.cursorScreenY + Style.space(12)
-    var maxY = panel.height - card.height - Style.gapsOut
-    return Math.max(Style.gapsOut, Math.min(y, maxY))
-  }
-
   function handleKeys(event, fromFilter) {
     if (event.key === Qt.Key_Down) { root.select(1); event.accepted = true }
     else if (event.key === Qt.Key_Up) { root.select(-1); event.accepted = true }
@@ -372,15 +321,6 @@ Item {
     }
   }
 
-  Process {
-    id: cursorPosProc
-    command: ["/usr/bin/hyprctl", "cursorpos"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.applyCursorPos(text)
-    }
-  }
-
   PanelWindow {
     id: panel
     visible: root.opened
@@ -397,7 +337,7 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: root.scrim
-      opacity: root.opened ? (root.isCursorMode ? 0.25 : 0.45) : 0
+      opacity: root.opened ? 0.45 : 0
       Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
       MouseArea {
@@ -410,8 +350,8 @@ Item {
       id: card
       width: root.cardWidth
       height: root.cardHeight
-      x: root.cardX()
-      y: root.cardY()
+      x: Math.round((panel.width - width) / 2)
+      y: Math.round((panel.height - height) / 2)
       radius: root.cornerRadius
       color: root.background
       border.color: root.border
@@ -432,7 +372,7 @@ Item {
           spacing: Style.spacing.sm
 
           Text {
-            text: root.isCursorMode ? "Paste" : "Clipboard"
+            text: "Clipboard"
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
@@ -588,12 +528,14 @@ Item {
 
         Text {
           Layout.fillWidth: true
-          text: root.errorText || "↑↓ move  ·  Enter paste  ·  Shift+Enter copy  ·  r reload  ·  Del remove  ·  Ctrl+P pin/unpin  ·  Esc  ·  ⏱ keys ~30m"
+          // One line, never wrapped: the most-used keys first, the rest elide.
+          text: root.errorText || "Enter paste  ·  Shift+Enter copy  ·  Ctrl+P pin  ·  Del remove  ·  Ctrl+R reload  ·  Esc close"
           color: root.foreground
           opacity: root.errorText ? 0.9 : 0.45
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
-          wrapMode: Text.WordWrap
+          wrapMode: root.errorText ? Text.WordWrap : Text.NoWrap
+          elide: Text.ElideRight
           textFormat: Text.PlainText
         }
       }

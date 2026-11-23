@@ -207,6 +207,10 @@ def test_list_preview_truncation(list_mod) -> None:
     assert len(preview) == 161
 
 
+def test_list_preview_trims_and_collapses_whitespace(list_mod) -> None:
+    assert list_mod._preview("\n   Apps  Xcode\t\nCloud  ") == "Apps Xcode Cloud"
+
+
 def test_list_limit_clamps(list_mod, monkeypatch) -> None:
     monkeypatch.setattr(list_mod.sys, "argv", ["copyq-list.py", "0"])
     assert list_mod._limit_from_argv() == 1
@@ -386,6 +390,8 @@ def test_hot_vault_roundtrip(hot_mod, tmp_path: Path) -> None:
     rows = hot_mod.list_overlay_entries()
     assert len(rows) == 1
     assert rows[0]["hotId"] == item["id"]
+    # The overlay draws the ⏱ marker itself; the preview must not repeat it.
+    assert "⏱" not in rows[0]["preview"]
     assert hot_mod.get_secret(item["id"]) == secret
     assert hot_mod.drop_secret(item["id"]) is True
     assert hot_mod.list_overlay_entries() == []

@@ -266,7 +266,8 @@ def list_overlay_entries(*, now: float | None = None) -> list[dict]:
         left = max(0, int(float(item["expires_at"]) - now))
         mins = max(1, (left + 59) // 60) if left > 0 else 0
         ttl = f"{mins}m left" if mins else "expiring"
-        preview = f"⏱ {item.get('label', 'Key')} · {item.get('preview', '')} · {ttl}"
+        # No glyph here: the overlay draws the ⏱ marker in its icon column.
+        preview = f"{item.get('label', 'Key')} · {item.get('preview', '')} · {ttl}"
         out.append(
             {
                 "index": -1,

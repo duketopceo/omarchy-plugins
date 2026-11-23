@@ -17,15 +17,13 @@ Requires `/usr/bin/copyq` running as a daemon (`copyq --start-server`).
 
 ```bash
 omarchy-shell shell summon lukedaduke.copyq
-omarchy-shell shell summon lukedaduke.copyq '{"mode":"cursor"}'
 omarchy-shell shell hide lukedaduke.copyq
 ```
 
 Typical Hyprland chords (stash-canonical bindings):
 
 ```text
-SUPER + CTRL + V   →  centered history (summon)
-SUPER + SHIFT + V  →  at-cursor menu (summon mode=cursor)
+SUPER + SHIFT + V  →  clipboard history (the one window)
 SUPER + ALT + V    →  silent copyq next (no UI)
 ```
 
