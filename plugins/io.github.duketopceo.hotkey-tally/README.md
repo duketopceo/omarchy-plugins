@@ -24,7 +24,8 @@ Counting therefore has to happen where the bind is declared — in your own
 ## Wiring a binding
 
 ```lua
-local tally = dofile(os.getenv("HOME") .. "/.config/hypr/hotkey-tally.lua")
+local ok, tally = pcall(dofile, os.getenv("HOME") .. "/.config/omarchy/plugins/io.github.duketopceo.hotkey-tally/hotkey-tally.lua")
+if not ok or type(tally) ~= "table" then tally = { bind = o.bind } end
 
 -- counted
 tally.bind("SUPER + SHIFT + W", "Omawrite", { launch = "omawrite" })
@@ -34,7 +35,7 @@ tally.bind("SUPER + M", "Blip iMessage", "blip-toggle")
 o.bind("SUPER + D", "Wisp push-to-talk (hold)", { launch = "wisp-trigger start" })
 ```
 
-`tally.bind` records `(id, key, label, timestamp)`, then runs the same command
+`tally.bind` records `(id, key, label, timestamp)` asynchronously and runs the same command
 `o.bind` would have run. If the recording step fails it is silenced and the
 original command still runs — a tally must never break a keybinding.
 
@@ -49,8 +50,7 @@ tally.bind("SUPER + SHIFT + N", "Editor", "omarchy-launch-editor")
 
 ## Using it
 
-`SUPER + K` opens the tally in a floating terminal (was the stock Keybindings
-menu, which moved to `SUPER + SHIFT + K`).
+`SUPER + K` opens the keybindings menu; `SUPER + SHIFT + K` orders it by usage when the local menu integration is installed.
 
 ```
 s        toggle sort: a-z  <->  used
@@ -60,11 +60,7 @@ q / Esc  quit
 j / k    scroll one row
 ```
 
-Rows read `KEY  xCOUNT  AGE  ACTION`, so an unused binding is visible as `x0`.
-
-Everything is counted from wrapped binds only. Until a bind is wrapped it
-always shows `x0`, which is also the honest reading: the number is activations
-since wrapping, not since the key was created.
+Rows read `KEY  xCOUNT  AGE  ACTION`. A question mark means no activation has been observed; it does not imply the binding is unused. Counts begin when a binding is wrapped.
 
 ## Key names on this MacBook Pro
 
@@ -118,3 +114,7 @@ Rows are pruned to the newest 50,000 by `prune`, or on write when
 - No text, clipboard content, window titles, or command arguments are stored.
 - No network access from any file here.
 - A binding you do not wrap is invisible to this plugin.
+
+## Shortcut identities
+
+Counts are attributed to a normalized key and action together. Existing event rows with a key are reinterpreted using that identity. The `annotate` command joins counts to tab-separated keybinding-menu records; `--sort used` orders measured rows first. Only explicitly wrapped shortcuts are recorded.

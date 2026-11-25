@@ -13,7 +13,7 @@ State lives in $XDG_STATE_HOME/hotkey-tally/uses.jsonl, append-only, pruned to
 the most recent MAX_LINES rows.
 
 `list --all` joins those counts against the live binding table from
-`hyprctl binds -j`, so bindings that were never used still appear with x0.
+`hyprctl binds -j`, so bindings with no observed activation appear as unknown.
 """
 
 from __future__ import annotations
@@ -42,14 +42,19 @@ def uses_path() -> Path:
     return state_dir() / "uses.jsonl"
 
 
-def binding_id(label: str) -> str:
-    """Must match hotkey-tally.lua's id_for(): hash of the label only.
+def normalize_key(key: str) -> str:
+    """Normalize the key names used by the binding file and the menu."""
+    parts = key.upper().replace("+", " ").split()
+    modifiers = [part for part in ("SUPER", "CTRL", "ALT", "SHIFT") if part in parts]
+    keys = [part for part in parts if part not in modifiers]
+    return " + ".join(modifiers + keys)
 
-    Key formatting differs between the compositor's modmask and however a bind
-    was written, so the label is the only stable join key.
-    """
+
+def binding_id(label: str, key: str = "") -> str:
+    """Identify a shortcut by its normalized key and action label."""
     total = 0
-    for byte in str(label).encode("utf-8"):
+    identity = f"{normalize_key(key)}\0{label}" if key else str(label)
+    for byte in identity.encode("utf-8"):
         total = (total * 31 + byte) % 4_294_967_296
     return f"{total:08x}"
 
@@ -104,9 +109,10 @@ def _prune(keep: int = MAX_LINES) -> int:
 def _aggregate(rows: list[dict]) -> dict[str, dict]:
     by_id: dict[str, dict] = {}
     for row in rows:
+        identity = binding_id(row.get("label", ""), row.get("key", "")) if row.get("key") else row["id"]
         entry = by_id.setdefault(
-            row["id"],
-            {"id": row["id"], "key": "", "label": "", "count": 0, "last": 0},
+            identity,
+            {"id": identity, "key": "", "label": "", "count": 0, "last": 0},
         )
         entry["count"] += 1
         ts = int(row.get("ts") or 0)
@@ -125,35 +131,9 @@ def _counts() -> dict[str, dict]:
 
 def _key_name(bind: dict) -> str:
     mods = [name for bit, name in MOD_BITS if int(bind.get("modmask") or 0) & bit]
-    key = str(bind.get("key") or "").replace("code:", "")
+    key = str(bind.get("key") or (f"code:{bind['keycode']}" if bind.get("keycode") else ""))
     parts = mods + ([key] if key else [])
     return " + ".join(parts)
-
-
-def _key_map() -> dict[str, str]:
-    """Label -> key text, from the same table `omarchy menu keybindings` shows.
-
-    hyprctl alone cannot supply this: Lua binds report dispatcher "__lua" with
-    no key and no keycode, so empty keys are common there.
-    """
-    try:
-        raw = subprocess.run(
-            ["omarchy", "menu", "keybindings", "--print"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        ).stdout
-    except (OSError, subprocess.SubprocessError):
-        return {}
-    out: dict[str, str] = {}
-    for line in raw.splitlines():
-        if "\u2192" not in line:
-            continue
-        left, _, label = line.partition("\u2192")
-        label = label.strip()
-        if label and label not in out:
-            out[label] = left.strip()
-    return out
 
 
 def _live_binds() -> list[dict]:
@@ -164,13 +144,12 @@ def _live_binds() -> list[dict]:
         binds = json.loads(raw)
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
         return []
-    key_map = _key_map()
     out: list[dict] = []
     for bind in binds:
         label = str(bind.get("description") or "").strip()
         if not label or bind.get("mouse") or str(bind.get("key", "")).startswith("switch:"):
             continue
-        key = key_map.get(label) or _key_name(bind)
+        key = _key_name(bind)
         out.append({"key": key, "label": label})
     return out
 
@@ -180,7 +159,7 @@ def _joined(sort: str) -> list[dict]:
     rows: list[dict] = []
     seen: set[str] = set()
     for bind in _live_binds():
-        rid = binding_id(bind["label"])
+        rid = binding_id(bind["label"], bind["key"])
         seen.add(rid)
         hit = counts.get(rid)
         rows.append(
@@ -188,7 +167,7 @@ def _joined(sort: str) -> list[dict]:
                 "id": rid,
                 "key": bind["key"] or (hit["key"] if hit else ""),
                 "label": bind["label"],
-                "count": hit["count"] if hit else 0,
+                "count": hit["count"] if hit else None,
                 "last": hit["last"] if hit else 0,
             }
         )
@@ -197,7 +176,7 @@ def _joined(sort: str) -> list[dict]:
         if rid not in seen:
             rows.append({**hit, "label": (hit["label"] or hit["id"]) + " (gone)"})
     if sort == "used":
-        rows.sort(key=lambda r: (-r["count"], r["key"].lower(), r["label"].lower()))
+        rows.sort(key=lambda r: (-(r["count"] or 0), r["key"].lower(), r["label"].lower()))
     else:
         # "config" reads as a stable a-z of the key, then the action name.
         rows.sort(key=lambda r: (r["key"].lower(), r["label"].lower()))
@@ -221,7 +200,7 @@ def cmd_record(args: argparse.Namespace) -> int:
     _append(
         {
             "ts": int(time.time() * 1000),
-            "id": binding_id(args.label or args.id),
+            "id": binding_id(args.label or args.id, args.key or ""),
             "key": args.key or "",
             "label": args.label or args.id,
         }
@@ -248,10 +227,30 @@ def cmd_list(args: argparse.Namespace) -> int:
         return 0
     width = max(len(r["key"]) for r in rows)
     for r in rows:
-        print(f"{r['key']:<{width}}  x{r['count']:<4} {_fmt_age(r['last']):>4}  {r['label']}")
-    total = sum(r["count"] for r in rows)
+        count = f"x{r['count']}" if r["count"] is not None else "?"
+        print(f"{r['key']:<{width}}  {count:<5} {_fmt_age(r['last']):>4}  {r['label']}")
+    total = sum(r["count"] or 0 for r in rows)
     label = "a-z" if args.sort == "config" else "used"
     print(f"\n{len(rows)} bindings, {total} activations  (sort: {label})")
+    return 0
+
+
+def cmd_annotate(args: argparse.Namespace) -> int:
+    counts = _counts()
+    records = []
+    for line in sys.stdin:
+        fields = line.rstrip("\n").split("\t", 1)
+        key, separator, label = fields[0].partition("→")
+        hit = counts.get(binding_id(label.strip(), key.strip())) if separator else None
+        command = fields[1] if len(fields) > 1 else ""
+        tracked = "hotkey-tally.py" in command and " record --key " in command
+        count = hit["count"] if hit else 0
+        display = fields[0] + (f"  ×{count}" if hit or tracked else "")
+        records.append((count, bool(hit or tracked), display + ("\t" + command if command else "")))
+    if args.sort == "used":
+        records.sort(key=lambda row: (-row[0], -int(row[1]), row[2]))
+    for _, _, record in records:
+        print(record)
     return 0
 
 
@@ -268,7 +267,7 @@ def _draw(stdscr, rows: list[dict], sort: str, query: str, scroll: int) -> None:
     key_w = min(30, max((len(r["key"]) for r in rows), default=8))
     for i, row in enumerate(window):
         y = 2 + i
-        count = f"x{row['count']}"
+        count = f"x{row['count']}" if row["count"] is not None else "?"
         line = f" {row['key']:<{key_w}}  {count:>5}  {row['label']}"
         style = curses.A_BOLD if row["count"] else curses.A_DIM
         stdscr.addnstr(y, 0, line.ljust(width - 1), width - 1, style)
@@ -343,9 +342,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     rec = sub.add_parser("record", help="record one binding activation")
     rec.add_argument("--id", default="", help="stable binding id (optional)")
-    rec.add_argument("--key", default="", help="key combo, cosmetic")
+    rec.add_argument("--key", default="", help="key combo used to distinguish shortcuts")
     rec.add_argument("--label", default="", help="binding description")
     rec.set_defaults(func=cmd_record)
+
+    annotate = sub.add_parser("annotate", help="annotate keybinding menu records")
+    annotate.add_argument("--sort", choices=["priority", "used"], default="priority")
+    annotate.set_defaults(func=cmd_annotate)
 
     lst = sub.add_parser("list", help="show counts")
     lst.add_argument("--json", action="store_true")
