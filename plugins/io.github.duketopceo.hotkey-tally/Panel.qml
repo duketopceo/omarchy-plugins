@@ -240,7 +240,7 @@ Panel {
             }
             Text {
               textFormat: Text.PlainText
-              text: String(modelData.count)
+              text: modelData.count == null ? "—" : String(modelData.count)
               color: root.accent
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall

@@ -17,7 +17,7 @@
 
 local M = {}
 
-local tally_bin = os.getenv("HOME") .. "/.local/state/hotkey-tally/hotkey-tally.py"
+local tally_bin = os.getenv("HOME") .. "/.config/omarchy/plugins/io.github.duketopceo.hotkey-tally/bin/hotkey-tally.py"
 local python = "/usr/bin/python3"
 
 local function shq(s)
@@ -25,27 +25,13 @@ local function shq(s)
   return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
 end
 
-local function luaq(s)
-  return '"' .. tostring(s):gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n") .. '"'
-end
-
-local function id_for(label)
-  -- Label only, and it must stay identical to binding_id() in the Python tool:
-  -- key text differs between a bind written as "SUPER + SHIFT + T" and the
-  -- compositor's modmask form, so the label is the only stable join key.
-  local sum = 0
-  for i = 1, #tostring(label) do sum = (sum * 31 + tostring(label):byte(i)) % 4294967296 end
-  return string.format("%08x", sum)
-end
-
--- wrap an exec-style command so the tally is recorded before it runs
+-- Record asynchronously so the shortcut action does not wait for Python.
 function M.wrap(cmd, key, label)
-  local id = id_for(label)
   local record = string.format(
-    "%s %s record --id %s --key %s --label %s",
-    python, shq(tally_bin), shq(id), shq(key), shq(label)
+    "%s %s record --key %s --label %s",
+    python, shq(tally_bin), shq(key), shq(label)
   )
-  return record .. " 2>/dev/null; " .. tostring(cmd)
+  return "(" .. record .. " >/dev/null 2>&1) & " .. tostring(cmd)
 end
 
 -- like o.bind, but counted. Pass the same third argument o.bind accepts:
@@ -53,7 +39,7 @@ end
 function M.bind(key, label, target, opts)
   local cmd
   if type(target) == "table" then
-    if target.launch then
+    if target.launch and not target.focus then
       cmd = "uwsm-app -- " .. target.launch
     else
       return o.bind(key, label, target, opts) -- not an exec target: leave alone
