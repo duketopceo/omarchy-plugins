@@ -44,7 +44,7 @@ def uses_path() -> Path:
 
 def normalize_key(key: str) -> str:
     """Normalize the key names used by the binding file and the menu."""
-    parts = key.upper().replace("+", " ").split()
+    parts = ["CTRL" if part == "CONTROL" else part for part in key.upper().replace("+", " ").split()]
     modifiers = [part for part in ("SUPER", "CTRL", "ALT", "SHIFT") if part in parts]
     keys = [part for part in parts if part not in modifiers]
     return " + ".join(modifiers + keys)

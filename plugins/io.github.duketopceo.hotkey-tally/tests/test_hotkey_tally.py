@@ -157,7 +157,7 @@ def test_machine_menu_joins_keycode_before_rendering(tally, capsys, tmp_path, mo
     script += '''
 HOTKEY_TALLY_BIN="$1"
 build_lua_bind_cache() { :; }
-dynamic_bindings() { printf 'SUPER,code:12,Switch to workspace 3,exec,command\\n'; }
+dynamic_bindings() { printf 'SUPER\\037code:12\\037Switch to workspace 3\\037exec\\037command\\n'; }
 static_bindings() { :; }
 keybindings_cache_key() { printf fixed; }
 output_binding_records
@@ -207,7 +207,7 @@ LUA_BIND_ARG_MAP["64,BrowserOS,B"]=browseros
 dynamic_bindings
 '''
     result = subprocess.run(["bash", "-c", script], check=True, capture_output=True, text=True)
-    assert "SUPER,B,BrowserOS,exec,browseros" in result.stdout
+    assert "SUPER\x1fB\x1fBrowserOS\x1fexec\x1fbrowseros" in result.stdout
 
 
 def test_wrapped_action_runs_with_and_without_recorder(tmp_path, monkeypatch):

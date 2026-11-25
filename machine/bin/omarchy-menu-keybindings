@@ -116,19 +116,22 @@ parse_keycodes() {
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
     }
     {
-      if (match($0, /code:([0-9]+)/, match_parts)) {
+      separator = index($0, "\t")
+      display = separator ? substr($0, 1, separator - 1) : $0
+      metadata = separator ? substr($0, separator) : ""
+      if (match(display, /code:([0-9]+)/, match_parts)) {
         code = match_parts[1]
         symbol = keycode_symbol[code]
         if (symbol == "") symbol = "code:" code
-        sub("code:" code, symbol)
-      } else if (match($0, /mouse:([0-9]+)/, match_parts)) {
+        sub("code:" code, symbol, display)
+      } else if (match(display, /mouse:([0-9]+)/, match_parts)) {
         code = match_parts[1]
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
-        sub("mouse:" code, symbol)
+        sub("mouse:" code, symbol, display)
       }
 
-      print
+      print display metadata
     }
   '
 }
@@ -340,7 +343,7 @@ modmask_to_text() {
 # - Fill missing Lua code:... keys and __lua dispatch metadata from the Lua source cache
 # - Remove standard Omarchy bin path prefix
 # - Map numeric modifier key mask to a textual rendition
-# - Output comma-separated values that the parser can understand
+# - Output unit-separated fields so labels and commands can contain commas
 dynamic_bindings() {
   local modmask key keycode description dispatcher arg modifiers cache_key
 
@@ -392,25 +395,25 @@ dynamic_bindings() {
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+      printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
     done
 }
 
 # Hardcoded bindings, like the copy-url extension and such
 static_bindings() {
-  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,SHIFT ALT,L,"
-  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
+  printf 'SHIFT ALT\x1fL\x1fCopy URL from Web App\x1fsendshortcut\x1fSHIFT ALT,L,\n'
+  printf 'SHIFT ALT\x1fD\x1fDownload Video from Web App\x1fsendshortcut\x1fSHIFT ALT,D,\n'
 }
 
 # Parse and format keybindings
 #
 # `awk` does the heavy lifting:
-# - Set the field separator to a comma ','.
+# - Set the field separator to the unit separator.
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, '
+  awk -F $'\x1f' '
 {
     # Combine the modifier and key (first two fields)
     key_combo = $1 " + " $2;
@@ -423,17 +426,10 @@ parse_binding_records() {
     action = $3;
     dispatcher = $4;
 
-    # Reconstruct the dispatcher arg from the remaining fields
-    arg = "";
-    for (i = 5; i <= NF; i++) {
-        arg = arg $i (i < NF ? "," : "");
-    }
+    arg = $5;
 
     if (action == "") {
-        # Reconstruct the command from the remaining fields
-        for (i = 4; i <= NF; i++) {
-            action = action $i (i < NF ? "," : "");
-        }
+        action = dispatcher (arg != "" ? "," arg : "");
 
         # Clean up trailing commas, remove leading "exec, ", and trim
         sub(/,$/, "", action);
@@ -535,7 +531,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
